@@ -1,4 +1,4 @@
-"""Configuración persistente de MyFlac."""
+"""Configuración persistente de MyFlac (dispositivos, idioma, temas y UI)."""
 from __future__ import annotations
 
 import json
@@ -9,12 +9,36 @@ import gi
 gi.require_version("GLib", "2.0")
 from gi.repository import GLib
 
+SUPPORTED_LANGUAGES = ["es", "en", "ca"]
+DEFAULT_LANGUAGE_FALLBACK = "es"
+
+
+def _detect_system_language() -> str:
+    """Detecta el idioma del sistema entre los soportados (es, en, ca)."""
+    for var in ("LANGUAGE", "LC_ALL", "LC_MESSAGES", "LANG"):
+        value = os.environ.get(var)
+        if not value:
+            continue
+        for part in value.split(":"):
+            code = part.split(".")[0].split("_")[0].lower()
+            if code in SUPPORTED_LANGUAGES:
+                return code
+    try:
+        import locale
+        loc = locale.getlocale()[0]
+        if loc:
+            code = loc.split("_")[0].lower()
+            if code in SUPPORTED_LANGUAGES:
+                return code
+    except Exception:
+        pass
+    return DEFAULT_LANGUAGE_FALLBACK
+
+
 DEFAULTS = {
-    "audio_device_id": "auto",  # 'auto', 'hw:X,Y', 'pipewire'
-    "bitperfect_mode": True,    # Exclusivo ALSA sin resampling
-    "volume_bypass": True,      # Salida al 100% (0 dB) bit-exact
+    "language": "",             # Vacío para autodetectar
+    "audio_device_id": "default",  # 'default' o nombre del sink de PipeWire/Pulse
     "software_volume": 1.0,
-    "buffer_time_ms": 200,      # Buffer ALSA seguro
     "ui_scale": 100,
     "theme": "system",          # "system", "light", "dark"
     "window_width": 1280,
@@ -40,8 +64,14 @@ def load_config() -> dict:
     except (FileNotFoundError, json.JSONDecodeError):
         data = {}
 
+    is_first_run = "language" not in data or not data["language"]
     merged = dict(DEFAULTS)
     merged.update(data)
+
+    if is_first_run or merged["language"] not in SUPPORTED_LANGUAGES:
+        merged["language"] = _detect_system_language()
+        save_config(merged)
+
     return merged
 
 

@@ -78,13 +78,14 @@ class MyFlacApplication(Adw.Application):
     def _on_preferences_changed(self, cfg: dict):
         if self.window:
             log.info(
-                "Preferencias modificadas: bitperfect=%s, volume_bypass=%s, theme=%s",
-                cfg.get("bitperfect_mode"),
-                cfg.get("volume_bypass"),
+                "Preferencias modificadas: audio_device_id=%s, language=%s, theme=%s",
+                cfg.get("audio_device_id"),
+                cfg.get("language"),
                 cfg.get("theme")
             )
-            self.window.engine.set_bitperfect_mode(cfg.get("bitperfect_mode", True))
-            self.window.engine.set_volume_bypass(cfg.get("volume_bypass", True))
+            target_device = cfg.get("audio_device_id", "default")
+            self.window.engine.set_device(target_device)
+            self.window._update_output_status()
 
     def _open_log_file(self):
         log_path = get_log_path()

@@ -1,236 +1,159 @@
-"""Detección y gestión de dispositivos de audio ALSA y PipeWire para MyFlac."""
+"""Gestión y detección de dispositivos de salida de audio a través del mezclador del sistema."""
 from __future__ import annotations
 
-import glob
-import os
 import re
-from dataclasses import dataclass, field
-import ctypes
+from dataclasses import dataclass
+
+import gi
+
+gi.require_version("Gst", "1.0")
+from gi.repository import Gst
 
 from ..logger import get_logger
+from .. import i18n
 
 log = get_logger("audio.devices")
+
+if not Gst.is_initialized():
+    Gst.init(None)
 
 
 @dataclass
 class AudioDevice:
-    id: str  # 'hw:2,0', 'hw:CARD=Audio,DEV=0', o 'pipewire'
-    name: str  # Nombre amigable ej. 'iFi (by AMR) HD USB Audio'
-    card_index: int | None = None
-    device_index: int | None = None
-    subname: str = ""
-    is_exclusive: bool = True
-    is_usb_dac: bool = False
-    supported_rates: list[int] = field(default_factory=list)
-    supported_formats: list[str] = field(default_factory=list)
-
-    @property
-    def max_rate_khz(self) -> str:
-        if self.supported_rates:
-            max_r = max(self.supported_rates)
-            return f"{max_r / 1000:g} kHz"
-        return "Desconocido"
-
-    @property
-    def display_rates(self) -> str:
-        if not self.supported_rates:
-            return ""
-        rates_khz = [f"{r/1000:g}" for r in sorted(self.supported_rates)]
-        return f"{', '.join(rates_khz)} kHz"
+    id: str  # 'default' o node.name de PipeWire / PulseAudio (ej: 'alsa_output.usb-iFi...')
+    name: str  # Nombre legible para el usuario
+    description: str = ""
+    is_usb: bool = False
+    is_default: bool = False
+    icon_name: str = "audio-speakers-symbolic"
 
 
-def _read_alsa_cards() -> dict[int, dict[str, str]]:
-    """Lee `/proc/asound/cards` para obtener nombres reales y descripción de tarjetas."""
-    cards: dict[int, dict[str, str]] = {}
-    cards_path = "/proc/asound/cards"
-    if not os.path.exists(cards_path):
-        log.warning("No se encontró el archivo de tarjetas ALSA en %s", cards_path)
-        return cards
-
-    try:
-        with open(cards_path, "r", encoding="utf-8", errors="replace") as f:
-            content = f.read()
-
-        lines = content.splitlines()
-        i = 0
-        while i < len(lines):
-            line = lines[i]
-            m = re.match(r"^\s*(\d+)\s+\[([^\]]+)\]:\s*(.+)$", line)
-            if m:
-                card_idx = int(m.group(1))
-                short_id = m.group(2).strip()
-                rest = m.group(3).strip()
-                if " - " in rest:
-                    driver, name = rest.split(" - ", 1)
-                else:
-                    driver, name = rest, rest
-                desc = ""
-                if i + 1 < len(lines) and lines[i + 1].startswith(" "):
-                    desc = lines[i + 1].strip()
-                cards[card_idx] = {
-                    "short": short_id,
-                    "driver": driver.strip(),
-                    "name": name.strip(),
-                    "desc": desc,
-                }
-            i += 1
-        log.debug("Tarjetas ALSA leídas de /proc/asound/cards: %d tarjetas encontradas", len(cards))
-    except Exception as e:
-        log.exception("Error al leer /proc/asound/cards: %s", e)
-
-    return cards
+def _clean_device_name(raw_name: str) -> str:
+    """Limpia nombres técnicos para mostrarlos de forma elegante en la interfaz."""
+    name = raw_name.strip()
+    # Eliminar sufijos redundantes de perfil como "Estéreo analógico", "Estéreo digital (HDMI)", etc.
+    name = re.sub(r"\s+Est[eé]reo\s+(anal[oó]gico|digital.*)$", "", name, flags=re.IGNORECASE)
+    # Acortar prefijos técnicos largos
+    name = re.sub(r"^Radeon High Definition Audio Controller", "HDMI", name)
+    name = re.sub(r"^Ryzen HD Audio Controller", "Audio Integrado", name)
+    return name.strip() or raw_name
 
 
-def _read_usb_stream_caps(card_idx: int, dev_idx: int = 0) -> tuple[list[int], list[str]]:
-    """Extrae las frecuencias y formatos soportados desde `/proc/asound/cardX/streamY`."""
-    stream_candidates = [
-        f"/proc/asound/card{card_idx}/stream{dev_idx}",
-        f"/proc/asound/card{card_idx}/stream0",
-    ]
-    rates_set: set[int] = set()
-    formats_set: set[str] = set()
+import time
 
-    for stream_path in stream_candidates:
-        if not os.path.exists(stream_path):
-            continue
-        try:
-            with open(stream_path, "r", encoding="utf-8", errors="replace") as f:
-                content = f.read()
-            for r_match in re.finditer(r"Rates:\s*([0-9, ]+)", content):
-                for r_str in r_match.group(1).split(","):
-                    r_str = r_str.strip()
-                    if r_str.isdigit():
-                        rates_set.add(int(r_str))
-            for f_match in re.finditer(r"Format:\s*([A-Za-z0-9_]+)", content):
-                formats_set.add(f_match.group(1).strip())
-        except Exception as e:
-            log.debug("No se pudo leer stream de tarjeta %s (%s): %s", card_idx, stream_path, e)
-
-    return sorted(rates_set), sorted(formats_set)
+_cached_devices: list[AudioDevice] = []
+_last_scan_time: float = 0.0
+_CACHE_TTL = 3.0  # segundos
 
 
-def get_available_devices() -> list[AudioDevice]:
-    """Obtiene la lista completa de dispositivos de salida de audio."""
+def get_available_devices(force_refresh: bool = False) -> list[AudioDevice]:
+    """Obtiene la lista de dispositivos de salida a través del mezclador del sistema (PipeWire/Pulse)."""
+    global _cached_devices, _last_scan_time
+    now = time.time()
+    if not force_refresh and _cached_devices and (now - _last_scan_time < _CACHE_TTL):
+        # Actualizar textos del dispositivo por defecto según el idioma actual
+        _cached_devices[0].name = i18n.t("devices.default_name")
+        _cached_devices[0].description = i18n.t("devices.default_desc")
+        return list(_cached_devices)
+
     devices: list[AudioDevice] = []
 
-    # 1. Opción de audio compartida de sistema (PipeWire / Auto)
+    # 1. Opción predeterminada del sistema
     devices.append(
         AudioDevice(
-            id="pipewire",
-            name="PipeWire / Sistema (Compartido)",
-            card_index=None,
-            device_index=None,
-            subname="Salida compartida predeterminada del escritorio",
-            is_exclusive=False,
-            is_usb_dac=False,
-            supported_rates=[],
-            supported_formats=[],
+            id="default",
+            name=i18n.t("devices.default_name"),
+            description=i18n.t("devices.default_desc"),
+            is_usb=False,
+            is_default=True,
+            icon_name="audio-volume-high-symbolic",
         )
     )
 
-    cards = _read_alsa_cards()
+    try:
+        monitor = Gst.DeviceMonitor.new()
+        monitor.add_filter("Audio/Sink", None)
+        monitor.start()
+        gst_devices = monitor.get_devices()
 
-    # 2. Leer dispositivos PCM de reproducción en `/proc/asound/pcm`
-    pcm_path = "/proc/asound/pcm"
-    if os.path.exists(pcm_path):
-        try:
-            with open(pcm_path, "r", encoding="utf-8", errors="replace") as f:
-                for line in f:
-                    parts = [p.strip() for p in line.split(":")]
-                    if len(parts) >= 4 and "playback" in parts[3]:
-                        card_dev = parts[0]
-                        c_idx, d_idx = [int(x) for x in card_dev.split("-")]
-                        card_info = cards.get(c_idx, {})
-                        card_name = card_info.get("name") or card_info.get("short") or f"Card {c_idx}"
-                        sub_name = parts[1]
+        for d in gst_devices:
+            raw_display = d.get_display_name() or ""
+            display_name = _clean_device_name(raw_display)
+            props = d.get_properties()
 
-                        if "webcam" in card_name.lower() or "cam" in card_info.get("short", "").lower():
-                            continue
+            node_name = ""
+            device_bus = ""
+            is_sys_default = False
 
-                        is_usb = "usb" in card_info.get("driver", "").lower() or "usb" in card_name.lower()
-                        rates, formats = _read_usb_stream_caps(c_idx, d_idx)
+            if props:
+                for i in range(props.n_fields()):
+                    field_name = props.nth_field_name(i)
+                    if field_name == "node.name":
+                        node_name = str(props.get_value(field_name))
+                    elif field_name == "device.bus":
+                        device_bus = str(props.get_value(field_name))
+                    elif field_name == "is-default":
+                        is_sys_default = bool(props.get_value(field_name))
 
-                        if not rates:
-                            rates = [44100, 48000, 96000, 192000]
+            if not node_name:
+                continue
 
-                        short_id = card_info.get("short")
-                        hw_id = f"hw:CARD={short_id},DEV={d_idx}" if short_id else f"hw:{c_idx},{d_idx}"
+            # Determinar tipo de icono y si es USB
+            is_usb = (device_bus == "usb") or ("usb" in node_name.lower()) or ("usb" in display_name.lower())
+            if is_usb:
+                icon = "audio-card-symbolic"
+            elif "hdmi" in node_name.lower() or "hdmi" in display_name.lower():
+                icon = "video-display-symbolic"
+            elif "raop" in node_name.lower() or "network" in node_name.lower():
+                icon = "network-wireless-symbolic"
+            else:
+                icon = "audio-speakers-symbolic"
 
-                        dev = AudioDevice(
-                            id=hw_id,
-                            name=card_name,
-                            card_index=c_idx,
-                            device_index=d_idx,
-                            subname=sub_name,
-                            is_exclusive=True,
-                            is_usb_dac=is_usb,
-                            supported_rates=rates,
-                            supported_formats=formats,
-                        )
-                        devices.append(dev)
-                        log.debug(
-                            "Dispositivo ALSA detectado: %s (%s) [USB: %s, max_rate: %s, formatos: %s]",
-                            dev.name,
-                            dev.id,
-                            dev.is_usb_dac,
-                            dev.max_rate_khz,
-                            dev.supported_formats,
-                        )
-        except Exception as e:
-            log.exception("Error al parsear /proc/asound/pcm: %s", e)
+            devices.append(
+                AudioDevice(
+                    id=node_name,
+                    name=display_name,
+                    description=raw_display,
+                    is_usb=is_usb,
+                    is_default=is_sys_default,
+                    icon_name=icon,
+                )
+            )
 
-    def sort_key(d: AudioDevice) -> tuple[int, int]:
-        if d.is_usb_dac:
-            return (0, -(max(d.supported_rates) if d.supported_rates else 0))
-        if d.is_exclusive:
-            return (1, 0)
-        return (2, 0)
+        monitor.stop()
+    except Exception as e:
+        log.exception("Error al enumerar dispositivos de audio con Gst.DeviceMonitor: %s", e)
+
+    # Ordenar: Predeterminado primero, luego USB/DACs externos, luego HDMI y altavoces de red
+    def sort_key(dev: AudioDevice) -> tuple[int, str]:
+        if dev.id == "default":
+            return (0, "")
+        if dev.is_usb:
+            return (1, dev.name)
+        return (2, dev.name)
 
     devices.sort(key=sort_key)
-    log.info("Total de dispositivos de salida disponibles: %d", len(devices))
+    _cached_devices = list(devices)
+    _last_scan_time = time.time()
+    log.info("Dispositivos de salida del mezclador disponibles: %d", len(devices))
     return devices
 
 
 def find_device_by_id(device_id: str) -> AudioDevice | None:
-    """Busca un dispositivo por su identificador (ej. 'hw:CARD=Audio,DEV=0' o 'hw:2,0')."""
-    devices = get_available_devices()
-    for dev in devices:
-        if dev.id == device_id:
+    """Busca un dispositivo por su ID (node.name o 'default')."""
+    if not device_id or device_id in ("default", "auto", "pipewire"):
+        return get_available_devices()[0]
+    for dev in get_available_devices():
+        if dev.id == device_id or (device_id and device_id in dev.id):
             return dev
-    if device_id.startswith("hw:"):
-        for dev in devices:
-            if dev.card_index is not None and f"hw:{dev.card_index}" in device_id:
-                return dev
-    log.warning("No se encontró dispositivo para el ID '%s'", device_id)
     return None
 
 
 def get_default_device(preferred_id: str | None = None) -> AudioDevice:
-    """Retorna el dispositivo preferido o el mejor DAC Hi-Res disponible."""
-    devices = get_available_devices()
-    if not devices:
-        log.warning("No se detectó ningún dispositivo, usando fallback PipeWire")
-        return AudioDevice(
-            id="pipewire",
-            name="Audio predeterminado",
-            is_exclusive=False,
-        )
-
-    if preferred_id and preferred_id != "auto":
+    """Retorna el dispositivo configurado o la salida por defecto del sistema."""
+    if preferred_id:
         found = find_device_by_id(preferred_id)
         if found:
-            log.info("Dispositivo preferido encontrado: %s (%s)", found.name, found.id)
             return found
-
-    for dev in devices:
-        if dev.is_usb_dac:
-            log.info("Seleccionado DAC USB de alta resolución por defecto: %s (%s)", dev.name, dev.id)
-            return dev
-
-    for dev in devices:
-        if dev.is_exclusive:
-            log.info("Seleccionado dispositivo exclusivo por defecto: %s (%s)", dev.name, dev.id)
-            return dev
-
-    log.info("Seleccionado primer dispositivo de la lista: %s (%s)", devices[0].name, devices[0].id)
+    devices = get_available_devices()
     return devices[0]

@@ -14,6 +14,7 @@ from gi.repository import Adw, Gdk, Gio, GLib, Gtk, Pango
 from ..audio.track import AudioTrack, load_track
 from ..constants import SUPPORTED_EXTENSIONS
 from .track_item import FlacTrackItem
+from .. import i18n
 
 
 class TrackListView(Gtk.Box):
@@ -35,6 +36,7 @@ class TrackListView(Gtk.Box):
 
         self._build_ui()
         self._setup_dnd()
+        i18n.add_language_listener(lambda *_: self.refresh_i18n())
 
     def _build_ui(self):
         # Contenedor con scroll
@@ -61,7 +63,7 @@ class TrackListView(Gtk.Box):
         self.footer_box.set_margin_start(12)
         self.footer_box.set_margin_end(12)
 
-        self.footer_info_label = Gtk.Label(label="0 pistas", xalign=0.0)
+        self.footer_info_label = Gtk.Label(label=i18n.t("footer.no_tracks"), xalign=0.0)
         self.footer_info_label.add_css_class("dim-label")
         self.footer_info_label.set_hexpand(True)
 
@@ -74,71 +76,71 @@ class TrackListView(Gtk.Box):
 
     def _setup_columns(self):
         # 1. Columna de estado (reproduciendo)
-        col_status = Gtk.ColumnViewColumn(title="")
-        col_status.set_fixed_width(32)
+        self.col_status = Gtk.ColumnViewColumn(title="")
+        self.col_status.set_fixed_width(32)
         status_factory = Gtk.SignalListItemFactory()
         status_factory.connect("setup", self._col_status_setup)
         status_factory.connect("bind", self._col_status_bind)
-        col_status.set_factory(status_factory)
-        self.column_view.append_column(col_status)
+        self.col_status.set_factory(status_factory)
+        self.column_view.append_column(self.col_status)
 
         # 2. Columna # (número de pista)
-        col_num = Gtk.ColumnViewColumn(title="#")
-        col_num.set_fixed_width(44)
-        col_num.set_resizable(False)
+        self.col_num = Gtk.ColumnViewColumn(title=i18n.t("col.num"))
+        self.col_num.set_fixed_width(44)
+        self.col_num.set_resizable(False)
         num_factory = Gtk.SignalListItemFactory()
         num_factory.connect("setup", lambda _, item: item.set_child(Gtk.Label(xalign=0.5)))
         num_factory.connect("bind", self._col_num_bind)
-        col_num.set_factory(num_factory)
-        self.column_view.append_column(col_num)
+        self.col_num.set_factory(num_factory)
+        self.column_view.append_column(self.col_num)
 
-        # 3. Columna Título
-        col_title = Gtk.ColumnViewColumn(title="Título")
-        col_title.set_expand(True)
-        col_title.set_resizable(True)
+        # 3. Columna Título (expandible)
+        self.col_title = Gtk.ColumnViewColumn(title=i18n.t("col.title"))
+        self.col_title.set_expand(True)
+        self.col_title.set_resizable(True)
         title_factory = Gtk.SignalListItemFactory()
         title_factory.connect("setup", lambda _, item: item.set_child(Gtk.Label(xalign=0.0, ellipsize=Pango.EllipsizeMode.END)))
         title_factory.connect("bind", self._col_title_bind)
-        col_title.set_factory(title_factory)
-        self.column_view.append_column(col_title)
+        self.col_title.set_factory(title_factory)
+        self.column_view.append_column(self.col_title)
 
-        # 4. Columna Artista
-        col_artist = Gtk.ColumnViewColumn(title="Artista")
-        col_artist.set_fixed_width(180)
-        col_artist.set_resizable(True)
+        # 4. Columna Artista (expandible)
+        self.col_artist = Gtk.ColumnViewColumn(title=i18n.t("col.artist"))
+        self.col_artist.set_expand(True)
+        self.col_artist.set_resizable(True)
         artist_factory = Gtk.SignalListItemFactory()
         artist_factory.connect("setup", lambda _, item: item.set_child(Gtk.Label(xalign=0.0, ellipsize=Pango.EllipsizeMode.END)))
         artist_factory.connect("bind", lambda _, item: item.get_child().set_text(item.get_item().artist))
-        col_artist.set_factory(artist_factory)
-        self.column_view.append_column(col_artist)
+        self.col_artist.set_factory(artist_factory)
+        self.column_view.append_column(self.col_artist)
 
-        # 5. Columna Álbum
-        col_album = Gtk.ColumnViewColumn(title="Álbum")
-        col_album.set_fixed_width(200)
-        col_album.set_resizable(True)
+        # 5. Columna Álbum (expandible)
+        self.col_album = Gtk.ColumnViewColumn(title=i18n.t("col.album"))
+        self.col_album.set_expand(True)
+        self.col_album.set_resizable(True)
         album_factory = Gtk.SignalListItemFactory()
         album_factory.connect("setup", lambda _, item: item.set_child(Gtk.Label(xalign=0.0, ellipsize=Pango.EllipsizeMode.END)))
         album_factory.connect("bind", lambda _, item: item.get_child().set_text(item.get_item().album))
-        col_album.set_factory(album_factory)
-        self.column_view.append_column(col_album)
+        self.col_album.set_factory(album_factory)
+        self.column_view.append_column(self.col_album)
 
         # 6. Columna Duración
-        col_dur = Gtk.ColumnViewColumn(title="Duración")
-        col_dur.set_fixed_width(70)
+        self.col_dur = Gtk.ColumnViewColumn(title=i18n.t("col.duration"))
+        self.col_dur.set_fixed_width(70)
         dur_factory = Gtk.SignalListItemFactory()
         dur_factory.connect("setup", lambda _, item: item.set_child(Gtk.Label(xalign=1.0)))
         dur_factory.connect("bind", lambda _, item: item.get_child().set_text(item.get_item().duration_str))
-        col_dur.set_factory(dur_factory)
-        self.column_view.append_column(col_dur)
+        self.col_dur.set_factory(dur_factory)
+        self.column_view.append_column(self.col_dur)
 
         # 7. Columna Calidad Hi-Res
-        col_quality = Gtk.ColumnViewColumn(title="Calidad")
-        col_quality.set_fixed_width(90)
+        self.col_quality = Gtk.ColumnViewColumn(title=i18n.t("col.quality"))
+        self.col_quality.set_fixed_width(90)
         quality_factory = Gtk.SignalListItemFactory()
         quality_factory.connect("setup", self._col_quality_setup)
         quality_factory.connect("bind", self._col_quality_bind)
-        col_quality.set_factory(quality_factory)
-        self.column_view.append_column(col_quality)
+        self.col_quality.set_factory(quality_factory)
+        self.column_view.append_column(self.col_quality)
 
     def _col_status_setup(self, _factory, list_item: Gtk.ListItem):
         img = Gtk.Image()
@@ -210,7 +212,6 @@ class TrackListView(Gtk.Box):
         self.filter.changed(Gtk.FilterChange.DIFFERENT)
 
     def add_tracks(self, tracks: list[AudioTrack], clear: bool = False):
-        """Añade pistas al listado."""
         if clear:
             self.list_store.remove_all()
             self.current_playing_index = None
@@ -222,7 +223,6 @@ class TrackListView(Gtk.Box):
         self._update_footer()
 
     def set_current_playing_track(self, track: AudioTrack | None):
-        """Actualiza el indicador visual de pista en reproducción."""
         target_idx = None
         for i in range(self.list_store.get_n_items()):
             item = self.list_store.get_item(i)
@@ -270,7 +270,7 @@ class TrackListView(Gtk.Box):
     def _update_footer(self):
         n = self.list_store.get_n_items()
         if n == 0:
-            self.footer_info_label.set_text("0 pistas")
+            self.footer_info_label.set_text(i18n.t("footer.no_tracks"))
             self.footer_hires_summary.set_text("")
             return
 
@@ -279,18 +279,27 @@ class TrackListView(Gtk.Box):
         mins = int((total_sec % 3600) // 60)
         dur_str = f"{hrs} h {mins} min" if hrs > 0 else f"{mins} min"
 
-        # Contar pistas Hi-Res
         hires_count = sum(1 for i in range(n) if self.list_store.get_item(i).is_hires)
-        self.footer_info_label.set_text(f"{n} pistas · {dur_str}")
+        self.footer_info_label.set_text(i18n.t("footer.tracks_summary", count=n, duration=dur_str))
 
         if hires_count == n:
             sample_rates = {self.list_store.get_item(i).track.sample_rate for i in range(n)}
             rates_str = ", ".join(f"{r/1000:g} kHz" for r in sorted(sample_rates))
-            self.footer_hires_summary.set_text(f"⭐ Álbum Hi-Res ({rates_str})")
+            self.footer_hires_summary.set_text(i18n.t("footer.hires_album", rates=rates_str))
         elif hires_count > 0:
-            self.footer_hires_summary.set_text(f"⭐ {hires_count} de {n} pistas en Hi-Res")
+            self.footer_hires_summary.set_text(i18n.t("footer.hires_partial", hires=hires_count, total=n))
         else:
-            self.footer_hires_summary.set_text("Calidad Estándar CD")
+            self.footer_hires_summary.set_text(i18n.t("footer.standard_quality"))
+
+    def refresh_i18n(self):
+        """Actualiza títulos de columnas y texto de pie de lista."""
+        self.col_num.set_title(i18n.t("col.num"))
+        self.col_title.set_title(i18n.t("col.title"))
+        self.col_artist.set_title(i18n.t("col.artist"))
+        self.col_album.set_title(i18n.t("col.album"))
+        self.col_dur.set_title(i18n.t("col.duration"))
+        self.col_quality.set_title(i18n.t("col.quality"))
+        self._update_footer()
 
     def _setup_dnd(self):
         actions = Gdk.DragAction.COPY | Gdk.DragAction.MOVE
@@ -316,7 +325,6 @@ class TrackListView(Gtk.Box):
                     loaded.append(t)
 
         if loaded:
-            # Ordenar por disco y número de pista
             loaded.sort(key=lambda x: ((x.disc_number or 1) * 100000 + (x.track_number or 99999), x.filename))
             self.add_tracks(loaded, clear=False)
             return True

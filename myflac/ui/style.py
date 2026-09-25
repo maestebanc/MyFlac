@@ -44,48 +44,6 @@ EXTRA_CSS = """
     border: 1px solid alpha(#a78bfa, 0.35);
 }
 
-/* Indicador interactivo Bit-Perfect de transporte */
-button.bitperfect-pill-btn {
-    border-radius: 9999px;
-    padding: 3px 12px;
-    font-size: 0.82em;
-    font-weight: 700;
-    transition: all 150ms ease-in-out;
-}
-
-button.bitperfect-pill-active {
-    background-color: alpha(#10b981, 0.18);
-    color: #10b981;
-    border: 1px solid alpha(#10b981, 0.45);
-}
-
-button.bitperfect-pill-active:hover {
-    background-color: alpha(#10b981, 0.32);
-    border-color: #10b981;
-}
-
-button.bitperfect-pill-shared {
-    background-color: alpha(@accent_bg_color, 0.15);
-    color: @accent_color;
-    border: 1px solid alpha(@accent_bg_color, 0.3);
-}
-
-button.bitperfect-pill-shared:hover {
-    background-color: alpha(@accent_bg_color, 0.28);
-    border-color: @accent_color;
-}
-
-button.bitperfect-pill-warn {
-    background-color: alpha(#f59e0b, 0.18);
-    color: #f59e0b;
-    border: 1px solid alpha(#f59e0b, 0.35);
-}
-
-button.bitperfect-pill-warn:hover {
-    background-color: alpha(#f59e0b, 0.32);
-    border-color: #f59e0b;
-}
-
 /* Ficha técnica audiófila en el inspector */
 .audiophile-card {
     border-radius: 10px;
@@ -123,17 +81,28 @@ button.bitperfect-pill-warn:hover {
     padding: 24px;
 }
 
-/* Barra inferior del reproductor */
+/* Miniatura acotada de la barra inferior */
+.mini-cover-frame {
+    min-width: 48px;
+    min-height: 48px;
+    border-radius: 8px;
+    border: 1px solid alpha(@window_fg_color, 0.12);
+    box-shadow: 0 2px 8px alpha(black, 0.20);
+    background-color: alpha(@window_fg_color, 0.04);
+}
+
+/* Barra inferior del reproductor con altura acotada */
 .player-bar {
+    min-height: 64px;
     background-color: alpha(@window_bg_color, 0.95);
     border-top: 1px solid alpha(@window_fg_color, 0.10);
-    padding: 8px 16px;
+    padding: 6px 16px;
 }
 
 .play-pause-btn {
     border-radius: 9999px;
-    min-width: 44px;
-    min-height: 44px;
+    min-width: 42px;
+    min-height: 42px;
     padding: 0;
 }
 
@@ -150,7 +119,7 @@ button.bitperfect-pill-warn:hover {
 }
 
 .track-table columnviewcell {
-    padding: 4px 6px;
+    padding: 4px 8px;
 }
 
 .track-number-cell {
@@ -163,10 +132,11 @@ button.bitperfect-pill-warn:hover {
     color: @accent_color;
 }
 
-/* Dispositivo rápido en HeaderBar */
+/* Botón selector de dispositivo en la barra */
 .device-select-btn {
-    font-size: 0.85em;
+    font-size: 0.86em;
     padding: 4px 10px;
+    border-radius: 8px;
 }
 """
 

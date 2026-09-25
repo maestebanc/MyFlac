@@ -15,11 +15,11 @@ from ..audio.track import AudioTrack, load_track
 from ..config import save_config
 from ..constants import APP_ID, APP_NAME, SUPPORTED_EXTENSIONS
 from ..logger import get_logger
+from .. import i18n
 from .about_dialog import build_about_dialog
 from .device_popover import DeviceSelectionDialog
 from .inspector_panel import InspectorPanel
 from .player_bar import PlayerBar
-from .preferences_dialog import PreferencesDialog
 from .track_list import TrackListView
 
 log = get_logger("ui.main_window")
@@ -29,19 +29,17 @@ class MainWindow(Adw.ApplicationWindow):
     def __init__(self, app: Adw.Application, cfg: dict):
         super().__init__(application=app)
         self.set_title(APP_NAME)
-        w = max(1280, cfg.get("window_width", 1280))
-        h = max(880, cfg.get("window_height", 880))
+        w = max(1200, cfg.get("window_width", 1280))
+        h = max(800, cfg.get("window_height", 850))
         self.set_default_size(w, h)
         if cfg.get("window_maximized", False):
             self.maximize()
 
         self.cfg = cfg
 
-        # 1. Inicializar motor de audio
-        dev_id = cfg.get("audio_device_id", "auto")
-        bp_mode = cfg.get("bitperfect_mode", True)
-        vol_bp = cfg.get("volume_bypass", True)
-        self.engine = AudioEngine(device_id=dev_id, bitperfect=bp_mode, volume_bypass=vol_bp)
+        # 1. Inicializar motor de audio a través del mezclador del sistema
+        dev_id = cfg.get("audio_device_id", "default")
+        self.engine = AudioEngine(device_id=dev_id)
         self.engine.volume = cfg.get("software_volume", 1.0)
 
         # 2. Configurar vistas de UI
@@ -51,10 +49,20 @@ class MainWindow(Adw.ApplicationWindow):
         # 3. Cablear eventos de reproducción automática de listas
         self.engine.on_track_finished = self._on_track_finished
         self.engine.on_error = self._on_playback_error
-        self.engine.on_bitperfect_status = self._on_bitperfect_audit
+        self.engine.on_state_changed = self._on_engine_state_changed
+
+        # Ajuste inteligente del panel inspector al redimensionar / maximizar
+        self.connect("map", lambda *_: GLib.idle_add(self._adjust_paned_position))
+        self.connect("notify::maximized", lambda *_: GLib.idle_add(self._adjust_paned_position))
+
+        # Registrar listener para cambios dinámicos de idioma
+        i18n.add_language_listener(self._on_language_changed)
 
         # Guardar dimensiones al cerrar
         self.connect("close-request", self._on_close_request)
+
+        # Notificar estado inicial al inspector
+        self._update_output_status()
 
     def _build_ui(self):
         self.toolbar_view = Adw.ToolbarView()
@@ -66,46 +74,44 @@ class MainWindow(Adw.ApplicationWindow):
         # Botones de apertura a la izquierda
         open_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
 
-        btn_open_folder = Gtk.Button()
-        btn_open_folder.set_icon_name("folder-open-symbolic")
-        btn_open_folder.set_tooltip_text("Abrir álbum o carpeta de música (Ctrl+O)")
-        btn_open_folder.connect("clicked", lambda *_: self._choose_folder())
-        open_box.append(btn_open_folder)
+        self.btn_open_folder = Gtk.Button()
+        self.btn_open_folder.set_icon_name("folder-open-symbolic")
+        self.btn_open_folder.set_tooltip_text(i18n.t("header.open_folder"))
+        self.btn_open_folder.connect("clicked", lambda *_: self._choose_folder())
+        open_box.append(self.btn_open_folder)
 
-        btn_open_files = Gtk.Button()
-        btn_open_files.set_icon_name("document-open-symbolic")
-        btn_open_files.set_tooltip_text("Añadir pistas individuales (Ctrl+Shift+O)")
-        btn_open_files.connect("clicked", lambda *_: self._choose_files())
-        open_box.append(btn_open_files)
+        self.btn_open_files = Gtk.Button()
+        self.btn_open_files.set_icon_name("document-open-symbolic")
+        self.btn_open_files.set_tooltip_text(i18n.t("header.open_files"))
+        self.btn_open_files.connect("clicked", lambda *_: self._choose_files())
+        open_box.append(self.btn_open_files)
 
-        btn_clear = Gtk.Button()
-        btn_clear.set_icon_name("edit-clear-all-symbolic")
-        btn_clear.set_tooltip_text("Vaciar lista de reproducción")
-        btn_clear.connect("clicked", lambda *_: self._clear_playlist())
-        open_box.append(btn_clear)
+        self.btn_clear = Gtk.Button()
+        self.btn_clear.set_icon_name("edit-clear-all-symbolic")
+        self.btn_clear.set_tooltip_text(i18n.t("header.clear_playlist"))
+        self.btn_clear.connect("clicked", lambda *_: self._clear_playlist())
+        open_box.append(self.btn_clear)
 
         self.header_bar.pack_start(open_box)
 
         # Búsqueda en el centro
         self.search_entry = Gtk.SearchEntry()
-        self.search_entry.set_placeholder_text("Buscar en la lista...")
+        self.search_entry.set_placeholder_text(i18n.t("header.search_placeholder"))
         self.search_entry.set_size_request(240, -1)
         self.search_entry.connect("search-changed", lambda entry: self.track_list.set_search_query(entry.get_text()))
         self.header_bar.set_title_widget(self.search_entry)
 
-        # Menú principal y acceso rápido a dispositivos a la derecha
-        menu_btn = Gtk.MenuButton()
-        menu_btn.set_icon_name("open-menu-symbolic")
-        menu = Gio.Menu()
-        menu.append("Preferencias", "app.preferences")
-        menu.append("Dispositivos de Audio", "win.select_device")
-        menu.append("Ver Registro (Log)", "app.open_log")
-        menu.append("Acerca de MyFlac", "app.about")
-        menu_btn.set_menu_model(menu)
-        self.header_bar.pack_end(menu_btn)
+        # Menú principal a la derecha
+        self.menu_btn = Gtk.MenuButton()
+        self.menu_btn.set_icon_name("open-menu-symbolic")
+        self._rebuild_menu()
+        self.header_bar.pack_end(self.menu_btn)
 
         # Panel central dividido (Paned: Lista de pistas | Inspector audiófilo)
         self.paned = Gtk.Paned(orientation=Gtk.Orientation.HORIZONTAL)
+        # Asignar todo el crecimiento a la lista de canciones para que no se estire el inspector
+        self.paned.set_resize_start_child(True)
+        self.paned.set_resize_end_child(False)
         self.paned.set_shrink_start_child(False)
         self.paned.set_shrink_end_child(False)
 
@@ -116,9 +122,8 @@ class MainWindow(Adw.ApplicationWindow):
         # Panel Inspector de audio
         self.inspector = InspectorPanel()
         self.paned.set_end_child(self.inspector)
-        self.paned.set_position(840)
 
-        # Barra inferior del reproductor
+        # Barra inferior del reproductor (altura acotada a 64px)
         self.player_bar = PlayerBar(
             engine=self.engine,
             on_device_click=lambda: self._open_device_dialog()
@@ -127,32 +132,53 @@ class MainWindow(Adw.ApplicationWindow):
         self.player_bar.on_next_clicked = self._play_next
         self.player_bar.on_repeat_clicked = self._cycle_repeat_mode
         self.player_bar.on_shuffle_toggled = self._on_shuffle_toggled
-        self.player_bar.on_bitperfect_toggled = self._toggle_bitperfect
 
         self.toolbar_view.set_content(self.paned)
         self.toolbar_view.add_bottom_bar(self.player_bar)
         self.set_content(self.toolbar_view)
 
+    def _adjust_paned_position(self):
+        """Mantiene el panel inspector acotado a ~340px al redimensionar o maximizar."""
+        w = self.get_width()
+        if w > 650:
+            target_pos = max(400, w - 340)
+            self.paned.set_position(target_pos)
+            log.debug("Ajustada posición del Paned a %d (ancho ventana: %d)", target_pos, w)
+
+    def _rebuild_menu(self):
+        """Construye el menú de la aplicación con los textos traducidos."""
+        menu = Gio.Menu()
+        menu.append(i18n.t("menu.preferences"), "app.preferences")
+        menu.append(i18n.t("menu.devices"), "win.select_device")
+        menu.append(i18n.t("menu.view_log"), "app.open_log")
+        menu.append(i18n.t("menu.about"), "app.about")
+        self.menu_btn.set_menu_model(menu)
+
+    def _on_language_changed(self, _lang: str):
+        """Actualiza tooltips, búsqueda y menú al cambiar el idioma en caliente."""
+        self.btn_open_folder.set_tooltip_text(i18n.t("header.open_folder"))
+        self.btn_open_files.set_tooltip_text(i18n.t("header.open_files"))
+        self.btn_clear.set_tooltip_text(i18n.t("header.clear_playlist"))
+        self.search_entry.set_placeholder_text(i18n.t("header.search_placeholder"))
+        self._rebuild_menu()
+        self._update_output_status()
+
     def _setup_actions_and_shortcuts(self):
-        # Acción seleccionar dispositivo
         action_dev = Gio.SimpleAction.new("select_device", None)
         action_dev.connect("activate", lambda *_: self._open_device_dialog())
         self.add_action(action_dev)
 
-        # Controlador de teclas para atajos globales
         key_controller = Gtk.EventControllerKey()
         key_controller.connect("key-pressed", self._on_key_pressed)
         self.add_controller(key_controller)
 
     def _on_key_pressed(self, _controller, keyval, _keycode, state) -> bool:
-        # Espacio para play/pause si el foco no es un campo de texto
         if keyval == Gdk.KEY_space:
             focus = self.get_focus()
             if not isinstance(focus, (Gtk.Entry, Gtk.SearchEntry, Gtk.Editable)):
                 log.debug("Atajo teclado: Espacio -> toggle play/pause")
                 self.engine.toggle_play_pause()
                 return True
-        # Ctrl+O abrir álbum
         if keyval in (Gdk.KEY_o, Gdk.KEY_O) and (state & Gdk.ModifierType.CONTROL_MASK):
             if state & Gdk.ModifierType.SHIFT_MASK:
                 log.debug("Atajo teclado: Ctrl+Shift+O -> abrir archivos")
@@ -168,6 +194,7 @@ class MainWindow(Adw.ApplicationWindow):
         self.inspector.set_track(track)
         self.engine.load_track(track, play_now=True)
         self._prepare_gapless_next()
+        self._update_output_status()
 
     def _prepare_gapless_next(self):
         shuffle = self.cfg.get("shuffle", False)
@@ -184,7 +211,7 @@ class MainWindow(Adw.ApplicationWindow):
             self.track_list.set_current_playing_track(nxt)
             self._on_track_activated(nxt)
         else:
-            log.info("Fin de la lista de reproducción alcanzado (no hay siguiente)")
+            log.info("Fin de la lista de reproducción alcanzado")
 
     def _play_previous(self):
         prev = self.track_list.get_previous_track()
@@ -200,18 +227,18 @@ class MainWindow(Adw.ApplicationWindow):
     def _on_playback_error(self, err_msg: str):
         log.error("Aviso de error en reproducción: %s", err_msg)
 
-    def _on_bitperfect_audit(self, info: dict):
-        self.player_bar._on_bitperfect_status(info)
-        self.inspector.update_dac_status(info)
+    def _on_engine_state_changed(self, state: PlaybackState):
+        self._update_output_status()
 
-    def _toggle_bitperfect(self):
-        """Alterna el modo exclusivo bit-perfect ALSA y modo compartido con un clic."""
-        new_val = not self.engine.bitperfect
-        log.info("Usuario hizo clic en el botón Bit-Perfect -> alternando a: %s", new_val)
-        self.engine.set_bitperfect_mode(new_val)
-        self.cfg["bitperfect_mode"] = new_val
-        save_config(self.cfg)
-        self.engine._audit_bitperfect_status()
+    def _update_output_status(self):
+        dev = find_device_by_id(self.engine.device_id) or get_default_device(self.engine.device_id)
+        info = {
+            "device_name": dev.name,
+            "is_playing": self.engine.state == PlaybackState.PLAYING,
+            "is_paused": self.engine.state == PlaybackState.PAUSED,
+        }
+        self.inspector.update_dac_status(info)
+        self.player_bar.update_active_device()
 
     def _cycle_repeat_mode(self):
         curr = self.cfg.get("repeat_mode", "none")
@@ -242,10 +269,11 @@ class MainWindow(Adw.ApplicationWindow):
         self.engine.stop()
         self.track_list.add_tracks([], clear=True)
         self.inspector.set_track(None)
+        self._update_output_status()
 
     def _choose_folder(self):
         dialog = Gtk.FileDialog.new()
-        dialog.set_title("Seleccionar carpeta de música / álbum")
+        dialog.set_title(i18n.t("dialog.open_folder_title"))
         last_dir = self.cfg.get("last_directory")
         if last_dir and os.path.isdir(last_dir):
             dialog.set_initial_folder(Gio.File.new_for_path(last_dir))
@@ -266,10 +294,10 @@ class MainWindow(Adw.ApplicationWindow):
 
     def _choose_files(self):
         dialog = Gtk.FileDialog.new()
-        dialog.set_title("Seleccionar pistas de audio")
+        dialog.set_title(i18n.t("dialog.open_files_title"))
         filters = Gio.ListStore.new(Gtk.FileFilter)
         f_audio = Gtk.FileFilter()
-        f_audio.set_name("Archivos de audio Hi-Res y FLAC")
+        f_audio.set_name(i18n.t("dialog.filter_audio"))
         for ext in SUPPORTED_EXTENSIONS:
             f_audio.add_pattern(f"*{ext}")
             f_audio.add_pattern(f"*{ext.upper()}")
@@ -311,7 +339,6 @@ class MainWindow(Adw.ApplicationWindow):
         if loaded:
             loaded.sort(key=lambda x: ((x.disc_number or 1) * 100000 + (x.track_number or 99999), x.filename))
             self.track_list.add_tracks(loaded, clear=True)
-            # Seleccionar la primera
             first_track = loaded[0]
             self.inspector.set_track(first_track)
 
@@ -329,6 +356,7 @@ class MainWindow(Adw.ApplicationWindow):
         self.cfg["audio_device_id"] = dev.id
         save_config(self.cfg)
         self.engine.set_device(dev.id)
+        self._update_output_status()
 
     def _on_close_request(self, _window) -> bool:
         log.info("Cerrando aplicación...")
@@ -337,6 +365,7 @@ class MainWindow(Adw.ApplicationWindow):
         self.cfg["window_width"] = w
         self.cfg["window_height"] = h
         self.cfg["window_maximized"] = self.is_maximized()
+        self.cfg["software_volume"] = self.engine.volume
         save_config(self.cfg)
         log.info("Configuración final guardada. Adiós.")
         return False
