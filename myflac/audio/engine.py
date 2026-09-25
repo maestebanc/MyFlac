@@ -46,6 +46,7 @@ class AudioEngine:
         self.on_state_changed: Callable[[PlaybackState], None] | None = None
         self._state_listeners: list[Callable[[PlaybackState], None]] = []
         self.on_track_changed: Callable[[AudioTrack], None] | None = None
+        self._track_listeners: list[Callable[[AudioTrack], None]] = []
         self.on_position_updated: Callable[[float, float], None] | None = None
         self.on_track_finished: Callable[[], None] | None = None
         self.on_error: Callable[[str], None] | None = None
@@ -62,6 +63,29 @@ class AudioEngine:
         """Elimina un listener de estado previamente registrado."""
         if callback in self._state_listeners:
             self._state_listeners.remove(callback)
+
+    def add_track_listener(self, callback: Callable[[AudioTrack], None]):
+        """Registra un listener para cambios de pista en reproducción."""
+        if callback not in self._track_listeners:
+            self._track_listeners.append(callback)
+
+    def remove_track_listener(self, callback: Callable[[AudioTrack], None]):
+        """Elimina un listener de cambio de pista previamente registrado."""
+        if callback in self._track_listeners:
+            self._track_listeners.remove(callback)
+
+    def _notify_track_changed(self, track: AudioTrack):
+        """Notifica cambio de pista a todos los listeners registrados."""
+        if self.on_track_changed:
+            try:
+                self.on_track_changed(track)
+            except Exception as e:
+                log.exception("Error en callback on_track_changed: %s", e)
+        for listener in list(self._track_listeners):
+            try:
+                listener(track)
+            except Exception as e:
+                log.exception("Error en listener de cambio de pista: %s", e)
 
     def _notify_state_changed(self):
         """Notifica a todos los listeners registrados y al callback legado."""
@@ -171,8 +195,7 @@ class AudioEngine:
             self.state = PlaybackState.PAUSED
             self._notify_state_changed()
 
-        if self.on_track_changed:
-            self.on_track_changed(track)
+        self._notify_track_changed(track)
 
     def queue_next_track(self, track: AudioTrack | None):
         self.next_track = track
@@ -184,8 +207,7 @@ class AudioEngine:
             self._playbin.set_property("uri", next_uri)
             self.current_track = self.next_track
             self.next_track = None
-            if self.on_track_changed:
-                self.on_track_changed(self.current_track)
+            self._notify_track_changed(self.current_track)
 
     def play(self):
         if not self._playbin or not self.current_track:

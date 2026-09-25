@@ -14,6 +14,7 @@ from gi.repository import Adw, Gdk, Gio, GLib, Gtk, Pango
 from ..audio.track import AudioTrack, load_track
 from ..constants import SUPPORTED_EXTENSIONS
 from .track_item import FlacTrackItem
+from .wave_indicator import PlayingWaveIndicator
 from .. import i18n
 
 
@@ -75,12 +76,13 @@ class TrackListView(Gtk.Box):
         self.append(self.footer_box)
 
     def _setup_columns(self):
-        # 1. Columna de estado (reproduciendo)
+        # 1. Columna de estado (reproduciendo / onda animada)
         self.col_status = Gtk.ColumnViewColumn(title="")
         self.col_status.set_fixed_width(32)
         status_factory = Gtk.SignalListItemFactory()
         status_factory.connect("setup", self._col_status_setup)
         status_factory.connect("bind", self._col_status_bind)
+        status_factory.connect("unbind", self._col_status_unbind)
         self.col_status.set_factory(status_factory)
         self.column_view.append_column(self.col_status)
 
@@ -89,8 +91,9 @@ class TrackListView(Gtk.Box):
         self.col_num.set_fixed_width(44)
         self.col_num.set_resizable(False)
         num_factory = Gtk.SignalListItemFactory()
-        num_factory.connect("setup", lambda _, item: item.set_child(Gtk.Label(xalign=0.5)))
+        num_factory.connect("setup", self._col_num_setup)
         num_factory.connect("bind", self._col_num_bind)
+        num_factory.connect("unbind", self._col_num_unbind)
         self.col_num.set_factory(num_factory)
         self.column_view.append_column(self.col_num)
 
@@ -99,8 +102,9 @@ class TrackListView(Gtk.Box):
         self.col_title.set_expand(True)
         self.col_title.set_resizable(True)
         title_factory = Gtk.SignalListItemFactory()
-        title_factory.connect("setup", lambda _, item: item.set_child(Gtk.Label(xalign=0.0, ellipsize=Pango.EllipsizeMode.END)))
+        title_factory.connect("setup", self._col_title_setup)
         title_factory.connect("bind", self._col_title_bind)
+        title_factory.connect("unbind", self._col_title_unbind)
         self.col_title.set_factory(title_factory)
         self.column_view.append_column(self.col_title)
 
@@ -143,33 +147,108 @@ class TrackListView(Gtk.Box):
         self.column_view.append_column(self.col_quality)
 
     def _col_status_setup(self, _factory, list_item: Gtk.ListItem):
-        img = Gtk.Image()
-        img.set_pixel_size(14)
-        list_item.set_child(img)
+        ind = PlayingWaveIndicator()
+        list_item.set_child(ind)
 
     def _col_status_bind(self, _factory, list_item: Gtk.ListItem):
-        img = list_item.get_child()
+        ind = list_item.get_child()
         item = list_item.get_item()
-        if item.is_playing:
-            img.set_from_icon_name("media-playback-start-symbolic")
-            img.add_css_class("accent")
-        else:
-            img.clear()
+        if not item or not ind:
+            return
+
+        def update_state(*_):
+            ind.set_state(item.is_playing, item.is_paused)
+
+        update_state()
+        h1 = item.connect("notify::is-playing", update_state)
+        h2 = item.connect("notify::is-paused", update_state)
+        list_item._status_handlers = (item, [h1, h2])
+
+    def _col_status_unbind(self, _factory, list_item: Gtk.ListItem):
+        ind = list_item.get_child()
+        if ind:
+            ind.set_state(False, False)
+
+        handlers_info = getattr(list_item, "_status_handlers", None)
+        if handlers_info:
+            target_item, h_ids = handlers_info
+            for hid in h_ids:
+                try:
+                    target_item.disconnect(hid)
+                except Exception:
+                    pass
+            list_item._status_handlers = None
+
+    def _col_num_setup(self, _factory, list_item: Gtk.ListItem):
+        lbl = Gtk.Label(xalign=0.5)
+        lbl.add_css_class("track-number-cell")
+        list_item.set_child(lbl)
 
     def _col_num_bind(self, _factory, list_item: Gtk.ListItem):
         lbl = list_item.get_child()
         item = list_item.get_item()
+        if not item or not lbl:
+            return
         lbl.set_text(item.track_number_str)
-        lbl.add_css_class("track-number-cell")
+
+        def update_num_style(*_):
+            if item.is_playing:
+                lbl.add_css_class("row-playing-num")
+            else:
+                lbl.remove_css_class("row-playing-num")
+
+        update_num_style()
+        h = item.connect("notify::is-playing", update_num_style)
+        list_item._num_handlers = (item, [h])
+
+    def _col_num_unbind(self, _factory, list_item: Gtk.ListItem):
+        lbl = list_item.get_child()
+        if lbl:
+            lbl.remove_css_class("row-playing-num")
+        handlers_info = getattr(list_item, "_num_handlers", None)
+        if handlers_info:
+            target_item, h_ids = handlers_info
+            for hid in h_ids:
+                try:
+                    target_item.disconnect(hid)
+                except Exception:
+                    pass
+            list_item._num_handlers = None
+
+    def _col_title_setup(self, _factory, list_item: Gtk.ListItem):
+        lbl = Gtk.Label(xalign=0.0, ellipsize=Pango.EllipsizeMode.END)
+        list_item.set_child(lbl)
 
     def _col_title_bind(self, _factory, list_item: Gtk.ListItem):
         lbl = list_item.get_child()
         item = list_item.get_item()
+        if not item or not lbl:
+            return
         lbl.set_text(item.title)
-        if item.is_playing:
-            lbl.add_css_class("row-playing")
-        else:
+
+        def update_title_style(*_):
+            if item.is_playing:
+                lbl.add_css_class("row-playing")
+            else:
+                lbl.remove_css_class("row-playing")
+
+        update_title_style()
+        h = item.connect("notify::is-playing", update_title_style)
+        list_item._title_handlers = (item, [h])
+
+    def _col_title_unbind(self, _factory, list_item: Gtk.ListItem):
+        lbl = list_item.get_child()
+        if lbl:
             lbl.remove_css_class("row-playing")
+        handlers_info = getattr(list_item, "_title_handlers", None)
+        if handlers_info:
+            target_item, h_ids = handlers_info
+            for hid in h_ids:
+                try:
+                    target_item.disconnect(hid)
+                except Exception:
+                    pass
+            list_item._title_handlers = None
 
     def _col_quality_setup(self, _factory, list_item: Gtk.ListItem):
         badge = Gtk.Label(xalign=0.5)
@@ -222,16 +301,30 @@ class TrackListView(Gtk.Box):
 
         self._update_footer()
 
-    def set_current_playing_track(self, track: AudioTrack | None):
+    def set_current_playing_track(self, track: AudioTrack | None, is_paused: bool = False):
         target_idx = None
         for i in range(self.list_store.get_n_items()):
             item = self.list_store.get_item(i)
             if track and item.track.filepath == track.filepath:
                 item.is_playing = True
+                item.is_paused = is_paused
                 target_idx = i
             else:
                 item.is_playing = False
+                item.is_paused = False
         self.current_playing_index = target_idx
+
+    def update_playback_state(self, is_playing: bool, is_paused: bool):
+        """Actualiza el estado de reproducción sin cambiar de pista activa."""
+        if self.current_playing_index is not None and 0 <= self.current_playing_index < self.list_store.get_n_items():
+            item = self.list_store.get_item(self.current_playing_index)
+            item.is_playing = is_playing
+            item.is_paused = is_paused
+        elif not is_playing:
+            for i in range(self.list_store.get_n_items()):
+                item = self.list_store.get_item(i)
+                item.is_playing = False
+                item.is_paused = False
 
     def get_track_at_index(self, index: int) -> AudioTrack | None:
         if 0 <= index < self.list_store.get_n_items():

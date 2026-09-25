@@ -127,9 +127,16 @@ EXTRA_CSS = """
     opacity: 0.6;
 }
 
+.row-playing-num {
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+    color: #f59e0b;
+    opacity: 1.0;
+}
+
 .row-playing {
-    font-weight: 600;
-    color: @accent_color;
+    font-weight: 700;
+    color: #f59e0b;
 }
 
 /* Botón selector de dispositivo en la barra */

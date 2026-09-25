@@ -51,6 +51,7 @@ class MainWindow(Adw.ApplicationWindow):
         self.engine.on_track_finished = self._on_track_finished
         self.engine.on_error = self._on_playback_error
         self.engine.add_state_listener(self._on_engine_state_changed)
+        self.engine.add_track_listener(self._on_engine_track_changed)
 
         # Ajuste inteligente del panel inspector al redimensionar / maximizar
         self.connect("map", lambda *_: GLib.idle_add(self._adjust_paned_position))
@@ -207,8 +208,17 @@ class MainWindow(Adw.ApplicationWindow):
 
     def _on_track_activated(self, track: AudioTrack):
         log.info("Pista activada por usuario: '%s' - '%s'", track.artist, track.title)
+        self.track_list.set_current_playing_track(track, is_paused=False)
         self.inspector.set_track(track)
         self.engine.load_track(track, play_now=True)
+        self._prepare_gapless_next()
+        self._update_output_status()
+
+    def _on_engine_track_changed(self, track: AudioTrack):
+        """Notificado cuando cambia la pista en reproducción (incluyendo encadenamiento gapless)."""
+        is_paused = (self.engine.state == PlaybackState.PAUSED)
+        self.track_list.set_current_playing_track(track, is_paused=is_paused)
+        self.inspector.set_track(track)
         self._prepare_gapless_next()
         self._update_output_status()
 
@@ -224,7 +234,6 @@ class MainWindow(Adw.ApplicationWindow):
         nxt = self.track_list.get_next_track(shuffle=shuffle, repeat_mode=repeat)
         if nxt:
             log.info("Avanzando a siguiente pista: '%s'", nxt.title)
-            self.track_list.set_current_playing_track(nxt)
             self._on_track_activated(nxt)
         else:
             log.info("Fin de la lista de reproducción alcanzado")
@@ -233,7 +242,6 @@ class MainWindow(Adw.ApplicationWindow):
         prev = self.track_list.get_previous_track()
         if prev:
             log.info("Retrocediendo a pista anterior: '%s'", prev.title)
-            self.track_list.set_current_playing_track(prev)
             self._on_track_activated(prev)
 
     def _on_track_finished(self):
@@ -245,6 +253,12 @@ class MainWindow(Adw.ApplicationWindow):
 
     def _on_engine_state_changed(self, state: PlaybackState):
         self._update_output_status()
+        is_playing = (state == PlaybackState.PLAYING)
+        is_paused = (state == PlaybackState.PAUSED)
+        self.track_list.update_playback_state(
+            is_playing=is_playing or is_paused,
+            is_paused=is_paused,
+        )
 
     def _update_output_status(self):
         dev = find_device_by_id(self.engine.device_id) or get_default_device(self.engine.device_id)

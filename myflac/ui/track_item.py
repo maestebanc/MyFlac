@@ -16,6 +16,7 @@ class FlacTrackItem(GObject.Object):
         super().__init__()
         self.track = track
         self._is_playing: bool = False
+        self._is_paused: bool = False
 
     @GObject.Property(type=str)
     def title(self) -> str:
@@ -62,3 +63,13 @@ class FlacTrackItem(GObject.Object):
         if self._is_playing != val:
             self._is_playing = val
             self.notify("is-playing")
+
+    @GObject.Property(type=bool, default=False)
+    def is_paused(self) -> bool:
+        return self._is_paused
+
+    @is_paused.setter
+    def is_paused(self, val: bool):
+        if self._is_paused != val:
+            self._is_paused = val
+            self.notify("is-paused")
