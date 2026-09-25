@@ -192,11 +192,45 @@ EXTRA_CSS = """
     color: #f59e0b;
 }
 
-/* Botón selector de dispositivo en la barra */
-.device-select-btn {
-    font-size: 0.86em;
-    padding: 4px 10px;
-    border-radius: 8px;
+/* Selector de dispositivo de audio enriquecido (Píldora audiófila) */
+.audiophile-device-pill {
+    border-radius: 10px;
+    background-color: alpha(@window_fg_color, 0.05);
+    border: 1px solid alpha(@window_fg_color, 0.12);
+    padding: 3px 10px 3px 6px;
+    transition: all 150ms ease;
+}
+
+.audiophile-device-pill:hover {
+    background-color: alpha(@window_fg_color, 0.09);
+    border-color: alpha(#f59e0b, 0.40);
+    box-shadow: 0 2px 8px alpha(black, 0.20);
+}
+
+.device-icon-bubble {
+    border-radius: 9999px;
+    background-color: alpha(#f59e0b, 0.14);
+    padding: 5px;
+}
+
+.device-icon-bubble image {
+    color: #f59e0b;
+}
+
+.device-name-label {
+    font-weight: 600;
+    font-size: 0.84em;
+}
+
+.device-sub-label {
+    font-size: 0.70em;
+    opacity: 0.70;
+    letter-spacing: 0.04em;
+}
+
+.device-led-active {
+    color: #2ec27e;
+    font-size: 0.75em;
 }
 
 /* Navegador Multicolumnas estilo iTunes */

@@ -275,7 +275,6 @@ class MainWindow(Adw.ApplicationWindow):
         """Construye el menú de la aplicación con los textos traducidos."""
         menu = Gio.Menu()
         menu.append(i18n.t("menu.preferences"), "app.preferences")
-        menu.append(i18n.t("menu.devices"), "win.select_device")
         menu.append(i18n.t("menu.view_log"), "app.open_log")
         menu.append(i18n.t("menu.about"), "app.about")
         self.menu_btn.set_menu_model(menu)

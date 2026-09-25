@@ -176,9 +176,9 @@ STRINGS: dict[str, dict[str, str]] = {
         "ca": "⭐ Àlbum Hi-Res ({rates})",
     },
     "footer.hires_partial": {
-        "es": "⭐ {hires} de {total} pistas en Hi-Res",
-        "en": "⭐ {hires} of {total} tracks in Hi-Res",
-        "ca": "⭐ {hires} de {total} pistes en Hi-Res",
+        "es": "★ {hires} de {total} pistas en Hi-Res ({pct}%)",
+        "en": "★ {hires} of {total} tracks in Hi-Res ({pct}%)",
+        "ca": "★ {hires} de {total} pistes en Hi-Res ({pct}%)",
     },
     "footer.standard_quality": {
         "es": "Calidad Estándar CD",

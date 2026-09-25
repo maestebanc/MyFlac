@@ -390,14 +390,19 @@ class TrackListView(Gtk.Box):
         dur_str = f"{hrs} h {mins} min" if hrs > 0 else f"{mins} min"
 
         hires_count = sum(1 for i in range(n) if self.list_store.get_item(i).is_hires)
-        self.footer_info_label.set_text(i18n.t("footer.tracks_summary", count=n, duration=dur_str))
+        count_formatted = f"{n:,}".replace(",", ".")
+        self.footer_info_label.set_text(i18n.t("footer.tracks_summary", count=count_formatted, duration=dur_str))
 
-        if hires_count == n:
+        if hires_count == n and n > 0:
             sample_rates = {self.list_store.get_item(i).track.sample_rate for i in range(n)}
             rates_str = ", ".join(f"{r/1000:g} kHz" for r in sorted(sample_rates))
             self.footer_hires_summary.set_text(i18n.t("footer.hires_album", rates=rates_str))
         elif hires_count > 0:
-            self.footer_hires_summary.set_text(i18n.t("footer.hires_partial", hires=hires_count, total=n))
+            pct = int(round((hires_count / n) * 100))
+            hires_formatted = f"{hires_count:,}".replace(",", ".")
+            self.footer_hires_summary.set_text(
+                i18n.t("footer.hires_partial", hires=hires_formatted, total=count_formatted, pct=pct)
+            )
         else:
             self.footer_hires_summary.set_text(i18n.t("footer.standard_quality"))
 

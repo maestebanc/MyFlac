@@ -199,25 +199,60 @@ class PlayerBar(Gtk.Box):
         self.append(center_box)
 
         # ==========================================
-        # 3. DERECHA: Selector de Dispositivo + Volumen
+        # 3. DERECHA: Selector de Dispositivo Enriquecido + Volumen
         # ==========================================
         right_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-        right_box.set_size_request(300, -1)
+        right_box.set_size_request(320, -1)
         right_box.set_halign(Gtk.Align.END)
         right_box.set_valign(Gtk.Align.CENTER)
 
-        # Botón selector de dispositivo de audio
+        # Botón selector de dispositivo de audio (Píldora audiófila enriquecida)
         self.device_btn = Gtk.Button()
         self.device_btn.add_css_class("flat")
-        self.device_btn.add_css_class("device-select-btn")
-        device_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        self.device_btn.add_css_class("audiophile-device-pill")
+
+        btn_content = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        btn_content.set_valign(Gtk.Align.CENTER)
+
+        # Burbuja de icono con realce ámbar
+        self.device_bubble = Gtk.Box()
+        self.device_bubble.add_css_class("device-icon-bubble")
         self.device_icon = Gtk.Image.new_from_icon_name("audio-card-symbolic")
-        self.device_label = Gtk.Label(label="")
+        self.device_icon.set_pixel_size(16)
+        self.device_bubble.append(self.device_icon)
+        btn_content.append(self.device_bubble)
+
+        # Bloque de textos (Nombre de dispositivo + Subtítulo con LED de estado)
+        text_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=1)
+        text_box.set_valign(Gtk.Align.CENTER)
+
+        self.device_label = Gtk.Label(label="", xalign=0.0)
+        self.device_label.add_css_class("device-name-label")
         self.device_label.set_ellipsize(Pango.EllipsizeMode.END)
         self.device_label.set_max_width_chars(16)
-        device_box.append(self.device_icon)
-        device_box.append(self.device_label)
-        self.device_btn.set_child(device_box)
+
+        sub_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
+        self.device_led = Gtk.Label(label="●")
+        self.device_led.add_css_class("device-led-active")
+        self.device_sub_label = Gtk.Label(label="", xalign=0.0)
+        self.device_sub_label.add_css_class("device-sub-label")
+        self.device_sub_label.set_ellipsize(Pango.EllipsizeMode.END)
+        self.device_sub_label.set_max_width_chars(18)
+        sub_box.append(self.device_led)
+        sub_box.append(self.device_sub_label)
+
+        text_box.append(self.device_label)
+        text_box.append(sub_box)
+        btn_content.append(text_box)
+
+        # Flecha indicadora de menú / desplegable
+        self.device_chevron = Gtk.Image.new_from_icon_name("pan-down-symbolic")
+        self.device_chevron.set_pixel_size(12)
+        self.device_chevron.set_opacity(0.5)
+        self.device_chevron.set_valign(Gtk.Align.CENTER)
+        btn_content.append(self.device_chevron)
+
+        self.device_btn.set_child(btn_content)
         self.device_btn.connect("clicked", lambda *_: self.on_device_click and self.on_device_click())
         right_box.append(self.device_btn)
 
@@ -259,10 +294,23 @@ class PlayerBar(Gtk.Box):
             self.engine.toggle_play_pause()
 
     def update_active_device(self):
-        """Actualiza el texto e icono del botón de dispositivo de audio."""
+        """Actualiza el texto, subtítulo e icono del botón de dispositivo de audio."""
         dev = find_device_by_id(self.engine.device_id) or get_default_device(self.engine.device_id)
         self.device_label.set_text(dev.name)
         self.device_icon.set_from_icon_name(dev.icon_name)
+
+        if dev.is_usb:
+            sub = "DAC USB · SALIDA DIRECTA"
+        elif "hdmi" in dev.id.lower() or "hdmi" in dev.name.lower():
+            sub = "AUDIO DIGITAL HDMI"
+        elif "headphone" in dev.id.lower() or "auricular" in dev.name.lower():
+            sub = "AURICULARES"
+        elif dev.id == "default":
+            sub = "SALIDA DEL SISTEMA"
+        else:
+            sub = "MEZCLADOR DE AUDIO"
+
+        self.device_sub_label.set_text(sub)
         self.device_btn.set_tooltip_text(i18n.t("player.active_device", name=dev.name))
 
     def _on_state_changed(self, state: PlaybackState):

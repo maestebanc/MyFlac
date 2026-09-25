@@ -138,37 +138,6 @@ class InspectorPanel(Gtk.Box):
         self.lbl_size, self.val_size = add_spec_row(5, "inspector.size")
 
         self.audiophile_card.append(self.grid)
-
-        # Separador sutil
-        self.audiophile_card.append(Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL))
-
-        # Sección Salida de Audio / Mezclador del Sistema
-        self.output_title = Gtk.Label(label=i18n.t("inspector.output_device"), xalign=0.0)
-        self.output_title.add_css_class("audiophile-card-title")
-        self.audiophile_card.append(self.output_title)
-
-        self.output_grid = Gtk.Grid()
-        self.output_grid.set_row_spacing(4)
-        self.output_grid.set_column_spacing(8)
-
-        def add_out_row(row_idx: int, label_key: str) -> tuple[Gtk.Label, Gtk.Label]:
-            lbl_name = Gtk.Label(label=i18n.t(label_key), xalign=0.0)
-            lbl_name.add_css_class("dim-label")
-            lbl_val = Gtk.Label(label="—", xalign=1.0)
-            lbl_val.add_css_class("audiophile-stat-val")
-            lbl_val.set_hexpand(True)
-            self.output_grid.attach(lbl_name, 0, row_idx, 1, 1)
-            self.output_grid.attach(lbl_val, 1, row_idx, 1, 1)
-            return lbl_name, lbl_val
-
-        self.lbl_out_dev, self.val_out_dev = add_out_row(0, "inspector.device")
-        self.lbl_out_mixer, self.val_out_mixer = add_out_row(1, "inspector.mixer")
-        self.lbl_out_status, self.val_out_status = add_out_row(2, "inspector.status")
-
-        self.val_out_mixer.set_text(i18n.t("inspector.mixer_name"))
-        self.val_out_status.set_text(i18n.t("inspector.status_stopped"))
-
-        self.audiophile_card.append(self.output_grid)
         content.append(self.audiophile_card)
 
         # Spacer vertical para evitar que los elementos se estiren cuando la ventana se maximiza
@@ -203,19 +172,10 @@ class InspectorPanel(Gtk.Box):
         self.lbl_bitrate.set_text(i18n.t("inspector.bitrate"))
         self.lbl_size.set_text(i18n.t("inspector.size"))
 
-        self.output_title.set_text(i18n.t("inspector.output_device"))
-        self.lbl_out_dev.set_text(i18n.t("inspector.device"))
-        self.lbl_out_mixer.set_text(i18n.t("inspector.mixer"))
-        self.lbl_out_status.set_text(i18n.t("inspector.status"))
-        self.val_out_mixer.set_text(i18n.t("inspector.mixer_name"))
-
         if not self.current_track:
             self.title_label.set_text(i18n.t("inspector.select_track"))
         else:
             self.set_track(self.current_track)
-
-        if self._last_output_info:
-            self.update_dac_status(self._last_output_info)
 
     def set_track(self, track: AudioTrack | None):
         """Actualiza la vista con los metadatos de la pista."""
@@ -268,24 +228,5 @@ class InspectorPanel(Gtk.Box):
             self.cover_stack.set_visible_child_name("placeholder")
 
     def update_dac_status(self, info: dict):
-        """Actualiza el estado de la salida de audio y dispositivo activo."""
+        """Mantiene compatibilidad con llamadas de estado del reproductor."""
         self._last_output_info = info
-        dev_name = info.get("device_name", i18n.t("devices.default_name"))
-        if len(dev_name) > 24:
-            dev_name = dev_name[:22] + "…"
-        self.val_out_dev.set_text(dev_name)
-
-        is_playing = info.get("is_playing", False)
-        is_paused = info.get("is_paused", False)
-        if is_playing:
-            self.val_out_status.set_text(i18n.t("inspector.status_playing"))
-            self.val_out_status.add_css_class("accent")
-            self.val_out_status.remove_css_class("warning")
-        elif is_paused:
-            self.val_out_status.set_text(i18n.t("inspector.status_paused"))
-            self.val_out_status.add_css_class("warning")
-            self.val_out_status.remove_css_class("accent")
-        else:
-            self.val_out_status.set_text(i18n.t("inspector.status_stopped"))
-            self.val_out_status.remove_css_class("accent")
-            self.val_out_status.remove_css_class("warning")
