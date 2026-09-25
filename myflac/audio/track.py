@@ -7,6 +7,9 @@ import mutagen
 from mutagen.flac import FLAC
 
 from ..constants import COVER_FILENAMES, HIRES_MIN_BIT_DEPTH, HIRES_MIN_SAMPLE_RATE
+from ..logger import get_logger
+
+log = get_logger("audio.track")
 
 
 @dataclass
@@ -233,7 +236,7 @@ def load_track(filepath: str) -> AudioTrack | None:
                 cover_mime = "image/jpeg"
                 break
 
-    return AudioTrack(
+    track_obj = AudioTrack(
         filepath=filepath,
         filename=filename,
         title=title,
@@ -255,3 +258,16 @@ def load_track(filepath: str) -> AudioTrack | None:
         cover_data=cover_data,
         cover_mime=cover_mime,
     )
+    log.debug(
+        "Pista cargada: '%s' - '%s' | Álbum: '%s' | %s %s/%s Hz (%s ch, %s) | Carátula: %s bytes",
+        artist,
+        title,
+        album,
+        fmt,
+        bits_per_sample,
+        sample_rate,
+        channels,
+        track_obj.formatted_duration,
+        len(cover_data) if cover_data else 0,
+    )
+    return track_obj

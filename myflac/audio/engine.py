@@ -12,12 +12,16 @@ gi.require_version("Gst", "1.0")
 gi.require_version("GLib", "2.0")
 from gi.repository import GLib, Gst
 
+from ..logger import get_logger
 from .devices import AudioDevice, find_device_by_id, get_default_device
 from .track import AudioTrack
+
+log = get_logger("audio.engine")
 
 # Inicializar GStreamer
 if not Gst.is_initialized():
     Gst.init(None)
+    log.info("GStreamer inicializado versión: %s", Gst.version_string())
 
 
 class PlaybackState(Enum):
@@ -51,15 +55,23 @@ class AudioEngine:
         self.on_track_finished: Callable[[], None] | None = None
         self.on_error: Callable[[str], None] | None = None
 
+        log.info(
+            "Inicializando AudioEngine con device_id='%s', bitperfect=%s, volume_bypass=%s",
+            device_id,
+            bitperfect,
+            volume_bypass,
+        )
         self._init_pipeline()
 
     def _init_pipeline(self):
         """Crea y configura el reproductor GStreamer playbin3."""
         if self._playbin is not None:
+            log.debug("Limpiando pipeline existente antes de reinicializar")
             self._cleanup_pipeline()
 
         self._playbin = Gst.ElementFactory.make("playbin3", "myflac_player")
         if self._playbin is None:
+            log.critical("Fallo catastrófico: no se pudo instanciar playbin3 en GStreamer")
             raise RuntimeError("No se pudo instanciar playbin3 en GStreamer")
 
         self._apply_audio_sink()
@@ -75,8 +87,10 @@ class AudioEngine:
         # Ajuste inicial de volumen
         if self.volume_bypass and self.bitperfect:
             self._playbin.set_property("volume", 1.0)
+            log.debug("Volumen fijado al 100%% (0 dB bit-exact bypass)")
         else:
             self._playbin.set_property("volume", self.volume)
+            log.debug("Volumen software configurado a: %.2f", self.volume)
 
     def _apply_audio_sink(self):
         """Crea el sink adecuado (ALSA directo hw:X,Y o PipeWire) según configuración."""
@@ -88,16 +102,25 @@ class AudioEngine:
 
         if device.id == "pipewire" or not self.bitperfect:
             # Salida compartida
+            log.info("Configurando salida compartida (PipeWire/autoaudiosink) para dispositivo: %s", device.name)
             sink = Gst.ElementFactory.make("pipewiresink", "pw_sink")
             if not sink:
+                log.debug("pipewiresink no disponible, usando autoaudiosink")
                 sink = Gst.ElementFactory.make("autoaudiosink", "auto_sink")
         else:
             # Modo exclusivo Bit-Perfect ALSA
+            log.info(
+                "Configurando modo exclusivo Bit-Perfect ALSA directo en dispositivo: %s [%s]",
+                device.name,
+                device.id,
+            )
             sink = Gst.ElementFactory.make("alsasink", "alsa_hw_sink")
             if sink:
-                # Fijar dispositivo ALSA exacto (ej: 'hw:CARD=Audio,DEV=0' o 'hw:2,0')
                 sink.set_property("device", device.id)
                 sink.set_property("sync", True)
+                log.debug("alsasink configurado con device='%s', sync=True", device.id)
+            else:
+                log.error("alsasink no encontrado en el sistema, recurriendo a autoaudiosink")
 
         if sink is None:
             sink = Gst.ElementFactory.make("autoaudiosink", "fallback_sink")
@@ -109,6 +132,7 @@ class AudioEngine:
         """Cambia el dispositivo de salida."""
         if self.device_id == device_id:
             return
+        log.info("Cambiando dispositivo de audio de '%s' a '%s'", self.device_id, device_id)
         self.device_id = device_id
         was_playing = (self.state == PlaybackState.PLAYING)
         current_pos = self.get_position()
@@ -125,6 +149,7 @@ class AudioEngine:
         """Activa o desactiva el modo bit-perfect exclusivo."""
         if self.bitperfect == enabled:
             return
+        log.info("Cambiando modo bit-perfect a: %s", enabled)
         self.bitperfect = enabled
         was_playing = (self.state == PlaybackState.PLAYING)
         current_pos = self.get_position()
@@ -139,6 +164,7 @@ class AudioEngine:
 
     def set_volume_bypass(self, bypass: bool):
         """Fija el volumen al 100% (0 dB sin alteración) o permite volumen software."""
+        log.info("Cambiando bypass de volumen a: %s", bypass)
         self.volume_bypass = bypass
         if self._playbin:
             if bypass and self.bitperfect:
@@ -150,6 +176,7 @@ class AudioEngine:
     def set_volume(self, vol: float):
         """Ajusta el volumen software (0.0 a 1.0)."""
         self.volume = max(0.0, min(1.0, vol))
+        log.debug("Ajuste de volumen software a: %.2f", self.volume)
         if self._playbin and (not self.volume_bypass or not self.bitperfect):
             self._playbin.set_property("volume", self.volume)
         self._audit_bitperfect_status()
@@ -158,6 +185,13 @@ class AudioEngine:
         """Carga una pista para reproducción."""
         self.current_track = track
         uri = "file://" + urllib.parse.quote(os.path.abspath(track.filepath))
+        log.info(
+            "Cargando pista en reproductor: '%s' (%s) | URI: %s | play_now=%s",
+            track.title,
+            track.badge_full,
+            uri,
+            play_now,
+        )
 
         self.stop()
         self._playbin.set_property("uri", uri)
@@ -176,11 +210,16 @@ class AudioEngine:
     def queue_next_track(self, track: AudioTrack | None):
         """Establece la siguiente pista en cola para reproducción continua sin pausa (gapless)."""
         self.next_track = track
+        if track:
+            log.debug("Pista siguiente encolada para reproducción gapless: '%s'", track.title)
+        else:
+            log.debug("Cola de pista siguiente vacía")
 
     def _on_about_to_finish(self, _playbin):
         """Señal GStreamer para encadenar la siguiente canción sin corte alguno."""
         if self.next_track:
             next_uri = "file://" + urllib.parse.quote(os.path.abspath(self.next_track.filepath))
+            log.info("Transición gapless a siguiente pista: '%s' | URI: %s", self.next_track.title, next_uri)
             self._playbin.set_property("uri", next_uri)
             self.current_track = self.next_track
             self.next_track = None
@@ -190,11 +229,16 @@ class AudioEngine:
     def play(self):
         """Inicia o reanuda la reproducción."""
         if not self._playbin or not self.current_track:
+            log.warning("Intento de reproducción sin pipeline o sin pista cargada")
             return
+        log.info("Iniciando reproducción de: '%s'", self.current_track.title)
         ret = self._playbin.set_state(Gst.State.PLAYING)
+        log.debug("playbin.set_state(PLAYING) retorno: %s", ret)
         if ret == Gst.StateChangeReturn.FAILURE:
+            err_msg = "Error al abrir dispositivo ALSA en modo exclusivo."
+            log.error("Fallo al cambiar estado a PLAYING en GStreamer")
             if self.on_error:
-                self.on_error(f"Error al abrir dispositivo ALSA en modo exclusivo.")
+                self.on_error(err_msg)
             return
 
         self.state = PlaybackState.PLAYING
@@ -209,6 +253,7 @@ class AudioEngine:
         """Pone en pausa la reproducción."""
         if not self._playbin:
             return
+        log.info("Pausando reproducción")
         self._playbin.set_state(Gst.State.PAUSED)
         self.state = PlaybackState.PAUSED
         self._stop_timer()
@@ -225,6 +270,7 @@ class AudioEngine:
         """Detiene la reproducción y libera el reloj/dispositivo."""
         if not self._playbin:
             return
+        log.info("Deteniendo reproducción")
         self._playbin.set_state(Gst.State.NULL)
         self.state = PlaybackState.STOPPED
         self._stop_timer()
@@ -238,11 +284,13 @@ class AudioEngine:
         if not self._playbin or self.state == PlaybackState.STOPPED:
             return
         target_ns = int(max(0.0, position_seconds) * Gst.SECOND)
-        self._playbin.seek_simple(
+        log.debug("Seek solicitado a %.2f segundos (%d ns)", position_seconds, target_ns)
+        res = self._playbin.seek_simple(
             Gst.Format.TIME,
             Gst.SeekFlags.FLUSH | Gst.SeekFlags.KEY_UNIT,
             target_ns,
         )
+        log.debug("Resultado de seek_simple: %s", res)
         if self.on_position_updated:
             self.on_position_updated(position_seconds, self.get_duration())
 
@@ -300,6 +348,7 @@ class AudioEngine:
             rate = struct.get_value("rate")
             fmt = struct.get_value("format")
             channels = struct.get_value("channels")
+            log.debug("Caps negociados en hardware sink: %s", caps.to_string())
 
         # Comprobación de fidelidad bit-perfect
         source_rate = self.current_track.sample_rate
@@ -315,6 +364,21 @@ class AudioEngine:
             and is_exact_rate
             and is_exact_chan
             and is_vol_pure
+        )
+
+        log.info(
+            "Auditoría Bit-Perfect: %s | Dispositivo: %s [%s] | Fuente: %s Hz / %s bit / %s ch | Sink HW: %s Hz / %s / %s ch | Vol bypass: %s (vol=%.2f)",
+            "✓ EXACTO (BIT-PERFECT)" if is_bitperfect else "✗ NO BIT-PERFECT",
+            device.name,
+            device.id,
+            source_rate,
+            self.current_track.bits_per_sample,
+            source_channels,
+            rate,
+            fmt,
+            channels,
+            self.volume_bypass,
+            self.volume,
         )
 
         status_info = {
@@ -338,22 +402,31 @@ class AudioEngine:
     def _on_bus_message(self, _bus: Gst.Bus, message: Gst.Message):
         """Maneja eventos de GStreamer del bus."""
         m_type = message.type
+        src_name = message.src.get_name() if message.src else "desconocido"
+
         if m_type == Gst.MessageType.EOS:
+            log.info("GStreamer bus: EOS (Fin de reproducción alcanzado) desde '%s'", src_name)
             self.stop()
             if self.on_track_finished:
                 self.on_track_finished()
         elif m_type == Gst.MessageType.ERROR:
             err, debug = message.parse_error()
+            log.error("GStreamer bus ERROR desde '%s': %s | Debug: %s", src_name, err.message, debug)
             self.stop()
             if self.on_error:
                 self.on_error(f"{err.message}")
+        elif m_type == Gst.MessageType.WARNING:
+            warn, debug = message.parse_warning()
+            log.warning("GStreamer bus WARNING desde '%s': %s | Debug: %s", src_name, warn.message, debug)
         elif m_type == Gst.MessageType.STATE_CHANGED:
             if message.src == self._playbin:
                 old_state, new_state, pending = message.parse_state_changed()
+                log.debug("GStreamer bus STATE_CHANGED: %s -> %s (pendiente: %s)", old_state.value_nick, new_state.value_nick, pending.value_nick)
                 if new_state == Gst.State.PLAYING:
                     self._audit_bitperfect_status()
 
     def _cleanup_pipeline(self):
+        log.debug("Limpiando pipeline de GStreamer")
         self._stop_timer()
         if self._bus:
             self._bus.remove_signal_watch()

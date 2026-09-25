@@ -7,6 +7,10 @@ import re
 from dataclasses import dataclass, field
 import ctypes
 
+from ..logger import get_logger
+
+log = get_logger("audio.devices")
+
 
 @dataclass
 class AudioDevice:
@@ -40,16 +44,13 @@ def _read_alsa_cards() -> dict[int, dict[str, str]]:
     cards: dict[int, dict[str, str]] = {}
     cards_path = "/proc/asound/cards"
     if not os.path.exists(cards_path):
+        log.warning("No se encontró el archivo de tarjetas ALSA en %s", cards_path)
         return cards
 
     try:
         with open(cards_path, "r", encoding="utf-8", errors="replace") as f:
             content = f.read()
 
-        # Cada tarjeta ocupa 2 o 3 líneas separadas por bloque
-        # Ej:
-        #  2 [Audio          ]: USB-Audio - iFi (by AMR) HD USB Audio
-        #                       iFi (by AMR) iFi (by AMR) HD USB Audio at usb-...
         lines = content.splitlines()
         i = 0
         while i < len(lines):
@@ -59,7 +60,6 @@ def _read_alsa_cards() -> dict[int, dict[str, str]]:
                 card_idx = int(m.group(1))
                 short_id = m.group(2).strip()
                 rest = m.group(3).strip()
-                # rest suele ser "USB-Audio - iFi (by AMR) HD USB Audio"
                 if " - " in rest:
                     driver, name = rest.split(" - ", 1)
                 else:
@@ -74,8 +74,9 @@ def _read_alsa_cards() -> dict[int, dict[str, str]]:
                     "desc": desc,
                 }
             i += 1
-    except Exception:
-        pass
+        log.debug("Tarjetas ALSA leídas de /proc/asound/cards: %d tarjetas encontradas", len(cards))
+    except Exception as e:
+        log.exception("Error al leer /proc/asound/cards: %s", e)
 
     return cards
 
@@ -102,8 +103,8 @@ def _read_usb_stream_caps(card_idx: int, dev_idx: int = 0) -> tuple[list[int], l
                         rates_set.add(int(r_str))
             for f_match in re.finditer(r"Format:\s*([A-Za-z0-9_]+)", content):
                 formats_set.add(f_match.group(1).strip())
-        except Exception:
-            pass
+        except Exception as e:
+            log.debug("No se pudo leer stream de tarjeta %s (%s): %s", card_idx, stream_path, e)
 
     return sorted(rates_set), sorted(formats_set)
 
@@ -135,7 +136,6 @@ def get_available_devices() -> list[AudioDevice]:
         try:
             with open(pcm_path, "r", encoding="utf-8", errors="replace") as f:
                 for line in f:
-                    # Ej: "02-00: USB Audio : USB Audio : playback 1 : capture 1"
                     parts = [p.strip() for p in line.split(":")]
                     if len(parts) >= 4 and "playback" in parts[3]:
                         card_dev = parts[0]
@@ -144,38 +144,41 @@ def get_available_devices() -> list[AudioDevice]:
                         card_name = card_info.get("name") or card_info.get("short") or f"Card {c_idx}"
                         sub_name = parts[1]
 
-                        # Filtrar cámaras web o dispositivos que solo son micrófonos con monitor
                         if "webcam" in card_name.lower() or "cam" in card_info.get("short", "").lower():
                             continue
 
                         is_usb = "usb" in card_info.get("driver", "").lower() or "usb" in card_name.lower()
                         rates, formats = _read_usb_stream_caps(c_idx, d_idx)
 
-                        # Si no tenemos rates (ej. tarjeta interna Intel/AMD), inferir rangos típicos
                         if not rates:
                             rates = [44100, 48000, 96000, 192000]
 
-                        # Formato amigable para el identificador
                         short_id = card_info.get("short")
                         hw_id = f"hw:CARD={short_id},DEV={d_idx}" if short_id else f"hw:{c_idx},{d_idx}"
 
-                        devices.append(
-                            AudioDevice(
-                                id=hw_id,
-                                name=card_name,
-                                card_index=c_idx,
-                                device_index=d_idx,
-                                subname=sub_name,
-                                is_exclusive=True,
-                                is_usb_dac=is_usb,
-                                supported_rates=rates,
-                                supported_formats=formats,
-                            )
+                        dev = AudioDevice(
+                            id=hw_id,
+                            name=card_name,
+                            card_index=c_idx,
+                            device_index=d_idx,
+                            subname=sub_name,
+                            is_exclusive=True,
+                            is_usb_dac=is_usb,
+                            supported_rates=rates,
+                            supported_formats=formats,
                         )
-        except Exception:
-            pass
+                        devices.append(dev)
+                        log.debug(
+                            "Dispositivo ALSA detectado: %s (%s) [USB: %s, max_rate: %s, formatos: %s]",
+                            dev.name,
+                            dev.id,
+                            dev.is_usb_dac,
+                            dev.max_rate_khz,
+                            dev.supported_formats,
+                        )
+        except Exception as e:
+            log.exception("Error al parsear /proc/asound/pcm: %s", e)
 
-    # Ordenar: primero DACs USB audiófilos externos, luego el resto, dejando PipeWire disponible
     def sort_key(d: AudioDevice) -> tuple[int, int]:
         if d.is_usb_dac:
             return (0, -(max(d.supported_rates) if d.supported_rates else 0))
@@ -184,6 +187,7 @@ def get_available_devices() -> list[AudioDevice]:
         return (2, 0)
 
     devices.sort(key=sort_key)
+    log.info("Total de dispositivos de salida disponibles: %d", len(devices))
     return devices
 
 
@@ -193,11 +197,11 @@ def find_device_by_id(device_id: str) -> AudioDevice | None:
     for dev in devices:
         if dev.id == device_id:
             return dev
-    # Búsqueda flexible (por ej. si guardó 'hw:2,0' y ahora es 'hw:CARD=Audio,DEV=0')
     if device_id.startswith("hw:"):
         for dev in devices:
             if dev.card_index is not None and f"hw:{dev.card_index}" in device_id:
                 return dev
+    log.warning("No se encontró dispositivo para el ID '%s'", device_id)
     return None
 
 
@@ -205,6 +209,7 @@ def get_default_device(preferred_id: str | None = None) -> AudioDevice:
     """Retorna el dispositivo preferido o el mejor DAC Hi-Res disponible."""
     devices = get_available_devices()
     if not devices:
+        log.warning("No se detectó ningún dispositivo, usando fallback PipeWire")
         return AudioDevice(
             id="pipewire",
             name="Audio predeterminado",
@@ -214,16 +219,18 @@ def get_default_device(preferred_id: str | None = None) -> AudioDevice:
     if preferred_id and preferred_id != "auto":
         found = find_device_by_id(preferred_id)
         if found:
+            log.info("Dispositivo preferido encontrado: %s (%s)", found.name, found.id)
             return found
 
-    # Buscar el primer DAC USB de alta resolución
     for dev in devices:
         if dev.is_usb_dac:
+            log.info("Seleccionado DAC USB de alta resolución por defecto: %s (%s)", dev.name, dev.id)
             return dev
 
-    # Devolver el primer dispositivo exclusivo
     for dev in devices:
         if dev.is_exclusive:
+            log.info("Seleccionado dispositivo exclusivo por defecto: %s (%s)", dev.name, dev.id)
             return dev
 
+    log.info("Seleccionado primer dispositivo de la lista: %s (%s)", devices[0].name, devices[0].id)
     return devices[0]
