@@ -7,7 +7,7 @@ import gi
 
 gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
-from gi.repository import Adw, Gdk, GdkPixbuf, Gio, GLib, Gtk, Pango
+from gi.repository import Adw, Gdk, Gio, GLib, Gtk, Pango
 
 from ..audio.engine import AudioEngine, PlaybackState
 from ..audio.track import AudioTrack
@@ -23,11 +23,12 @@ class PlayerBar(Gtk.Box):
         self._is_seeking = False
         self._current_duration = 0.0
 
-        # Callbacks para controles anteriores / siguientes
+        # Callbacks
         self.on_previous_clicked: Callable[[], None] | None = None
         self.on_next_clicked: Callable[[], None] | None = None
         self.on_shuffle_toggled: Callable[[bool], None] | None = None
         self.on_repeat_clicked: Callable[[], None] | None = None
+        self.on_bitperfect_toggled: Callable[[], None] | None = None
 
         self._build_ui()
         self._connect_engine()
@@ -40,11 +41,31 @@ class PlayerBar(Gtk.Box):
         left_box.set_size_request(260, -1)
         left_box.set_hexpand(False)
 
-        # Miniatura de portada
-        self.cover_image = Gtk.Image.new_from_icon_name("audio-x-generic-symbolic")
-        self.cover_image.set_pixel_size(44)
-        self.cover_image.add_css_class("album-cover-frame")
-        left_box.append(self.cover_image)
+        # Marco con overflow oculto para miniatura perfectamente encajada
+        self.cover_frame = Gtk.Box()
+        self.cover_frame.add_css_class("album-cover-frame")
+        self.cover_frame.set_size_request(44, 44)
+        self.cover_frame.set_overflow(Gtk.Overflow.HIDDEN)
+
+        self.cover_stack = Gtk.Stack()
+        self.cover_picture = Gtk.Picture()
+        self.cover_picture.set_can_shrink(True)
+        self.cover_picture.set_content_fit(Gtk.ContentFit.COVER)
+        self.cover_picture.set_size_request(44, 44)
+        self.cover_stack.add_named(self.cover_picture, "picture")
+
+        placeholder = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        placeholder.set_size_request(44, 44)
+        placeholder.set_halign(Gtk.Align.CENTER)
+        placeholder.set_valign(Gtk.Align.CENTER)
+        icon = Gtk.Image.new_from_icon_name("audio-x-generic-symbolic")
+        icon.set_pixel_size(24)
+        placeholder.append(icon)
+        self.cover_stack.add_named(placeholder, "placeholder")
+        self.cover_stack.set_visible_child_name("placeholder")
+
+        self.cover_frame.append(self.cover_stack)
+        left_box.append(self.cover_frame)
 
         # Textos de pista
         track_info_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
@@ -142,18 +163,21 @@ class PlayerBar(Gtk.Box):
         self.append(center_box)
 
         # ==========================================
-        # 3. DERECHA: Indicador Bit-Perfect + Selector DAC + Volumen
+        # 3. DERECHA: Botón Interactivo Bit-Perfect + DAC + Volumen
         # ==========================================
         right_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-        right_box.set_size_request(280, -1)
+        right_box.set_size_request(290, -1)
         right_box.set_halign(Gtk.Align.END)
         right_box.set_valign(Gtk.Align.CENTER)
 
-        # Indicador de estado Bit-Perfect (pill)
-        self.bitperfect_pill = Gtk.Label(label="⚡ BIT-PERFECT")
-        self.bitperfect_pill.add_css_class("bitperfect-pill-active")
-        self.bitperfect_pill.set_tooltip_text("Modo Exclusivo ALSA Bit-Perfect Activo")
-        right_box.append(self.bitperfect_pill)
+        # Botón interactivo de transporte Bit-Perfect (clic para activar/desactivar)
+        self.bitperfect_btn = Gtk.Button(label="⚡ BIT-PERFECT")
+        self.bitperfect_btn.add_css_class("flat")
+        self.bitperfect_btn.add_css_class("bitperfect-pill-btn")
+        self.bitperfect_btn.add_css_class("bitperfect-pill-active")
+        self.bitperfect_btn.set_tooltip_text("Haz clic para alternar entre Modo Exclusivo Bit-Perfect y Modo Compartido")
+        self.bitperfect_btn.connect("clicked", lambda *_: self.on_bitperfect_toggled and self.on_bitperfect_toggled())
+        right_box.append(self.bitperfect_btn)
 
         # Botón selector de dispositivo DAC
         self.device_btn = Gtk.Button()
@@ -171,11 +195,10 @@ class PlayerBar(Gtk.Box):
         right_box.append(self.device_btn)
 
         # Bloque de Volumen / Bypass
-        vol_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
         self.vol_btn = Gtk.MenuButton()
         self.vol_btn.set_icon_name("audio-volume-high-symbolic")
         self.vol_btn.add_css_class("flat")
-        
+
         # Popover de volumen
         vol_popover = Gtk.Popover()
         vol_content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
@@ -237,18 +260,21 @@ class PlayerBar(Gtk.Box):
         else:
             self.hires_badge_label.add_css_class("hires-cd-badge")
 
-        # Mini carátula
+        # Mini carátula escalada
         cover_info = track.get_cover_image_bytes()
         if cover_info:
             try:
                 data, _ = cover_info
-                stream = Gio.MemoryInputStream.new_from_data(data)
-                pixbuf = GdkPixbuf.Pixbuf.new_from_stream_at_scale(stream, 44, 44, True, None)
-                self.cover_image.set_from_pixbuf(pixbuf)
+                bytes_glib = GLib.Bytes.new(data)
+                texture = Gdk.Texture.new_from_bytes(bytes_glib)
+                self.cover_picture.set_paintable(texture)
+                self.cover_stack.set_visible_child_name("picture")
             except Exception:
-                self.cover_image.set_from_icon_name("audio-x-generic-symbolic")
+                self.cover_picture.set_paintable(None)
+                self.cover_stack.set_visible_child_name("placeholder")
         else:
-            self.cover_image.set_from_icon_name("audio-x-generic-symbolic")
+            self.cover_picture.set_paintable(None)
+            self.cover_stack.set_visible_child_name("placeholder")
 
     def _on_position_updated(self, pos: float, dur: float):
         if self._is_seeking:
@@ -275,29 +301,35 @@ class PlayerBar(Gtk.Box):
         self.device_label.set_text(dev_name)
         self.device_btn.set_tooltip_text(f"Dispositivo activo: {dev_name} ({info.get('device_id')})")
 
-        self.bitperfect_pill.remove_css_class("bitperfect-pill-active")
-        self.bitperfect_pill.remove_css_class("bitperfect-pill-shared")
-        self.bitperfect_pill.remove_css_class("bitperfect-pill-warn")
+        self.bitperfect_btn.remove_css_class("bitperfect-pill-active")
+        self.bitperfect_btn.remove_css_class("bitperfect-pill-shared")
+        self.bitperfect_btn.remove_css_class("bitperfect-pill-warn")
 
         if is_bp:
             rate_str = f"{sink_rate / 1000:g} kHz" if sink_rate else ""
-            self.bitperfect_pill.set_text(f"⚡ BIT-PERFECT {rate_str}".strip())
-            self.bitperfect_pill.add_css_class("bitperfect-pill-active")
-            self.bitperfect_pill.set_tooltip_text(
-                f"Modo Exclusivo ALSA Bit-Perfect\n"
+            self.bitperfect_btn.set_label(f"⚡ BIT-PERFECT {rate_str}".strip())
+            self.bitperfect_btn.add_css_class("bitperfect-pill-active")
+            self.bitperfect_btn.set_tooltip_text(
+                f"Modo Exclusivo ALSA Bit-Perfect [ACTIVO]\n"
                 f"DAC: {dev_name}\n"
-                f"Reloj DAC: {sink_rate} Hz (Coincidencia exacta con fuente)\n"
-                f"Formato: {info.get('sink_format')}\n"
-                f"Sin resampling · Ganancia directa 0 dB"
+                f"Reloj DAC: {sink_rate} Hz\n"
+                f"Formato: {info.get('sink_format')}\n\n"
+                f"👉 Haz clic para desactivar (pasar a Modo Compartido)"
             )
         elif is_excl:
-            self.bitperfect_pill.set_text("ALSA EXCLUSIVO")
-            self.bitperfect_pill.add_css_class("bitperfect-pill-warn")
-            self.bitperfect_pill.set_tooltip_text(f"Dispositivo exclusivo en {dev_name}, pero el volumen o formato no es bit-exact")
+            self.bitperfect_btn.set_label("ALSA EXCLUSIVO")
+            self.bitperfect_btn.add_css_class("bitperfect-pill-warn")
+            self.bitperfect_btn.set_tooltip_text(
+                f"Dispositivo exclusivo en {dev_name}, pero el volumen o formato no es bit-exact.\n"
+                f"👉 Haz clic para desactivar"
+            )
         else:
-            self.bitperfect_pill.set_text("COMPARTIDO")
-            self.bitperfect_pill.add_css_class("bitperfect-pill-shared")
-            self.bitperfect_pill.set_tooltip_text(f"Salida de audio del sistema compartida (PipeWire/Pulse)")
+            self.bitperfect_btn.set_label("🔊 COMPARTIDO")
+            self.bitperfect_btn.add_css_class("bitperfect-pill-shared")
+            self.bitperfect_btn.set_tooltip_text(
+                f"Salida de audio compartida (PipeWire/Sistema).\n"
+                f"👉 Haz clic para activar el Modo Exclusivo Bit-Perfect ALSA"
+            )
 
     def _on_shuffle_toggle(self, btn: Gtk.ToggleButton):
         if self.on_shuffle_toggled:

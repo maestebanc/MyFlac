@@ -26,7 +26,9 @@ class MainWindow(Adw.ApplicationWindow):
     def __init__(self, app: Adw.Application, cfg: dict):
         super().__init__(application=app)
         self.set_title(APP_NAME)
-        self.set_default_size(cfg.get("window_width", 1280), cfg.get("window_height", 820))
+        w = max(1280, cfg.get("window_width", 1280))
+        h = max(880, cfg.get("window_height", 880))
+        self.set_default_size(w, h)
         if cfg.get("window_maximized", False):
             self.maximize()
 
@@ -121,6 +123,7 @@ class MainWindow(Adw.ApplicationWindow):
         self.player_bar.on_next_clicked = self._play_next
         self.player_bar.on_repeat_clicked = self._cycle_repeat_mode
         self.player_bar.on_shuffle_toggled = self._on_shuffle_toggled
+        self.player_bar.on_bitperfect_toggled = self._toggle_bitperfect
 
         self.toolbar_view.set_content(self.paned)
         self.toolbar_view.add_bottom_bar(self.player_bar)
@@ -193,6 +196,14 @@ class MainWindow(Adw.ApplicationWindow):
     def _on_bitperfect_audit(self, info: dict):
         self.player_bar._on_bitperfect_status(info)
         self.inspector.update_dac_status(info)
+
+    def _toggle_bitperfect(self):
+        """Alterna el modo exclusivo bit-perfect ALSA y modo compartido con un clic."""
+        new_val = not self.engine.bitperfect
+        self.engine.set_bitperfect_mode(new_val)
+        self.cfg["bitperfect_mode"] = new_val
+        save_config(self.cfg)
+        self.engine._audit_bitperfect_status()
 
     def _cycle_repeat_mode(self):
         curr = self.cfg.get("repeat_mode", "none")

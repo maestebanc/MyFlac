@@ -8,19 +8,19 @@ import gi
 
 gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
-from gi.repository import Adw, GdkPixbuf, Gio, Gtk, Pango
+from gi.repository import Adw, Gdk, Gio, GLib, Gtk, Pango
 
 from ..audio.track import AudioTrack
 
 
 class InspectorPanel(Gtk.Box):
     def __init__(self):
-        super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=16)
-        self.set_size_request(300, -1)
-        self.set_margin_top(14)
-        self.set_margin_bottom(14)
-        self.set_margin_start(14)
-        self.set_margin_end(14)
+        super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        self.set_size_request(290, -1)
+        self.set_margin_top(8)
+        self.set_margin_bottom(8)
+        self.set_margin_start(10)
+        self.set_margin_end(10)
 
         self.current_track: AudioTrack | None = None
         self._build_ui()
@@ -30,20 +30,43 @@ class InspectorPanel(Gtk.Box):
         scrolled.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
         scrolled.set_vexpand(True)
 
-        content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=14)
+        content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
 
-        # 1. Carátula del álbum en HD
-        cover_container = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        # 1. Carátula del álbum en HD escalada perfectamente
+        cover_container = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
         cover_container.set_halign(Gtk.Align.CENTER)
 
         self.cover_frame = Gtk.Box()
         self.cover_frame.add_css_class("album-cover-frame")
-        self.cover_frame.set_size_request(240, 240)
+        self.cover_frame.set_size_request(200, 200)
         self.cover_frame.set_halign(Gtk.Align.CENTER)
+        self.cover_frame.set_valign(Gtk.Align.CENTER)
+        self.cover_frame.set_overflow(Gtk.Overflow.HIDDEN)
 
-        self.cover_image = Gtk.Image.new_from_icon_name("audio-x-generic-symbolic")
-        self.cover_image.set_pixel_size(120)
-        self.cover_frame.append(self.cover_image)
+        # Stack para alternar entre imagen escalada y placeholder
+        self.cover_stack = Gtk.Stack()
+        self.cover_stack.set_transition_type(Gtk.StackTransitionType.CROSSFADE)
+
+        # Widget de imagen con escalado perfecto COVER
+        self.cover_picture = Gtk.Picture()
+        self.cover_picture.set_can_shrink(True)
+        self.cover_picture.set_content_fit(Gtk.ContentFit.COVER)
+        self.cover_picture.set_size_request(200, 200)
+        self.cover_stack.add_named(self.cover_picture, "picture")
+
+        # Placeholder cuando no hay carátula
+        placeholder = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        placeholder.set_halign(Gtk.Align.CENTER)
+        placeholder.set_valign(Gtk.Align.CENTER)
+        placeholder.set_size_request(200, 200)
+        placeholder_icon = Gtk.Image.new_from_icon_name("audio-x-generic-symbolic")
+        placeholder_icon.set_pixel_size(64)
+        placeholder_icon.add_css_class("dim-label")
+        placeholder.append(placeholder_icon)
+        self.cover_stack.add_named(placeholder, "placeholder")
+
+        self.cover_stack.set_visible_child_name("placeholder")
+        self.cover_frame.append(self.cover_stack)
 
         self.cover_dims_label = Gtk.Label(label="")
         self.cover_dims_label.add_css_class("dim-label")
@@ -52,42 +75,42 @@ class InspectorPanel(Gtk.Box):
         cover_container.append(self.cover_dims_label)
         content.append(cover_container)
 
-        # 2. Resumen de la obra
-        info_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        # 2. Resumen de la obra (Título, Artista, Álbum)
+        info_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
         info_box.set_halign(Gtk.Align.CENTER)
 
-        self.title_label = Gtk.Label(label="Selecciona una canción", xalign=0.5)
+        self.title_label = Gtk.Label(label="Selecciona una pista", xalign=0.5)
         self.title_label.set_ellipsize(Pango.EllipsizeMode.END)
-        self.title_label.add_css_class("title-3")
-        self.title_label.set_max_width_chars(26)
+        self.title_label.add_css_class("heading")
+        self.title_label.set_max_width_chars(25)
 
         self.artist_label = Gtk.Label(label="", xalign=0.5)
         self.artist_label.set_ellipsize(Pango.EllipsizeMode.END)
         self.artist_label.add_css_class("dim-label")
-        self.artist_label.set_max_width_chars(26)
+        self.artist_label.set_max_width_chars(25)
 
         self.album_label = Gtk.Label(label="", xalign=0.5)
         self.album_label.set_ellipsize(Pango.EllipsizeMode.END)
         self.album_label.add_css_class("dim-label")
-        self.album_label.set_max_width_chars(26)
+        self.album_label.set_max_width_chars(25)
 
         info_box.append(self.title_label)
         info_box.append(self.artist_label)
         info_box.append(self.album_label)
         content.append(info_box)
 
-        # 3. Ficha Técnica Audiófila
-        self.audiophile_card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        # 3. Ficha Técnica Audiófila Compacta
+        self.audiophile_card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
         self.audiophile_card.add_css_class("audiophile-card")
 
         card_title = Gtk.Label(label="Ficha Técnica de Audio", xalign=0.0)
         card_title.add_css_class("audiophile-card-title")
         self.audiophile_card.append(card_title)
 
-        # Rejilla de especificaciones
+        # Rejilla de especificaciones de la fuente
         self.grid = Gtk.Grid()
-        self.grid.set_row_spacing(6)
-        self.grid.set_column_spacing(12)
+        self.grid.set_row_spacing(3)
+        self.grid.set_column_spacing(8)
 
         def add_spec_row(row_idx: int, label_text: str) -> Gtk.Label:
             lbl_name = Gtk.Label(label=label_text, xalign=0.0)
@@ -108,7 +131,7 @@ class InspectorPanel(Gtk.Box):
 
         self.audiophile_card.append(self.grid)
 
-        # Separador
+        # Separador sutil
         self.audiophile_card.append(Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL))
 
         # Sección DAC / Bit-Perfect
@@ -117,8 +140,8 @@ class InspectorPanel(Gtk.Box):
         self.audiophile_card.append(dac_title)
 
         self.dac_grid = Gtk.Grid()
-        self.dac_grid.set_row_spacing(6)
-        self.dac_grid.set_column_spacing(12)
+        self.dac_grid.set_row_spacing(3)
+        self.dac_grid.set_column_spacing(8)
 
         def add_dac_row(row_idx: int, label_text: str) -> Gtk.Label:
             lbl_name = Gtk.Label(label=label_text, xalign=0.0)
@@ -154,7 +177,8 @@ class InspectorPanel(Gtk.Box):
             self.val_channels.set_text("—")
             self.val_bitrate.set_text("—")
             self.val_size.set_text("—")
-            self.cover_image.set_from_icon_name("audio-x-generic-symbolic")
+            self.cover_picture.set_paintable(None)
+            self.cover_stack.set_visible_child_name("placeholder")
             self.cover_dims_label.set_text("")
             return
 
@@ -165,7 +189,7 @@ class InspectorPanel(Gtk.Box):
             meta_sub += f" ({track.date})"
         self.album_label.set_text(meta_sub)
 
-        # Ficha técnica
+        # Ficha técnica de la fuente
         self.val_format.set_text(track.format_name)
         self.val_rate.set_text(f"{track.sample_rate / 1000:g} kHz")
         self.val_depth.set_text(f"{track.bits_per_sample} bits" if track.bits_per_sample > 1 else "1 bit (DSD)")
@@ -173,30 +197,32 @@ class InspectorPanel(Gtk.Box):
         self.val_bitrate.set_text(track.formatted_bitrate)
         self.val_size.set_text(track.formatted_file_size)
 
-        # Carátula
+        # Carátula escalada con Gtk.Picture
         cover_info = track.get_cover_image_bytes()
         if cover_info:
             try:
                 data, mime = cover_info
-                # Obtener dimensiones reales con PIL
                 with Image.open(io.BytesIO(data)) as img:
                     w, h = img.size
-                    self.cover_dims_label.set_text(f"{w} × {h} px · {mime.split('/')[-1].upper()}")
+                    fmt_clean = mime.split('/')[-1].upper()
+                    self.cover_dims_label.set_text(f"{w} × {h} px · {fmt_clean}")
 
-                stream = Gio.MemoryInputStream.new_from_data(data)
-                pixbuf = GdkPixbuf.Pixbuf.new_from_stream_at_scale(stream, 240, 240, True, None)
-                self.cover_image.set_from_pixbuf(pixbuf)
+                bytes_glib = GLib.Bytes.new(data)
+                texture = Gdk.Texture.new_from_bytes(bytes_glib)
+                self.cover_picture.set_paintable(texture)
+                self.cover_stack.set_visible_child_name("picture")
             except Exception:
-                self.cover_image.set_from_icon_name("audio-x-generic-symbolic")
+                self.cover_picture.set_paintable(None)
+                self.cover_stack.set_visible_child_name("placeholder")
                 self.cover_dims_label.set_text("")
         else:
-            self.cover_image.set_from_icon_name("audio-x-generic-symbolic")
+            self.cover_picture.set_paintable(None)
+            self.cover_stack.set_visible_child_name("placeholder")
             self.cover_dims_label.set_text("Sin carátula disponible")
 
     def update_dac_status(self, info: dict):
         """Actualiza la auditoría de estado del DAC en tiempo real."""
         dev_name = info.get("device_name", "Desconocido")
-        # Truncar nombre largo si es necesario
         if len(dev_name) > 22:
             dev_name = dev_name[:20] + "…"
         self.val_dac_name.set_text(dev_name)
@@ -222,5 +248,5 @@ class InspectorPanel(Gtk.Box):
             self.val_dac_status.set_text("Exclusivo (atenuado)")
             self.val_dac_status.add_css_class("warning")
         else:
-            self.val_dac_status.set_text("Compartido / Mezclador")
+            self.val_dac_status.set_text("Compartido / Sistema")
             self.val_dac_status.remove_css_class("accent")

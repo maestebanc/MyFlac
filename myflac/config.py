@@ -18,7 +18,7 @@ DEFAULTS = {
     "ui_scale": 100,
     "theme": "system",          # "system", "light", "dark"
     "window_width": 1280,
-    "window_height": 820,
+    "window_height": 880,
     "window_maximized": False,
     "last_directory": "",
     "repeat_mode": "none",      # "none", "all", "one"
