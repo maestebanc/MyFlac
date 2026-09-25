@@ -81,22 +81,20 @@ EXTRA_CSS = """
     padding: 24px;
 }
 
-/* Miniatura acotada de la barra inferior */
+/* Miniatura de la barra inferior: adaptada al alto del minireproductor */
 .mini-cover-frame {
-    min-width: 48px;
-    min-height: 48px;
     border-radius: 8px;
     border: 1px solid alpha(@window_fg_color, 0.12);
     box-shadow: 0 2px 8px alpha(black, 0.20);
     background-color: alpha(@window_fg_color, 0.04);
 }
 
-/* Barra inferior del reproductor con altura acotada a 64px */
+/* Barra inferior del reproductor: relleno ceñido para apurar toda la altura */
 .player-bar {
     min-height: 64px;
     background-color: alpha(@window_bg_color, 0.95);
     border-top: 1px solid alpha(@window_fg_color, 0.10);
-    padding: 6px 16px;
+    padding: 4px 16px 4px 6px;
 }
 
 /* Barra de progreso de escaneo: delgada línea azul (#3584e4) no obstructiva */

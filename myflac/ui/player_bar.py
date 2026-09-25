@@ -15,6 +15,23 @@ from .. import i18n
 log = logging.getLogger(__name__)
 
 
+class AdaptiveCoverFrame(Gtk.AspectFrame):
+    """AspectFrame adaptativo 1:1 que ajusta su tamaño al alto de la barra
+
+    sin imponer altura vertical propia al contenedor padre.
+    """
+    def __init__(self, **kwargs):
+        super().__init__(ratio=1.0, obey_child=False, **kwargs)
+
+    def do_measure(self, orientation, for_size):
+        if orientation == Gtk.Orientation.VERTICAL:
+            return (0, 0, -1, -1)
+        else:
+            if for_size > 0:
+                return (for_size, for_size, -1, -1)
+            return (0, 0, -1, -1)
+
+
 class PlayerBar(Gtk.Box):
     def __init__(self, engine: AudioEngine, on_device_click: Callable[[], None] | None = None):
         super().__init__(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
@@ -40,47 +57,51 @@ class PlayerBar(Gtk.Box):
 
     def _build_ui(self):
         # ==========================================
-        # 1. IZQUIERDA: Mini carátula acotada + Título / Artista
+        # 1. IZQUIERDA: Mini carátula adaptativa + Título / Artista
         # ==========================================
         left_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
         left_box.set_size_request(300, -1)
         left_box.set_hexpand(False)
-        left_box.set_valign(Gtk.Align.CENTER)
+        left_box.set_vexpand(True)
+        left_box.set_valign(Gtk.Align.FILL)
 
-        # Marco acotado estrictamente a 48x48 para miniatura
+        # Marco adaptativo que apura toda la altura del minireproductor (1:1)
+        self.aspect_frame = AdaptiveCoverFrame(xalign=0.0, yalign=0.5)
+        self.aspect_frame.set_vexpand(True)
+        self.aspect_frame.set_valign(Gtk.Align.FILL)
+        self.aspect_frame.set_hexpand(False)
+
         self.cover_frame = Gtk.Box()
         self.cover_frame.add_css_class("mini-cover-frame")
-        self.cover_frame.set_size_request(48, 48)
+        self.cover_frame.set_vexpand(True)
+        self.cover_frame.set_valign(Gtk.Align.FILL)
         self.cover_frame.set_overflow(Gtk.Overflow.HIDDEN)
-        self.cover_frame.set_valign(Gtk.Align.CENTER)
-        self.cover_frame.set_vexpand(False)
-        self.cover_frame.set_hexpand(False)
 
         self.cover_stack = Gtk.Stack()
-        self.cover_stack.set_size_request(48, 48)
-        self.cover_stack.set_vexpand(False)
-        self.cover_stack.set_hexpand(False)
+        self.cover_stack.set_vexpand(True)
+        self.cover_stack.set_valign(Gtk.Align.FILL)
 
         self.cover_picture = Gtk.Picture()
         self.cover_picture.set_can_shrink(True)
         self.cover_picture.set_content_fit(Gtk.ContentFit.COVER)
-        self.cover_picture.set_size_request(48, 48)
-        self.cover_picture.set_vexpand(False)
-        self.cover_picture.set_hexpand(False)
+        self.cover_picture.set_size_request(0, 0)
         self.cover_stack.add_named(self.cover_picture, "picture")
 
         placeholder = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-        placeholder.set_size_request(48, 48)
-        placeholder.set_halign(Gtk.Align.CENTER)
-        placeholder.set_valign(Gtk.Align.CENTER)
+        placeholder.set_vexpand(True)
+        placeholder.set_valign(Gtk.Align.FILL)
+        placeholder.set_halign(Gtk.Align.FILL)
         icon = Gtk.Image.new_from_icon_name("audio-x-generic-symbolic")
-        icon.set_pixel_size(24)
+        icon.set_pixel_size(28)
+        icon.set_valign(Gtk.Align.CENTER)
+        icon.set_vexpand(True)
         placeholder.append(icon)
         self.cover_stack.add_named(placeholder, "placeholder")
         self.cover_stack.set_visible_child_name("placeholder")
 
         self.cover_frame.append(self.cover_stack)
-        left_box.append(self.cover_frame)
+        self.aspect_frame.set_child(self.cover_frame)
+        left_box.append(self.aspect_frame)
 
         # Textos de pista
         track_info_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
@@ -273,14 +294,13 @@ class PlayerBar(Gtk.Box):
         else:
             self.hires_badge_label.add_css_class("hires-cd-badge")
 
-        # Mini carátula acotada: textura reescalada estrictamente a 48x48
+        # Mini carátula adaptativa: textura HD nítida ajustada al marco 1:1
         cover_info = track.get_cover_image_bytes()
         if cover_info:
             try:
                 data, _ = cover_info
-                stream = Gio.MemoryInputStream.new_from_data(data)
-                pixbuf = GdkPixbuf.Pixbuf.new_from_stream_at_scale(stream, 48, 48, True, None)
-                texture = Gdk.Texture.new_for_pixbuf(pixbuf)
+                bytes_glib = GLib.Bytes.new(data)
+                texture = Gdk.Texture.new_from_bytes(bytes_glib)
                 self.cover_picture.set_paintable(texture)
                 self.cover_stack.set_visible_child_name("picture")
             except Exception as e:
