@@ -1,9 +1,7 @@
 """Panel lateral derecho: inspector de metadatos audiófilos y carátula HD en MyFlac."""
 from __future__ import annotations
 
-import io
 import os
-from PIL import Image
 
 import gi
 
@@ -12,7 +10,10 @@ gi.require_version("Adw", "1")
 from gi.repository import Adw, Gdk, Gio, GLib, Gtk, Pango
 
 from ..audio.track import AudioTrack
+from ..logger import get_logger
 from .. import i18n
+
+log = get_logger(__name__)
 
 
 class InspectorPanel(Gtk.Box):
@@ -39,32 +40,31 @@ class InspectorPanel(Gtk.Box):
 
         content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
         content.set_hexpand(True)
+        content.set_valign(Gtk.Align.START)
 
         # 1. Carátula del álbum en HD adaptada al ancho completo de la columna (AspectFrame 1:1)
-        cover_container = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
-        cover_container.set_hexpand(True)
-
-        self.aspect_frame = Gtk.AspectFrame(xalign=0.5, yalign=0.5, ratio=1.0, obey_child=False)
+        self.aspect_frame = Gtk.AspectFrame(xalign=0.5, yalign=0.0, ratio=1.0, obey_child=False)
         self.aspect_frame.set_hexpand(True)
+        self.aspect_frame.set_vexpand(False)
 
         self.cover_frame = Gtk.Box()
         self.cover_frame.add_css_class("album-cover-frame")
         self.cover_frame.set_hexpand(True)
-        self.cover_frame.set_vexpand(True)
+        self.cover_frame.set_vexpand(False)
         self.cover_frame.set_overflow(Gtk.Overflow.HIDDEN)
 
         # Stack para alternar entre imagen real del álbum y placeholder estético
         self.cover_stack = Gtk.Stack()
         self.cover_stack.set_transition_type(Gtk.StackTransitionType.CROSSFADE)
         self.cover_stack.set_hexpand(True)
-        self.cover_stack.set_vexpand(True)
+        self.cover_stack.set_vexpand(False)
 
         # Picture para la carátula real del álbum
         self.cover_picture = Gtk.Picture()
         self.cover_picture.set_can_shrink(True)
         self.cover_picture.set_content_fit(Gtk.ContentFit.COVER)
         self.cover_picture.set_hexpand(True)
-        self.cover_picture.set_vexpand(True)
+        self.cover_picture.set_vexpand(False)
         self.cover_stack.add_named(self.cover_picture, "picture")
 
         # Picture para el placeholder estético MyFlac
@@ -72,24 +72,19 @@ class InspectorPanel(Gtk.Box):
         self.placeholder_picture.set_can_shrink(True)
         self.placeholder_picture.set_content_fit(Gtk.ContentFit.COVER)
         self.placeholder_picture.set_hexpand(True)
-        self.placeholder_picture.set_vexpand(True)
+        self.placeholder_picture.set_vexpand(False)
         self._load_placeholder_image()
         self.cover_stack.add_named(self.placeholder_picture, "placeholder")
 
         self.cover_stack.set_visible_child_name("placeholder")
         self.cover_frame.append(self.cover_stack)
         self.aspect_frame.set_child(self.cover_frame)
-
-        self.cover_dims_label = Gtk.Label(label="")
-        self.cover_dims_label.add_css_class("dim-label")
-
-        cover_container.append(self.aspect_frame)
-        cover_container.append(self.cover_dims_label)
-        content.append(cover_container)
+        content.append(self.aspect_frame)
 
         # 2. Resumen de la obra (Título, Artista, Álbum)
         info_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
         info_box.set_halign(Gtk.Align.CENTER)
+        info_box.set_margin_top(2)
 
         self.title_label = Gtk.Label(label=i18n.t("inspector.select_track"), xalign=0.5)
         self.title_label.set_ellipsize(Pango.EllipsizeMode.END)
@@ -236,7 +231,6 @@ class InspectorPanel(Gtk.Box):
             self.val_size.set_text("—")
             self.cover_picture.set_paintable(None)
             self.cover_stack.set_visible_child_name("placeholder")
-            self.cover_dims_label.set_text("")
             return
 
         self.title_label.set_text(track.title)
@@ -259,24 +253,18 @@ class InspectorPanel(Gtk.Box):
         cover_info = track.get_cover_image_bytes()
         if cover_info:
             try:
-                data, mime = cover_info
-                with Image.open(io.BytesIO(data)) as img:
-                    w, h = img.size
-                    fmt_clean = mime.split('/')[-1].upper()
-                    self.cover_dims_label.set_text(f"{w} × {h} px · {fmt_clean}")
-
+                data, _mime = cover_info
                 bytes_glib = GLib.Bytes.new(data)
                 texture = Gdk.Texture.new_from_bytes(bytes_glib)
                 self.cover_picture.set_paintable(texture)
                 self.cover_stack.set_visible_child_name("picture")
-            except Exception:
+            except Exception as e:
+                log.warning(f"Error cargando carátula de pista: {e}")
                 self.cover_picture.set_paintable(None)
                 self.cover_stack.set_visible_child_name("placeholder")
-                self.cover_dims_label.set_text("")
         else:
             self.cover_picture.set_paintable(None)
             self.cover_stack.set_visible_child_name("placeholder")
-            self.cover_dims_label.set_text("")
 
     def update_dac_status(self, info: dict):
         """Actualiza el estado de la salida de audio y dispositivo activo."""
