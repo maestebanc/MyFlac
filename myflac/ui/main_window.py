@@ -6,7 +6,7 @@ import os
 import gi
 gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
-from gi.repository import Adw, Gdk, Gio, GLib, Gtk
+from gi.repository import Adw, Gdk, Gio, GLib, GObject, Gtk
 
 from ..audio.devices import AudioDevice, find_device_by_id, get_default_device
 from ..audio.engine import AudioEngine, PlaybackState
@@ -99,21 +99,45 @@ class MainWindow(Adw.ApplicationWindow):
 
         self.header_bar.pack_start(scan_box)
 
-        # Búsqueda en el centro
-        self.search_entry = Gtk.SearchEntry()
-        self.search_entry.set_placeholder_text(i18n.t("header.search_placeholder"))
-        self.search_entry.set_size_request(260, -1)
-        self.search_entry.connect(
-            "search-changed",
-            lambda entry: self.browser.set_search_query(entry.get_text()),
+        # Título limpio en el centro
+        self.window_title = Adw.WindowTitle(
+            title=APP_NAME,
+            subtitle=i18n.t("app.subtitle"),
         )
-        self.header_bar.set_title_widget(self.search_entry)
+        self.header_bar.set_title_widget(self.window_title)
+
+        # Botón de búsqueda desplegable
+        self.btn_search = Gtk.ToggleButton()
+        self.btn_search.set_icon_name("system-search-symbolic")
+        self.btn_search.set_tooltip_text(i18n.t("header.search_tooltip"))
+        self.header_bar.pack_end(self.btn_search)
 
         # Menú principal a la derecha
         self.menu_btn = Gtk.MenuButton()
         self.menu_btn.set_icon_name("open-menu-symbolic")
         self._rebuild_menu()
         self.header_bar.pack_end(self.menu_btn)
+
+        # Barra de búsqueda desplegable debajo de la cabecera (Gtk.SearchBar)
+        self.search_bar = Gtk.SearchBar()
+        self.search_entry = Gtk.SearchEntry()
+        self.search_entry.set_placeholder_text(i18n.t("header.search_placeholder"))
+        self.search_entry.set_size_request(340, -1)
+        self.search_entry.connect(
+            "search-changed",
+            lambda entry: self.browser.set_search_query(entry.get_text()),
+        )
+        self.search_bar.set_child(self.search_entry)
+        self.search_bar.connect_entry(self.search_entry)
+        self.search_bar.set_key_capture_widget(self)
+        self.btn_search.bind_property(
+            "active",
+            self.search_bar,
+            "search-mode-enabled",
+            GObject.BindingFlags.BIDIRECTIONAL,
+        )
+
+        self.toolbar_view.add_top_bar(self.search_bar)
 
         # Panel central dividido (Paned: Navegador de biblioteca | Inspector audiófilo)
         self.paned = Gtk.Paned(orientation=Gtk.Orientation.HORIZONTAL)
@@ -282,7 +306,9 @@ class MainWindow(Adw.ApplicationWindow):
     def _on_language_changed(self, _lang: str):
         """Actualiza tooltips, búsqueda y menú al cambiar el idioma en caliente."""
         self.btn_scan.set_tooltip_text(i18n.t("header.scan_library"))
+        self.btn_search.set_tooltip_text(i18n.t("header.search_tooltip"))
         self.search_entry.set_placeholder_text(i18n.t("header.search_placeholder"))
+        self.window_title.set_subtitle(i18n.t("app.subtitle"))
         self._rebuild_menu()
         self._update_output_status()
         self.browser.refresh_i18n()
@@ -306,6 +332,12 @@ class MainWindow(Adw.ApplicationWindow):
         if keyval in (Gdk.KEY_r, Gdk.KEY_R) and (state & Gdk.ModifierType.CONTROL_MASK):
             log.debug("Atajo teclado: Ctrl+R -> escanear biblioteca")
             self._trigger_library_scan(quick=True, silent=False)
+            return True
+        if keyval in (Gdk.KEY_f, Gdk.KEY_F) and (state & Gdk.ModifierType.CONTROL_MASK):
+            log.debug("Atajo teclado: Ctrl+F -> activar búsqueda")
+            self.btn_search.set_active(not self.btn_search.get_active())
+            if self.btn_search.get_active():
+                self.search_entry.grab_focus()
             return True
         return False
 

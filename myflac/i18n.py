@@ -102,9 +102,19 @@ STRINGS: dict[str, dict[str, str]] = {
         "ca": "Buidar llista de reproducció",
     },
     "header.search_placeholder": {
-        "es": "Buscar en la lista...",
-        "en": "Search playlist...",
-        "ca": "Cercar a la llista...",
+        "es": "Buscar artista, álbum o canción...",
+        "en": "Search artist, album or track...",
+        "ca": "Cercar artista, àlbum o cançó...",
+    },
+    "header.search_tooltip": {
+        "es": "Buscar en la biblioteca (Ctrl+F)",
+        "en": "Search library (Ctrl+F)",
+        "ca": "Cercar a la biblioteca (Ctrl+F)",
+    },
+    "app.subtitle": {
+        "es": "Biblioteca Audiófila",
+        "en": "Audiophile Library",
+        "ca": "Biblioteca Audiòfila",
     },
     "menu.preferences": {
         "es": "Preferencias",
