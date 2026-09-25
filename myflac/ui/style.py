@@ -211,7 +211,44 @@ def apply_theme(theme: str) -> None:
         style_manager.set_color_scheme(Adw.ColorScheme.DEFAULT)
 
 
+def ensure_desktop_integration() -> None:
+    """Instala o sincroniza el archivo .desktop y los iconos en ~/.local/share para integración con GNOME Shell / Wayland."""
+    try:
+        import shutil
+        base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        data_icons = os.path.join(base_dir, "data", "icons", "hicolor")
+        user_icons = os.path.expanduser("~/.local/share/icons/hicolor")
+        user_apps = os.path.expanduser("~/.local/share/applications")
+
+        os.makedirs(user_apps, exist_ok=True)
+        os.makedirs(user_icons, exist_ok=True)
+
+        if os.path.isdir(data_icons):
+            for root, _, files in os.walk(data_icons):
+                rel = os.path.relpath(root, data_icons)
+                dest_dir = os.path.join(user_icons, rel)
+                os.makedirs(dest_dir, exist_ok=True)
+                for f in files:
+                    src_f = os.path.join(root, f)
+                    dest_f = os.path.join(dest_dir, f)
+                    if not os.path.exists(dest_f) or os.path.getmtime(src_f) > os.path.getmtime(dest_f):
+                        shutil.copy2(src_f, dest_f)
+
+        desktop_src = os.path.join(base_dir, "data", f"{APP_ID}.desktop")
+        desktop_dest = os.path.join(user_apps, f"{APP_ID}.desktop")
+        if os.path.isfile(desktop_src):
+            run_script = os.path.join(base_dir, "run.sh")
+            with open(desktop_src, "r", encoding="utf-8") as f:
+                content = f.read()
+            content = content.replace("Exec=myflac", f"Exec={run_script} %F")
+            with open(desktop_dest, "w", encoding="utf-8") as f:
+                f.write(content)
+    except Exception:
+        pass
+
+
 def register_icon_theme() -> None:
+    ensure_desktop_integration()
     display = Gdk.Display.get_default()
     if not display:
         return
@@ -219,6 +256,7 @@ def register_icon_theme() -> None:
     base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     data_icons = os.path.join(base_dir, "data", "icons")
     internal_icons = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "resources", "icons")
-    for d in (data_icons, internal_icons):
+    user_icons = os.path.expanduser("~/.local/share/icons")
+    for d in (data_icons, internal_icons, user_icons):
         if os.path.isdir(d):
             icon_theme.add_search_path(d)

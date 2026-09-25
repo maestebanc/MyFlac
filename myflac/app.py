@@ -8,10 +8,10 @@ import gi
 
 gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
-from gi.repository import Adw, Gdk, Gio, Gtk
+from gi.repository import Adw, Gdk, Gio, GLib, Gtk
 
 from . import config
-from .constants import APP_ID
+from .constants import APP_ID, APP_NAME
 from .logger import get_log_path, get_logger, setup_logging
 from .ui.about_dialog import build_about_dialog
 from .ui.main_window import MainWindow
@@ -23,6 +23,10 @@ log = get_logger("app")
 
 class MyFlacApplication(Adw.Application):
     def __init__(self):
+        if not GLib.get_prgname():
+            GLib.set_prgname(APP_ID)
+        if not GLib.get_application_name():
+            GLib.set_application_name(APP_NAME)
         super().__init__(application_id=APP_ID, flags=Gio.ApplicationFlags.FLAGS_NONE)
         # Desactivar propiedad heredada de GTK3 para evitar avisos por consola en entornos Omarchy/GNOME
         Gtk.Settings.get_default().set_property("gtk-application-prefer-dark-theme", False)
@@ -103,6 +107,8 @@ class MyFlacApplication(Adw.Application):
 
 
 def main():
+    GLib.set_prgname(APP_ID)
+    GLib.set_application_name(APP_NAME)
     setup_logging(debug=True)
     log.info("Iniciando bucle de aplicación GTK4...")
     app = MyFlacApplication()
