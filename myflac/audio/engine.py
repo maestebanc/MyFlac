@@ -42,8 +42,9 @@ class AudioEngine:
         self._bus: Gst.Bus | None = None
         self._timer_id: int | None = None
 
-        # Callbacks
+        # Callbacks y Listeners múltiples
         self.on_state_changed: Callable[[PlaybackState], None] | None = None
+        self._state_listeners: list[Callable[[PlaybackState], None]] = []
         self.on_track_changed: Callable[[AudioTrack], None] | None = None
         self.on_position_updated: Callable[[float, float], None] | None = None
         self.on_track_finished: Callable[[], None] | None = None
@@ -51,6 +52,29 @@ class AudioEngine:
 
         log.info("Inicializando AudioEngine con mezclador del sistema (device_id='%s')", device_id)
         self._init_pipeline()
+
+    def add_state_listener(self, callback: Callable[[PlaybackState], None]):
+        """Registra un listener para cambios de estado de reproducción (play/pause/stop)."""
+        if callback not in self._state_listeners:
+            self._state_listeners.append(callback)
+
+    def remove_state_listener(self, callback: Callable[[PlaybackState], None]):
+        """Elimina un listener de estado previamente registrado."""
+        if callback in self._state_listeners:
+            self._state_listeners.remove(callback)
+
+    def _notify_state_changed(self):
+        """Notifica a todos los listeners registrados y al callback legado."""
+        if self.on_state_changed:
+            try:
+                self.on_state_changed(self.state)
+            except Exception as e:
+                log.exception("Error en callback on_state_changed: %s", e)
+        for listener in list(self._state_listeners):
+            try:
+                listener(self.state)
+            except Exception as e:
+                log.exception("Error en listener de estado: %s", e)
 
     def _init_pipeline(self):
         """Crea y configura el reproductor GStreamer playbin3."""
@@ -145,8 +169,7 @@ class AudioEngine:
         else:
             self._playbin.set_state(Gst.State.PAUSED)
             self.state = PlaybackState.PAUSED
-            if self.on_state_changed:
-                self.on_state_changed(self.state)
+            self._notify_state_changed()
 
         if self.on_track_changed:
             self.on_track_changed(track)
@@ -177,8 +200,7 @@ class AudioEngine:
 
         self.state = PlaybackState.PLAYING
         self._start_timer()
-        if self.on_state_changed:
-            self.on_state_changed(self.state)
+        self._notify_state_changed()
 
     def pause(self):
         if not self._playbin:
@@ -187,8 +209,7 @@ class AudioEngine:
         self._playbin.set_state(Gst.State.PAUSED)
         self.state = PlaybackState.PAUSED
         self._stop_timer()
-        if self.on_state_changed:
-            self.on_state_changed(self.state)
+        self._notify_state_changed()
 
     def toggle_play_pause(self):
         if self.state == PlaybackState.PLAYING:
@@ -202,8 +223,7 @@ class AudioEngine:
         self._playbin.set_state(Gst.State.NULL)
         self.state = PlaybackState.STOPPED
         self._stop_timer()
-        if self.on_state_changed:
-            self.on_state_changed(self.state)
+        self._notify_state_changed()
         if self.on_position_updated:
             self.on_position_updated(0.0, self.get_duration())
 
@@ -259,6 +279,17 @@ class AudioEngine:
             self.stop()
             if self.on_track_finished:
                 self.on_track_finished()
+        elif m_type == Gst.MessageType.STATE_CHANGED:
+            if message.src == self._playbin:
+                old_state, new_state, _pending = message.parse_state_changed()
+                if new_state == Gst.State.PLAYING and self.state != PlaybackState.PLAYING:
+                    self.state = PlaybackState.PLAYING
+                    self._start_timer()
+                    self._notify_state_changed()
+                elif new_state == Gst.State.PAUSED and old_state == Gst.State.PLAYING and self.state != PlaybackState.PAUSED:
+                    self.state = PlaybackState.PAUSED
+                    self._stop_timer()
+                    self._notify_state_changed()
         elif m_type == Gst.MessageType.ERROR:
             err, debug = message.parse_error()
             log.error("Error en GStreamer: %s (debug: %s)", err.message, debug)

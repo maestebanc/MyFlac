@@ -29,6 +29,7 @@ class MainWindow(Adw.ApplicationWindow):
     def __init__(self, app: Adw.Application, cfg: dict):
         super().__init__(application=app)
         self.set_title(APP_NAME)
+        self.set_icon_name(APP_ID)
         w = max(1200, cfg.get("window_width", 1280))
         h = max(800, cfg.get("window_height", 850))
         self.set_default_size(w, h)
@@ -49,7 +50,7 @@ class MainWindow(Adw.ApplicationWindow):
         # 3. Cablear eventos de reproducción automática de listas
         self.engine.on_track_finished = self._on_track_finished
         self.engine.on_error = self._on_playback_error
-        self.engine.on_state_changed = self._on_engine_state_changed
+        self.engine.add_state_listener(self._on_engine_state_changed)
 
         # Ajuste inteligente del panel inspector al redimensionar / maximizar
         self.connect("map", lambda *_: GLib.idle_add(self._adjust_paned_position))
@@ -128,6 +129,7 @@ class MainWindow(Adw.ApplicationWindow):
             engine=self.engine,
             on_device_click=lambda: self._open_device_dialog()
         )
+        self.player_bar.on_play_pause_clicked = self._toggle_play_pause
         self.player_bar.on_previous_clicked = self._play_previous
         self.player_bar.on_next_clicked = self._play_next
         self.player_bar.on_repeat_clicked = self._cycle_repeat_mode
@@ -177,7 +179,7 @@ class MainWindow(Adw.ApplicationWindow):
             focus = self.get_focus()
             if not isinstance(focus, (Gtk.Entry, Gtk.SearchEntry, Gtk.Editable)):
                 log.debug("Atajo teclado: Espacio -> toggle play/pause")
-                self.engine.toggle_play_pause()
+                self._toggle_play_pause()
                 return True
         if keyval in (Gdk.KEY_o, Gdk.KEY_O) and (state & Gdk.ModifierType.CONTROL_MASK):
             if state & Gdk.ModifierType.SHIFT_MASK:
@@ -188,6 +190,20 @@ class MainWindow(Adw.ApplicationWindow):
                 self._choose_folder()
             return True
         return False
+
+    def _toggle_play_pause(self):
+        """Alterna reproducción y pausa. Si no hay pista activa, arranca la primera pista disponible."""
+        if not self.engine.current_track:
+            track = self.track_list.get_selected_or_first_track()
+            if track:
+                log.info("Play accionado sin pista activa -> iniciando reproducción de: '%s'", track.title)
+                self.track_list.set_current_playing_track(track)
+                self._on_track_activated(track)
+                return
+            else:
+                log.info("Play accionado pero no hay pistas cargadas en la lista")
+                return
+        self.engine.toggle_play_pause()
 
     def _on_track_activated(self, track: AudioTrack):
         log.info("Pista activada por usuario: '%s' - '%s'", track.artist, track.title)

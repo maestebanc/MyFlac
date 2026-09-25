@@ -52,7 +52,7 @@ class MyFlacApplication(Adw.Application):
         log.info("Evento activate de Adw.Application recibido")
         if self.window is None:
             register_icon_theme()
-            Gtk.Window.set_default_icon_name("audio-player-symbolic")
+            Gtk.Window.set_default_icon_name(APP_ID)
             load_extra_css()
             cfg = config.load_config()
             log.info("Configuración cargada: %s", {k: v for k, v in cfg.items() if k != "last_directory"})

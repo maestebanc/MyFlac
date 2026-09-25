@@ -267,6 +267,22 @@ class TrackListView(Gtk.Box):
         prev_idx = max(0, curr - 1)
         return self.get_track_at_index(prev_idx)
 
+    def get_selected_or_first_track(self) -> AudioTrack | None:
+        """Obtiene la pista seleccionada en la tabla o, por defecto, la primera pista."""
+        n = self.list_store.get_n_items()
+        if n == 0:
+            return None
+
+        # Si hay una fila seleccionada por el usuario en la vista
+        sel_pos = self.selection_model.get_selected()
+        if sel_pos != Gtk.INVALID_LIST_POSITION and sel_pos < self.filter_model.get_n_items():
+            item = self.filter_model.get_item(sel_pos)
+            if item and item.track:
+                return item.track
+
+        # Fallback a la primera pista de la lista
+        return self.get_track_at_index(0)
+
     def _update_footer(self):
         n = self.list_store.get_n_items()
         if n == 0:

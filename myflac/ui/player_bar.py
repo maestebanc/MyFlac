@@ -27,6 +27,7 @@ class PlayerBar(Gtk.Box):
         self._current_duration = 0.0
 
         # Callbacks
+        self.on_play_pause_clicked: Callable[[], None] | None = None
         self.on_previous_clicked: Callable[[], None] | None = None
         self.on_next_clicked: Callable[[], None] | None = None
         self.on_shuffle_toggled: Callable[[bool], None] | None = None
@@ -129,7 +130,7 @@ class PlayerBar(Gtk.Box):
         self.play_btn.set_tooltip_text(i18n.t("player.play_pause"))
         self.play_btn.add_css_class("suggested-action")
         self.play_btn.add_css_class("play-pause-btn")
-        self.play_btn.connect("clicked", lambda *_: self.engine.toggle_play_pause())
+        self.play_btn.connect("clicked", lambda *_: self._handle_play_click())
         controls_box.append(self.play_btn)
 
         self.next_btn = Gtk.Button.new_from_icon_name("media-skip-forward-symbolic")
@@ -218,9 +219,15 @@ class PlayerBar(Gtk.Box):
         self.append(right_box)
 
     def _connect_engine(self):
-        self.engine.on_state_changed = self._on_state_changed
+        self.engine.add_state_listener(self._on_state_changed)
         self.engine.on_track_changed = self._on_track_changed
         self.engine.on_position_updated = self._on_position_updated
+
+    def _handle_play_click(self):
+        if self.on_play_pause_clicked:
+            self.on_play_pause_clicked()
+        else:
+            self.engine.toggle_play_pause()
 
     def update_active_device(self):
         """Actualiza el texto e icono del botón de dispositivo de audio."""

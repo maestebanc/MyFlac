@@ -212,8 +212,13 @@ def apply_theme(theme: str) -> None:
 
 
 def register_icon_theme() -> None:
-    icon_theme = Gtk.IconTheme.get_for_display(Gdk.Display.get_default())
+    display = Gdk.Display.get_default()
+    if not display:
+        return
+    icon_theme = Gtk.IconTheme.get_for_display(display)
     base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     data_icons = os.path.join(base_dir, "data", "icons")
-    if os.path.isdir(data_icons):
-        icon_theme.add_search_path(data_icons)
+    internal_icons = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "resources", "icons")
+    for d in (data_icons, internal_icons):
+        if os.path.isdir(d):
+            icon_theme.add_search_path(d)
