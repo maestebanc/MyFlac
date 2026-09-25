@@ -1,0 +1,20 @@
+[Desktop Entry]
+Type=Application
+Name=MyFlac
+Name[es]=MyFlac
+Name[ca]=MyFlac
+GenericName=Hi-Res Audio Player
+GenericName[es]=Reproductor de audio Hi-Res
+GenericName[ca]=Reproductor d'àudio Hi-Res
+Comment=Bit-perfect exclusive Hi-Res audio player
+Comment[es]=Reproductor de música Hi-Res bit-perfect en modo exclusivo
+Comment[ca]=Reproductor de música Hi-Res bit-perfect en mode exclusiu
+Exec=myflac
+Icon=com.maestebanc.MyFlac
+Terminal=false
+Categories=Audio;AudioVideo;Player;
+StartupWMClass=com.maestebanc.MyFlac
+MimeType=audio/flac;audio/x-flac;audio/wav;audio/x-wav;audio/x-aiff;audio/mp4;audio/x-m4a;audio/dsf;audio/dff;
+Keywords=music;player;flac;hires;audio;bitperfect;alsa;dac;
+Keywords[es]=musica;reproductor;flac;hires;audio;bitperfect;alsa;dac;
+Keywords[ca]=musica;reproductor;flac;hires;audio;bitperfect;alsa;dac;
