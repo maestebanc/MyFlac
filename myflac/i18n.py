@@ -466,4 +466,160 @@ STRINGS: dict[str, dict[str, str]] = {
         "en": "Hi-Res & FLAC Audio Files",
         "ca": "Fitxers d'àudio Hi-Res i FLAC",
     },
+    "dialog.cancel": {
+        "es": "Cancelar",
+        "en": "Cancel",
+        "ca": "Cancel·lar",
+    },
+    "dialog.confirm": {
+        "es": "Confirmar",
+        "en": "Confirm",
+        "ca": "Confirmar",
+    },
+
+    # --- Navegador Multicolumnas estilo iTunes ---
+    "browser.col_artist": {
+        "es": "Artista",
+        "en": "Artist",
+        "ca": "Artista",
+    },
+    "browser.col_album": {
+        "es": "Álbum",
+        "en": "Album",
+        "ca": "Àlbum",
+    },
+    "browser.all_artists": {
+        "es": "Todos ({count} artistas)",
+        "en": "All ({count} artists)",
+        "ca": "Tots ({count} artistes)",
+    },
+    "browser.all_albums": {
+        "es": "Todos ({count} álbumes)",
+        "en": "All ({count} albums)",
+        "ca": "Tots ({count} àlbums)",
+    },
+    "browser.unknown_artist": {
+        "es": "Artista desconocido",
+        "en": "Unknown artist",
+        "ca": "Artista desconegut",
+    },
+    "browser.no_album": {
+        "es": "Sin Álbum",
+        "en": "No Album",
+        "ca": "Sense Àlbum",
+    },
+
+    # --- Configuración inicial de biblioteca ---
+    "setup.welcome_title": {
+        "es": "Bienvenido a MyFlac",
+        "en": "Welcome to MyFlac",
+        "ca": "Benvingut a MyFlac",
+    },
+    "setup.welcome_subtitle": {
+        "es": "Para comenzar a reproducir tu música Hi-Res, selecciona la carpeta donde guardas tus álbumes y archivos de audio.",
+        "en": "To start playing your Hi-Res music, select the folder where you keep your albums and audio files.",
+        "ca": "Per començar a reproduir la teva música Hi-Res, selecciona la carpeta on guardes els teus àlbums i fitxers d'àudio.",
+    },
+    "setup.choose_btn": {
+        "es": "Seleccionar Carpeta de Música",
+        "en": "Select Music Folder",
+        "ca": "Seleccionar Carpeta de Música",
+    },
+    "setup.choose_title": {
+        "es": "Elige la carpeta principal de tu biblioteca",
+        "en": "Choose your primary music library folder",
+        "ca": "Tria la carpeta principal de la teva biblioteca",
+    },
+    "setup.scanning": {
+        "es": "Indexando biblioteca...",
+        "en": "Indexing library...",
+        "ca": "Indexant biblioteca...",
+    },
+
+    # --- Preferencias: Biblioteca ---
+    "prefs.library_page": {
+        "es": "Biblioteca",
+        "en": "Library",
+        "ca": "Biblioteca",
+    },
+    "prefs.library_folders_group": {
+        "es": "Carpetas de la Biblioteca",
+        "en": "Library Folders",
+        "ca": "Carpetes de la Biblioteca",
+    },
+    "prefs.library_folders_desc": {
+        "es": "Carpetas y subcarpetas que MyFlac escanea para organizar tu colección",
+        "en": "Folders and subfolders that MyFlac scans to organize your collection",
+        "ca": "Carpetes i subcarpetes que MyFlac escaneja per organitzar la teva col·lecció",
+    },
+    "prefs.add_folder": {
+        "es": "Añadir carpeta a la biblioteca...",
+        "en": "Add folder to library...",
+        "ca": "Afegir carpeta a la biblioteca...",
+    },
+    "prefs.remove_folder": {
+        "es": "Quitar carpeta",
+        "en": "Remove folder",
+        "ca": "Treure carpeta",
+    },
+    "prefs.maintenance_group": {
+        "es": "Mantenimiento y Escaneo",
+        "en": "Maintenance & Scanning",
+        "ca": "Manteniment i Escaneig",
+    },
+    "prefs.scan_new": {
+        "es": "Buscar temas nuevos",
+        "en": "Scan for new tracks",
+        "ca": "Cercar temes nous",
+    },
+    "prefs.scan_new_desc": {
+        "es": "Escanea rápidamente las carpetas en busca de archivos nuevos o modificados",
+        "en": "Quickly scans folders for new or modified files",
+        "ca": "Escaneja ràpidament les carpetes a la cerca de fitxers nous o modificats",
+    },
+    "prefs.scan_btn": {
+        "es": "Buscar ahora",
+        "en": "Scan now",
+        "ca": "Cercar ara",
+    },
+    "prefs.reset_db": {
+        "es": "Restablecer base de datos a cero",
+        "en": "Reset database to zero",
+        "ca": "Restablir base de dades a zero",
+    },
+    "prefs.reset_db_desc": {
+        "es": "Elimina todos los datos indexados y vuelve a escanear desde cero",
+        "en": "Clears all indexed data and rescans from scratch",
+        "ca": "Elimina totes les dades indexades i torna a escanejar des de zero",
+    },
+    "prefs.reset_btn": {
+        "es": "Restablecer",
+        "en": "Reset",
+        "ca": "Restablir",
+    },
+    "prefs.reset_confirm_title": {
+        "es": "¿Restablecer la base de datos a cero?",
+        "en": "Reset database to zero?",
+        "ca": "Restablir la base de dades a zero?",
+    },
+    "prefs.reset_confirm_msg": {
+        "es": "Se eliminarán todos los temas indexados en la base de datos y se iniciará un nuevo escaneo completo de las carpetas de la biblioteca. ¿Deseas continuar?",
+        "en": "All indexed tracks will be deleted and a fresh full scan of library folders will begin. Do you wish to proceed?",
+        "ca": "S'eliminaran tots els temes indexats a la base de dades i s'iniciarà un nou escaneig complet de les carpetes de la biblioteca. Vols continuar?",
+    },
+    "header.scan_library": {
+        "es": "Actualizar biblioteca",
+        "en": "Update library",
+        "ca": "Actualitzar biblioteca",
+    },
+    "header.library_status_scanning": {
+        "es": "Escaneando...",
+        "en": "Scanning...",
+        "ca": "Escanejant...",
+    },
+    "header.library_status_done": {
+        "es": "Biblioteca al día",
+        "en": "Library up to date",
+        "ca": "Biblioteca al dia",
+    },
 }

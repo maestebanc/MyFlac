@@ -47,6 +47,7 @@ DEFAULTS = {
     "last_directory": "",
     "repeat_mode": "none",      # "none", "all", "one"
     "shuffle": False,
+    "library_folders": [],      # Lista de rutas absolutas de carpetas de biblioteca
 }
 
 

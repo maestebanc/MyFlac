@@ -145,6 +145,64 @@ EXTRA_CSS = """
     padding: 4px 10px;
     border-radius: 8px;
 }
+
+/* Navegador Multicolumnas estilo iTunes */
+.column-browser-pane {
+    background-color: alpha(@window_bg_color, 0.4);
+    border-bottom: 1px solid alpha(@window_fg_color, 0.08);
+}
+
+.column-header-box {
+    padding: 6px 12px;
+    background-color: alpha(@window_fg_color, 0.03);
+    border-bottom: 1px solid alpha(@window_fg_color, 0.08);
+}
+
+.column-header-title {
+    font-weight: 700;
+    font-size: 0.82em;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: alpha(@window_fg_color, 0.7);
+}
+
+.column-header-count {
+    font-size: 0.78em;
+    color: alpha(@window_fg_color, 0.45);
+    font-variant-numeric: tabular-nums;
+}
+
+.column-list row {
+    padding: 5px 12px;
+    min-height: 32px;
+    border-radius: 6px;
+    margin: 1px 4px;
+}
+
+.column-list row:selected {
+    background-color: alpha(#f59e0b, 0.18);
+    color: #f59e0b;
+    font-weight: 600;
+}
+
+.column-list row:selected label {
+    color: #f59e0b;
+}
+
+.count-badge {
+    font-size: 0.76em;
+    font-variant-numeric: tabular-nums;
+    color: alpha(@window_fg_color, 0.5);
+    padding: 1px 6px;
+    border-radius: 10px;
+    background-color: alpha(@window_fg_color, 0.06);
+}
+
+.column-list row:selected .count-badge {
+    background-color: alpha(#f59e0b, 0.25);
+    color: #f59e0b;
+}
+
 """
 
 

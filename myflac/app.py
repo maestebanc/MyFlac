@@ -74,7 +74,10 @@ class MyFlacApplication(Adw.Application):
         log.info("Abriendo diálogo de preferencias")
         dlg = PreferencesDialog(
             cfg=self.window.cfg,
+            db=self.window.db,
+            scanner=self.window.scanner,
             on_config_changed=self._on_preferences_changed,
+            on_library_updated=self.window.on_library_updated,
             parent=self.window
         )
         dlg.present()
