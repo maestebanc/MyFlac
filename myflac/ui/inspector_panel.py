@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import io
+import os
 from PIL import Image
 
 import gi
@@ -20,8 +21,8 @@ class InspectorPanel(Gtk.Box):
         self.set_size_request(280, -1)
         self.set_margin_top(8)
         self.set_margin_bottom(8)
-        self.set_margin_start(10)
-        self.set_margin_end(10)
+        self.set_margin_start(12)
+        self.set_margin_end(12)
 
         self.current_track: AudioTrack | None = None
         self._last_output_info: dict = {}
@@ -34,49 +35,55 @@ class InspectorPanel(Gtk.Box):
         scrolled = Gtk.ScrolledWindow()
         scrolled.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
         scrolled.set_vexpand(True)
+        scrolled.set_hexpand(True)
 
         content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+        content.set_hexpand(True)
 
-        # 1. Carátula del álbum en HD escalada perfectamente
-        cover_container = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
-        cover_container.set_halign(Gtk.Align.CENTER)
+        # 1. Carátula del álbum en HD adaptada al ancho completo de la columna (AspectFrame 1:1)
+        cover_container = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        cover_container.set_hexpand(True)
+
+        self.aspect_frame = Gtk.AspectFrame(xalign=0.5, yalign=0.5, ratio=1.0, obey_child=False)
+        self.aspect_frame.set_hexpand(True)
 
         self.cover_frame = Gtk.Box()
         self.cover_frame.add_css_class("album-cover-frame")
-        self.cover_frame.set_size_request(200, 200)
-        self.cover_frame.set_halign(Gtk.Align.CENTER)
-        self.cover_frame.set_valign(Gtk.Align.CENTER)
+        self.cover_frame.set_hexpand(True)
+        self.cover_frame.set_vexpand(True)
         self.cover_frame.set_overflow(Gtk.Overflow.HIDDEN)
 
-        # Stack para alternar entre imagen escalada y placeholder
+        # Stack para alternar entre imagen real del álbum y placeholder estético
         self.cover_stack = Gtk.Stack()
         self.cover_stack.set_transition_type(Gtk.StackTransitionType.CROSSFADE)
+        self.cover_stack.set_hexpand(True)
+        self.cover_stack.set_vexpand(True)
 
-        # Widget de imagen con escalado COVER
+        # Picture para la carátula real del álbum
         self.cover_picture = Gtk.Picture()
         self.cover_picture.set_can_shrink(True)
         self.cover_picture.set_content_fit(Gtk.ContentFit.COVER)
-        self.cover_picture.set_size_request(200, 200)
+        self.cover_picture.set_hexpand(True)
+        self.cover_picture.set_vexpand(True)
         self.cover_stack.add_named(self.cover_picture, "picture")
 
-        # Placeholder cuando no hay carátula
-        placeholder = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-        placeholder.set_halign(Gtk.Align.CENTER)
-        placeholder.set_valign(Gtk.Align.CENTER)
-        placeholder.set_size_request(200, 200)
-        placeholder_icon = Gtk.Image.new_from_icon_name("audio-x-generic-symbolic")
-        placeholder_icon.set_pixel_size(64)
-        placeholder_icon.add_css_class("dim-label")
-        placeholder.append(placeholder_icon)
-        self.cover_stack.add_named(placeholder, "placeholder")
+        # Picture para el placeholder estético MyFlac
+        self.placeholder_picture = Gtk.Picture()
+        self.placeholder_picture.set_can_shrink(True)
+        self.placeholder_picture.set_content_fit(Gtk.ContentFit.COVER)
+        self.placeholder_picture.set_hexpand(True)
+        self.placeholder_picture.set_vexpand(True)
+        self._load_placeholder_image()
+        self.cover_stack.add_named(self.placeholder_picture, "placeholder")
 
         self.cover_stack.set_visible_child_name("placeholder")
         self.cover_frame.append(self.cover_stack)
+        self.aspect_frame.set_child(self.cover_frame)
 
         self.cover_dims_label = Gtk.Label(label="")
         self.cover_dims_label.add_css_class("dim-label")
 
-        cover_container.append(self.cover_frame)
+        cover_container.append(self.aspect_frame)
         cover_container.append(self.cover_dims_label)
         content.append(cover_container)
 
@@ -176,6 +183,20 @@ class InspectorPanel(Gtk.Box):
         scrolled.set_child(content)
         self.append(scrolled)
 
+    def _load_placeholder_image(self):
+        """Carga el diseño estético de carátula MyFlac cuando no hay carátula activa."""
+        base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        candidates = [
+            os.path.join(base_dir, "data", "placeholder-aesthetic.png"),
+            os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "resources", "placeholder-aesthetic.png"),
+            os.path.join(base_dir, "data", "placeholder-aesthetic.svg"),
+        ]
+        for p in candidates:
+            if os.path.isfile(p):
+                file_obj = Gio.File.new_for_path(p)
+                self.placeholder_picture.set_file(file_obj)
+                break
+
     def _on_language_changed(self, _lang: str):
         """Actualiza todas las etiquetas estáticas al cambiar de idioma."""
         self.card_title.set_text(i18n.t("inspector.card_title"))
@@ -255,7 +276,7 @@ class InspectorPanel(Gtk.Box):
         else:
             self.cover_picture.set_paintable(None)
             self.cover_stack.set_visible_child_name("placeholder")
-            self.cover_dims_label.set_text(i18n.t("inspector.no_cover"))
+            self.cover_dims_label.set_text("")
 
     def update_dac_status(self, info: dict):
         """Actualiza el estado de la salida de audio y dispositivo activo."""
