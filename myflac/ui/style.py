@@ -91,12 +91,36 @@ EXTRA_CSS = """
     background-color: alpha(@window_fg_color, 0.04);
 }
 
-/* Barra inferior del reproductor con altura acotada */
+/* Barra inferior del reproductor con altura acotada a 64px */
 .player-bar {
     min-height: 64px;
     background-color: alpha(@window_bg_color, 0.95);
     border-top: 1px solid alpha(@window_fg_color, 0.10);
     padding: 6px 16px;
+}
+
+/* Barra de progreso de escaneo: delgada línea azul (#3584e4) no obstructiva */
+.scan-progress-line {
+    min-height: 2px;
+    padding: 0;
+    margin: 0;
+    border: none;
+    background-color: transparent;
+}
+
+.scan-progress-line > trough {
+    min-height: 2px;
+    border: none;
+    border-radius: 0;
+    background-color: alpha(@window_fg_color, 0.04);
+}
+
+.scan-progress-line > trough > progress {
+    min-height: 2px;
+    border: none;
+    border-radius: 0;
+    background-color: #3584e4;
+    box-shadow: 0 0 4px alpha(#3584e4, 0.4);
 }
 
 .play-pause-btn {
@@ -126,17 +150,17 @@ EXTRA_CSS = """
     letter-spacing: 0.05em;
     color: alpha(@window_fg_color, 0.65);
     background-color: alpha(@window_fg_color, 0.035);
-    border-bottom: 1px solid alpha(@window_fg_color, 0.10);
+    border-bottom: 1px solid alpha(@window_fg_color, 0.08);
     box-shadow: none;
 }
 
 .track-table row {
     min-height: 28px;
-    border-bottom: 1px solid alpha(@window_fg_color, 0.04);
+    border-bottom: 1px solid alpha(@window_fg_color, 0.025);
 }
 
 .track-table row:nth-child(even) {
-    background-color: alpha(@window_fg_color, 0.015);
+    background-color: alpha(@window_fg_color, 0.012);
 }
 
 .track-table row:hover {
@@ -212,13 +236,13 @@ EXTRA_CSS = """
 .column-list row {
     padding: 3px 10px;
     min-height: 26px;
-    border-bottom: 1px solid alpha(@window_fg_color, 0.04);
+    border-bottom: 1px solid alpha(@window_fg_color, 0.025);
     transition: background-color 100ms ease;
     font-size: 0.92em;
 }
 
 .column-list row:nth-child(even) {
-    background-color: alpha(@window_fg_color, 0.015);
+    background-color: alpha(@window_fg_color, 0.012);
 }
 
 .column-list row:hover {

@@ -49,7 +49,7 @@ class TrackListView(Gtk.Box):
         # ColumnView
         self.column_view = Gtk.ColumnView(model=self.selection_model)
         self.column_view.add_css_class("track-table")
-        self.column_view.set_show_row_separators(True)
+        self.column_view.set_show_row_separators(False)
         self.column_view.connect("activate", self._on_row_activated)
 
         # Configurar columnas

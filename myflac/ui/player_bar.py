@@ -1,6 +1,4 @@
-"""Barra inferior de controles de reproducción para MyFlac."""
-from __future__ import annotations
-
+import logging
 from typing import Callable
 
 import gi
@@ -13,6 +11,8 @@ from ..audio.devices import find_device_by_id, get_default_device
 from ..audio.engine import AudioEngine, PlaybackState
 from ..audio.track import AudioTrack
 from .. import i18n
+
+log = logging.getLogger(__name__)
 
 
 class PlayerBar(Gtk.Box):
@@ -47,18 +47,26 @@ class PlayerBar(Gtk.Box):
         left_box.set_hexpand(False)
         left_box.set_valign(Gtk.Align.CENTER)
 
-        # Marco acotado a 48x48 para miniatura
+        # Marco acotado estrictamente a 48x48 para miniatura
         self.cover_frame = Gtk.Box()
         self.cover_frame.add_css_class("mini-cover-frame")
         self.cover_frame.set_size_request(48, 48)
         self.cover_frame.set_overflow(Gtk.Overflow.HIDDEN)
         self.cover_frame.set_valign(Gtk.Align.CENTER)
+        self.cover_frame.set_vexpand(False)
+        self.cover_frame.set_hexpand(False)
 
         self.cover_stack = Gtk.Stack()
+        self.cover_stack.set_size_request(48, 48)
+        self.cover_stack.set_vexpand(False)
+        self.cover_stack.set_hexpand(False)
+
         self.cover_picture = Gtk.Picture()
         self.cover_picture.set_can_shrink(True)
         self.cover_picture.set_content_fit(Gtk.ContentFit.COVER)
         self.cover_picture.set_size_request(48, 48)
+        self.cover_picture.set_vexpand(False)
+        self.cover_picture.set_hexpand(False)
         self.cover_stack.add_named(self.cover_picture, "picture")
 
         placeholder = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
@@ -265,16 +273,18 @@ class PlayerBar(Gtk.Box):
         else:
             self.hires_badge_label.add_css_class("hires-cd-badge")
 
-        # Mini carátula acotada: textura Gdk directa escalada en Gtk.Picture
+        # Mini carátula acotada: textura reescalada estrictamente a 48x48
         cover_info = track.get_cover_image_bytes()
         if cover_info:
             try:
                 data, _ = cover_info
-                bytes_glib = GLib.Bytes.new(data)
-                texture = Gdk.Texture.new_from_bytes(bytes_glib)
+                stream = Gio.MemoryInputStream.new_from_data(data)
+                pixbuf = GdkPixbuf.Pixbuf.new_from_stream_at_scale(stream, 48, 48, True, None)
+                texture = Gdk.Texture.new_for_pixbuf(pixbuf)
                 self.cover_picture.set_paintable(texture)
                 self.cover_stack.set_visible_child_name("picture")
-            except Exception:
+            except Exception as e:
+                log.warning("Error cargando miniatura en player_bar: %s", e)
                 self.cover_picture.set_paintable(None)
                 self.cover_stack.set_visible_child_name("placeholder")
         else:

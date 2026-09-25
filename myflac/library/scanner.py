@@ -130,6 +130,8 @@ class LibraryScanner:
                                                 continue
 
                                         files_to_parse.append((p, root_folder))
+                                        if on_progress and len(seen_paths) % 150 == 0:
+                                            GLib.idle_add(on_progress, 0, 0)
                             except OSError:
                                 continue
                 except (OSError, PermissionError) as e:

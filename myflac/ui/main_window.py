@@ -141,8 +141,20 @@ class MainWindow(Adw.ApplicationWindow):
         self.player_bar.on_repeat_clicked = self._cycle_repeat_mode
         self.player_bar.on_shuffle_toggled = self._on_shuffle_toggled
 
+        # Contenedor inferior: Barra de progreso azul no obstructiva + Barra del reproductor
+        self.bottom_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+
+        # Barra de progreso: delgada línea azul de 2px justo encima del minireproductor
+        self.scan_progress_bar = Gtk.ProgressBar()
+        self.scan_progress_bar.add_css_class("scan-progress-line")
+        self.scan_progress_bar.set_visible(False)
+        self.scan_progress_bar.set_fraction(0.0)
+
+        self.bottom_box.append(self.scan_progress_bar)
+        self.bottom_box.append(self.player_bar)
+
         self.toolbar_view.set_content(self.paned)
-        self.toolbar_view.add_bottom_bar(self.player_bar)
+        self.toolbar_view.add_bottom_bar(self.bottom_box)
         self.set_content(self.toolbar_view)
 
     def _on_window_mapped(self):
@@ -200,6 +212,10 @@ class MainWindow(Adw.ApplicationWindow):
             self._show_library_setup_dialog()
             return
 
+        # Mostrar línea azul sutil de progreso no obstructiva
+        self.scan_progress_bar.set_fraction(0.0)
+        self.scan_progress_bar.set_visible(True)
+
         if not silent:
             self.spinner.start()
             self.spinner.set_visible(True)
@@ -207,10 +223,22 @@ class MainWindow(Adw.ApplicationWindow):
             self.scan_status_label.set_visible(True)
             self.btn_scan.set_sensitive(False)
 
+        def _on_progress(current: int, total: int):
+            if not self.scan_progress_bar.get_visible():
+                self.scan_progress_bar.set_visible(True)
+            if total > 0:
+                fraction = min(1.0, max(0.0, current / total))
+                self.scan_progress_bar.set_fraction(fraction)
+            else:
+                self.scan_progress_bar.pulse()
+
         def _on_finished(result: dict):
             self.spinner.stop()
             self.spinner.set_visible(False)
             self.btn_scan.set_sensitive(True)
+
+            self.scan_progress_bar.set_fraction(1.0)
+            GLib.timeout_add(700, lambda: self.scan_progress_bar.set_visible(False))
 
             if not silent:
                 self.scan_status_label.set_text(i18n.t("header.library_status_done"))
@@ -227,7 +255,7 @@ class MainWindow(Adw.ApplicationWindow):
                 if first:
                     self.inspector.set_track(first)
 
-        self.scanner.start_scan(folders, quick=quick, on_finished=_on_finished)
+        self.scanner.start_scan(folders, quick=quick, on_finished=_on_finished, on_progress=_on_progress)
 
     def on_library_updated(self):
         """Llamado cuando las carpetas de biblioteca se modifican desde Preferencias."""
