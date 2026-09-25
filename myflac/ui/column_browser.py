@@ -80,6 +80,7 @@ class ColumnBrowserView(Gtk.Box):
 
         self.artist_listbox = Gtk.ListBox()
         self.artist_listbox.add_css_class("column-list")
+        self.artist_listbox.set_show_separators(True)
         self.artist_listbox.set_selection_mode(Gtk.SelectionMode.SINGLE)
         self.artist_listbox.connect("row-selected", self._on_artist_selected)
         self.artist_scrolled.set_child(self.artist_listbox)
@@ -109,6 +110,7 @@ class ColumnBrowserView(Gtk.Box):
 
         self.album_listbox = Gtk.ListBox()
         self.album_listbox.add_css_class("column-list")
+        self.album_listbox.set_show_separators(True)
         self.album_listbox.set_selection_mode(Gtk.SelectionMode.SINGLE)
         self.album_listbox.connect("row-selected", self._on_album_selected)
         self.album_scrolled.set_child(self.album_listbox)
@@ -211,6 +213,7 @@ class ColumnBrowserView(Gtk.Box):
 
     def _create_browser_row(self, title: str, count: int, is_all: bool = False) -> Gtk.ListBoxRow:
         row = Gtk.ListBoxRow()
+        row.add_css_class("browser-row")
         box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
 
         lbl = Gtk.Label(label=title, xalign=0.0)

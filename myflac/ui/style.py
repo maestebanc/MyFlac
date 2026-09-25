@@ -114,17 +114,48 @@ EXTRA_CSS = """
 }
 
 /* Tabla de canciones */
+.track-table {
+    background-color: transparent;
+}
+
+.track-table header button {
+    padding: 5px 8px;
+    font-weight: 700;
+    font-size: 0.78em;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: alpha(@window_fg_color, 0.65);
+    background-color: alpha(@window_fg_color, 0.035);
+    border-bottom: 1px solid alpha(@window_fg_color, 0.10);
+    box-shadow: none;
+}
+
 .track-table row {
-    min-height: 38px;
+    min-height: 28px;
+    border-bottom: 1px solid alpha(@window_fg_color, 0.04);
+}
+
+.track-table row:nth-child(even) {
+    background-color: alpha(@window_fg_color, 0.015);
+}
+
+.track-table row:hover {
+    background-color: alpha(@window_fg_color, 0.045);
+}
+
+.track-table row:selected {
+    background-color: alpha(#f59e0b, 0.16);
 }
 
 .track-table columnviewcell {
-    padding: 4px 8px;
+    padding: 2px 8px;
+    font-size: 0.92em;
 }
 
 .track-number-cell {
     font-variant-numeric: tabular-nums;
     opacity: 0.6;
+    font-size: 0.88em;
 }
 
 .row-playing-num {
@@ -149,34 +180,49 @@ EXTRA_CSS = """
 /* Navegador Multicolumnas estilo iTunes */
 .column-browser-pane {
     background-color: alpha(@window_bg_color, 0.4);
-    border-bottom: 1px solid alpha(@window_fg_color, 0.08);
+    border-bottom: 1px solid alpha(@window_fg_color, 0.10);
 }
 
 .column-header-box {
-    padding: 6px 12px;
-    background-color: alpha(@window_fg_color, 0.03);
-    border-bottom: 1px solid alpha(@window_fg_color, 0.08);
+    padding: 5px 12px;
+    background-color: alpha(@window_fg_color, 0.04);
+    border-bottom: 1px solid alpha(@window_fg_color, 0.09);
 }
 
 .column-header-title {
     font-weight: 700;
-    font-size: 0.82em;
+    font-size: 0.78em;
     text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: alpha(@window_fg_color, 0.7);
+    letter-spacing: 0.07em;
+    color: alpha(@window_fg_color, 0.75);
 }
 
 .column-header-count {
-    font-size: 0.78em;
-    color: alpha(@window_fg_color, 0.45);
+    font-size: 0.76em;
+    color: #f59e0b;
+    opacity: 0.85;
+    font-weight: 600;
     font-variant-numeric: tabular-nums;
 }
 
+.column-list {
+    background-color: transparent;
+}
+
 .column-list row {
-    padding: 5px 12px;
-    min-height: 32px;
-    border-radius: 6px;
-    margin: 1px 4px;
+    padding: 3px 10px;
+    min-height: 26px;
+    border-bottom: 1px solid alpha(@window_fg_color, 0.04);
+    transition: background-color 100ms ease;
+    font-size: 0.92em;
+}
+
+.column-list row:nth-child(even) {
+    background-color: alpha(@window_fg_color, 0.015);
+}
+
+.column-list row:hover {
+    background-color: alpha(@window_fg_color, 0.045);
 }
 
 .column-list row:selected {
@@ -190,17 +236,38 @@ EXTRA_CSS = """
 }
 
 .count-badge {
-    font-size: 0.76em;
+    font-size: 0.74em;
     font-variant-numeric: tabular-nums;
     color: alpha(@window_fg_color, 0.5);
-    padding: 1px 6px;
-    border-radius: 10px;
-    background-color: alpha(@window_fg_color, 0.06);
+    padding: 0px 6px;
+    border-radius: 8px;
+    background-color: alpha(@window_fg_color, 0.05);
+    border: 1px solid alpha(@window_fg_color, 0.06);
+    min-height: 18px;
 }
 
 .column-list row:selected .count-badge {
     background-color: alpha(#f59e0b, 0.25);
     color: #f59e0b;
+    border-color: alpha(#f59e0b, 0.35);
+}
+
+/* Divisores de paneles (Paned separators) */
+paned > separator {
+    background-color: alpha(@window_fg_color, 0.10);
+    min-width: 1px;
+    min-height: 1px;
+    transition: background-color 150ms ease;
+}
+
+paned > separator:hover {
+    background-color: alpha(#f59e0b, 0.5);
+}
+
+/* Panel inspector con borde izquierdo divisorio */
+.inspector-panel {
+    border-left: 1px solid alpha(@window_fg_color, 0.10);
+    background-color: alpha(@window_fg_color, 0.012);
 }
 
 """

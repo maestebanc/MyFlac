@@ -19,11 +19,12 @@ log = get_logger(__name__)
 class InspectorPanel(Gtk.Box):
     def __init__(self):
         super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        self.add_css_class("inspector-panel")
         self.set_size_request(280, -1)
         self.set_margin_top(8)
         self.set_margin_bottom(8)
-        self.set_margin_start(12)
-        self.set_margin_end(12)
+        self.set_margin_start(10)
+        self.set_margin_end(10)
 
         self.current_track: AudioTrack | None = None
         self._last_output_info: dict = {}

@@ -173,6 +173,7 @@ class MainWindow(Adw.ApplicationWindow):
             first_track = self.browser.get_selected_or_first_track()
             if first_track and not self.inspector.current_track:
                 self.inspector.set_track(first_track)
+                self.player_bar.set_track(first_track)
 
             # Escaneo RÁPIDO y transparente en segundo plano (no bloquea)
             log.info("Iniciando escaneo rápido de inicio en segundo plano...")
@@ -299,6 +300,7 @@ class MainWindow(Adw.ApplicationWindow):
         log.info("Pista activada: '%s' - '%s'", track.artist, track.title)
         self.browser.set_current_playing_track(track, is_paused=False)
         self.inspector.set_track(track)
+        self.player_bar.set_track(track)
         self.engine.load_track(track, play_now=True)
         self._prepare_gapless_next()
         self._update_output_status()
@@ -308,6 +310,7 @@ class MainWindow(Adw.ApplicationWindow):
         is_paused = (self.engine.state == PlaybackState.PAUSED)
         self.browser.set_current_playing_track(track, is_paused=is_paused)
         self.inspector.set_track(track)
+        self.player_bar.set_track(track)
         self._prepare_gapless_next()
         self._update_output_status()
 

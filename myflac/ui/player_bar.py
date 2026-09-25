@@ -265,14 +265,13 @@ class PlayerBar(Gtk.Box):
         else:
             self.hires_badge_label.add_css_class("hires-cd-badge")
 
-        # Mini carátula acotada: generar Pixbuf reescalado estrictamente a 48x48
+        # Mini carátula acotada: textura Gdk directa escalada en Gtk.Picture
         cover_info = track.get_cover_image_bytes()
         if cover_info:
             try:
                 data, _ = cover_info
-                stream = Gio.MemoryInputStream.new_from_data(data)
-                pixbuf = GdkPixbuf.Pixbuf.new_from_stream_at_scale(stream, 48, 48, True, None)
-                texture = Gdk.Texture.new_for_pixbuf(pixbuf)
+                bytes_glib = GLib.Bytes.new(data)
+                texture = Gdk.Texture.new_from_bytes(bytes_glib)
                 self.cover_picture.set_paintable(texture)
                 self.cover_stack.set_visible_child_name("picture")
             except Exception:
@@ -281,6 +280,11 @@ class PlayerBar(Gtk.Box):
         else:
             self.cover_picture.set_paintable(None)
             self.cover_stack.set_visible_child_name("placeholder")
+
+    def set_track(self, track: AudioTrack | None):
+        """Permite asignar una pista activa para visualización antes de reproducir."""
+        if track:
+            self._on_track_changed(track)
 
     def _on_position_updated(self, pos: float, dur: float):
         if self._is_seeking:

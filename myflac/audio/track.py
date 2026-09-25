@@ -102,7 +102,29 @@ class AudioTrack:
         if self.cover_data:
             return self.cover_data, self.cover_mime
 
-        # Buscar carátula en la misma carpeta si no está embebida
+        # 1. Si no está en memoria, extraer carátula embebida directamente del archivo de audio
+        if self.filepath and os.path.isfile(self.filepath):
+            try:
+                audio = mutagen.File(self.filepath)
+                if isinstance(audio, FLAC) and audio.pictures:
+                    pic = audio.pictures[0]
+                    self.cover_data = pic.data
+                    self.cover_mime = pic.mime or "image/jpeg"
+                    return self.cover_data, self.cover_mime
+                elif hasattr(audio, "tags") and audio.tags:
+                    for k, v in audio.tags.items():
+                        if k.startswith("APIC") and hasattr(v, "data"):
+                            self.cover_data = v.data
+                            self.cover_mime = getattr(v, "mime", "image/jpeg")
+                            return self.cover_data, self.cover_mime
+                        elif k == "covr" and isinstance(v, list) and v:
+                            self.cover_data = bytes(v[0])
+                            self.cover_mime = "image/jpeg"
+                            return self.cover_data, self.cover_mime
+            except Exception as e:
+                log.debug("No se pudo extraer carátula embebida de %s: %s", self.filepath, e)
+
+        # 2. Buscar carátula en la misma carpeta si no está embebida
         folder = os.path.dirname(self.filepath)
         for fname in COVER_FILENAMES:
             candidate = os.path.join(folder, fname)
@@ -111,6 +133,8 @@ class AudioTrack:
                     with open(candidate, "rb") as f:
                         data = f.read()
                     mime = "image/png" if fname.endswith(".png") else "image/jpeg"
+                    self.cover_data = data
+                    self.cover_mime = mime
                     return data, mime
                 except Exception:
                     pass
