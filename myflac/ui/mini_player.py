@@ -38,7 +38,7 @@ class MiniPlayerWindow(Adw.Window):
 
         self.set_title("MyFlac - Mini Reproductor")
         self.set_default_size(500, 500)
-        self.set_resizable(False)
+        self.set_resizable(True)
         self.add_css_class("mini-player-window")
 
         # Vincular aplicación
@@ -56,6 +56,8 @@ class MiniPlayerWindow(Adw.Window):
         self._press_x = 0.0
         self._press_y = 0.0
 
+        self.connect("notify::fullscreened", self._on_fullscreen_changed)
+
         self._build_ui()
         self._connect_engine()
         self._setup_controllers()
@@ -65,23 +67,29 @@ class MiniPlayerWindow(Adw.Window):
     def _build_ui(self):
         root_overlay = Gtk.Overlay()
         root_overlay.set_size_request(500, 500)
+        root_overlay.set_hexpand(True)
+        root_overlay.set_vexpand(True)
 
         # ---------------------------------------------------------------------
         # 1. Base: Carátula en alta resolución 500x500
         # ---------------------------------------------------------------------
         self.cover_stack = Gtk.Stack()
         self.cover_stack.set_transition_type(Gtk.StackTransitionType.CROSSFADE)
-        self.cover_stack.set_size_request(500, 500)
+        self.cover_stack.set_hexpand(True)
+        self.cover_stack.set_vexpand(True)
 
         self.cover_picture = Gtk.Picture()
         self.cover_picture.set_can_shrink(True)
         self.cover_picture.set_content_fit(Gtk.ContentFit.COVER)
-        self.cover_picture.set_size_request(500, 500)
+        self.cover_picture.set_hexpand(True)
+        self.cover_picture.set_vexpand(True)
         self.cover_stack.add_named(self.cover_picture, "picture")
 
         placeholder = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         placeholder.set_valign(Gtk.Align.CENTER)
         placeholder.set_halign(Gtk.Align.CENTER)
+        placeholder.set_hexpand(True)
+        placeholder.set_vexpand(True)
         ph_icon = Gtk.Image.new_from_icon_name("audio-x-generic-symbolic")
         ph_icon.set_pixel_size(96)
         ph_icon.set_opacity(0.35)
@@ -92,11 +100,13 @@ class MiniPlayerWindow(Adw.Window):
         root_overlay.set_child(self.cover_stack)
 
         # ---------------------------------------------------------------------
-        # 2. Capa de Osciloscopio Superpuesto (Modo 0 activo por defecto)
+        # 2. Capa de Osciloscopio Superpuesto (Modo 0 activo por defecto, sólo si reproduce)
         # ---------------------------------------------------------------------
         self.scope = OscilloscopeWidget()
-        self.scope.set_size_request(500, 500)
+        self.scope.set_hexpand(True)
+        self.scope.set_vexpand(True)
         self.scope.set_active(True)
+        self.scope.set_visible(False)
         root_overlay.add_overlay(self.scope)
 
         # ---------------------------------------------------------------------
@@ -104,11 +114,10 @@ class MiniPlayerWindow(Adw.Window):
         # ---------------------------------------------------------------------
         self.hud_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         self.hud_box.add_css_class("mini-player-hud")
-        self.hud_box.set_size_request(500, 500)
         self.hud_box.set_hexpand(True)
         self.hud_box.set_vexpand(True)
 
-        # 3.1 Barra Superior Flotante: Retorno y Cierre
+        # 3.1 Barra Superior Flotante: Pantalla Completa y Cerrar/Restaurar
         top_bar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         top_bar.set_valign(Gtk.Align.START)
         top_bar.set_halign(Gtk.Align.FILL)
@@ -120,17 +129,17 @@ class MiniPlayerWindow(Adw.Window):
         top_spacer.set_hexpand(True)
         top_bar.append(top_spacer)
 
-        self.btn_back = Gtk.Button.new_from_icon_name("view-restore-symbolic")
-        self.btn_back.add_css_class("mini-player-btn-circle")
-        self.btn_back.add_css_class("flat")
-        self.btn_back.set_tooltip_text("Volver a la ventana principal (Escape)")
-        self.btn_back.connect("clicked", lambda *_: self.restore_main_window())
-        top_bar.append(self.btn_back)
+        self.btn_fullscreen = Gtk.Button.new_from_icon_name("view-fullscreen-symbolic")
+        self.btn_fullscreen.add_css_class("mini-player-btn-circle")
+        self.btn_fullscreen.add_css_class("flat")
+        self.btn_fullscreen.set_tooltip_text(i18n.t("header.fullscreen"))
+        self.btn_fullscreen.connect("clicked", lambda *_: self.toggle_fullscreen())
+        top_bar.append(self.btn_fullscreen)
 
         self.btn_close = Gtk.Button.new_from_icon_name("window-close-symbolic")
         self.btn_close.add_css_class("mini-player-btn-circle")
         self.btn_close.add_css_class("flat")
-        self.btn_close.set_tooltip_text("Cerrar")
+        self.btn_close.set_tooltip_text("Volver a la ventana principal (Escape)")
         self.btn_close.connect("clicked", lambda *_: self.restore_main_window())
         top_bar.append(self.btn_close)
 
@@ -143,11 +152,12 @@ class MiniPlayerWindow(Adw.Window):
 
         # 3.2 Contenedor de Controles Centrados estilo Apple Music
         controls_card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
-        controls_card.set_halign(Gtk.Align.FILL)
+        controls_card.set_halign(Gtk.Align.CENTER)
         controls_card.set_valign(Gtk.Align.END)
-        controls_card.set_margin_start(24)
-        controls_card.set_margin_end(24)
-        controls_card.set_margin_bottom(20)
+        controls_card.set_size_request(440, -1)
+        controls_card.set_margin_start(16)
+        controls_card.set_margin_end(16)
+        controls_card.set_margin_bottom(24)
 
         # Título centrado prominente
         self.title_label = Gtk.Label(label=i18n.t("inspector.no_playback"))
@@ -279,24 +289,47 @@ class MiniPlayerWindow(Adw.Window):
 
         # Solo considerar clic si el cursor casi no se desplazó (no fue un arrastre de ventana)
         if dist_sq < 36:
-            # Si el HUD está visible, ignorar clics en la zona inferior de controles (y > 330)
             is_hud_visible = self.hud_box.has_css_class("visible")
-            if is_hud_visible and y > 330:
-                return
+            if is_hud_visible:
+                h = self.get_height() or 500
+                # Evitar conmutar si se hace clic en la barra superior o en los controles inferiores
+                if y < 60 or y > (h - 170):
+                    return
             self.toggle_oscilloscope_mode()
 
     def toggle_oscilloscope_mode(self):
         """Conmuta entre Modo 0 (Osciloscopio superpuesto) y Modo 1 (Portada limpia)."""
         self._oscilloscope_mode = 1 if self._oscilloscope_mode == 0 else 0
         is_active = (self._oscilloscope_mode == 0)
+        is_playing = (self.engine.state == PlaybackState.PLAYING)
         log.info(
             "Conmutando visualizador en mini-reproductor: %s",
             "Osciloscopio activo" if is_active else "Portada Limpia HD",
         )
-        self.scope.set_visible(is_active)
         self.scope.set_active(is_active)
-        if is_active:
-            self.scope.set_playing(self.engine.state == PlaybackState.PLAYING)
+        self.scope.set_playing(is_playing)
+        self.scope.set_visible(is_active and is_playing)
+
+    def toggle_fullscreen(self):
+        """Alterna el modo de pantalla completa."""
+        if self.is_fullscreen():
+            self.unfullscreen()
+        else:
+            self.fullscreen()
+
+    def _on_fullscreen_changed(self, *_):
+        """Actualiza la apariencia y controles según el estado de pantalla completa."""
+        is_fs = self.is_fullscreen()
+        if is_fs:
+            self.btn_fullscreen.set_icon_name("view-restore-symbolic")
+            self.btn_fullscreen.set_tooltip_text(i18n.t("header.unfullscreen"))
+            self.add_css_class("fullscreen-mode")
+            self.set_title(f"MyFlac - {i18n.t('header.fullscreen')}")
+        else:
+            self.btn_fullscreen.set_icon_name("view-fullscreen-symbolic")
+            self.btn_fullscreen.set_tooltip_text(i18n.t("header.fullscreen"))
+            self.remove_css_class("fullscreen-mode")
+            self.set_title("MyFlac - Mini Reproductor")
 
     # -------------------------------------------------------------------------
     # Auto-ocultación por Hover del HUD
@@ -344,17 +377,25 @@ class MiniPlayerWindow(Adw.Window):
     def present_mini_player(self):
         """Muestra el mini-reproductor y da un pulso inicial al HUD para luego auto-ocultarlo."""
         self.present()
-        self.scope.set_visible(self._oscilloscope_mode == 0)
-        self.scope.set_active(self._oscilloscope_mode == 0)
-        self.scope.set_playing(self.engine.state == PlaybackState.PLAYING)
+        is_playing = (self.engine.state == PlaybackState.PLAYING)
+        is_scope_mode = (self._oscilloscope_mode == 0)
+        self.scope.set_active(is_scope_mode)
+        self.scope.set_playing(is_playing)
+        self.scope.set_visible(is_scope_mode and is_playing)
 
         # Mostrar HUD brevemente y auto-ocultar a los 2.5s
         self.show_hud()
         self.reset_hud_timeout(2.5)
 
     def _on_key_pressed(self, _ctrl, keyval, _keycode, _state) -> bool:
-        if keyval == Gdk.KEY_Escape:
-            self.restore_main_window()
+        if keyval == Gdk.KEY_F11:
+            self.toggle_fullscreen()
+            return True
+        elif keyval == Gdk.KEY_Escape:
+            if self.is_fullscreen():
+                self.unfullscreen()
+            else:
+                self.restore_main_window()
             return True
         elif keyval == Gdk.KEY_space:
             self.main_window._toggle_play_pause()
@@ -424,6 +465,7 @@ class MiniPlayerWindow(Adw.Window):
         GLib.idle_add(self._update_play_button, state)
         is_playing = (state == PlaybackState.PLAYING)
         GLib.idle_add(self.scope.set_playing, is_playing)
+        GLib.idle_add(self.scope.set_visible, is_playing and (self._oscilloscope_mode == 0))
 
     def _update_play_button(self, state: PlaybackState):
         is_playing = (state == PlaybackState.PLAYING)
@@ -474,6 +516,8 @@ class MiniPlayerWindow(Adw.Window):
         if self._hud_timeout_id is not None:
             GLib.source_remove(self._hud_timeout_id)
             self._hud_timeout_id = None
+        if self.is_fullscreen():
+            self.unfullscreen()
         self.scope.set_active(False)
         self.hide()
         self.main_window.set_visible(True)

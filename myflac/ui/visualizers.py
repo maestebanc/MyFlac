@@ -29,7 +29,7 @@ class OscilloscopeWidget(Gtk.DrawingArea):
 
     def set_active(self, active: bool):
         self._active = active
-        if active:
+        if active and self._is_playing:
             self._ensure_tick()
         else:
             self._stop_tick()
@@ -41,11 +41,14 @@ class OscilloscopeWidget(Gtk.DrawingArea):
         self._is_playing = is_playing
         if not is_playing:
             self._target_amplitude = 0.0
-        if self._active and is_playing:
+            self._amplitude = 0.0
+            self._stop_tick()
+        elif self._active:
             self._ensure_tick()
+        self.queue_draw()
 
     def update_levels(self, rms: list[float], peak: list[float]):
-        if not self._active:
+        if not self._active or not self._is_playing:
             return
         r_l = rms[0] if len(rms) > 0 else -100.0
         r_r = rms[1] if len(rms) > 1 else r_l
@@ -94,7 +97,7 @@ class OscilloscopeWidget(Gtk.DrawingArea):
         return True
 
     def _draw(self, _area, cr: cairo.Context, w: int, h: int):
-        if not self._active or w <= 0 or h <= 0:
+        if not self._active or not self._is_playing or w <= 0 or h <= 0:
             return
 
         # 1. Tinte oscuro semitransparente con viñeta para contraste supremo sobre la carátula

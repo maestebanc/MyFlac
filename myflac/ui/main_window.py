@@ -119,13 +119,29 @@ class MainWindow(Adw.ApplicationWindow):
         self.btn_search = Gtk.ToggleButton()
         self.btn_search.set_icon_name("system-search-symbolic")
         self.btn_search.set_tooltip_text(i18n.t("header.search_tooltip"))
-        self.header_bar.pack_end(self.btn_search)
+
+        # Botón para activar Mini-Reproductor
+        self.btn_mini_player = Gtk.Button()
+        self.btn_mini_player.set_icon_name("window-pop-out-symbolic")
+        self.btn_mini_player.set_tooltip_text(i18n.t("header.mini_player"))
+        self.btn_mini_player.connect("clicked", lambda *_: self._open_mini_player())
+
+        # Botón para conmutar pantalla completa
+        self.btn_fullscreen = Gtk.Button()
+        self.btn_fullscreen.set_icon_name("view-fullscreen-symbolic")
+        self.btn_fullscreen.set_tooltip_text(i18n.t("header.fullscreen"))
+        self.btn_fullscreen.connect("clicked", lambda *_: self._toggle_fullscreen())
 
         # Menú principal a la derecha
         self.menu_btn = Gtk.MenuButton()
         self.menu_btn.set_icon_name("open-menu-symbolic")
         self._rebuild_menu()
+
+        # Empaquetar en el extremo derecho (orden visual LTR: Buscar, Mini-Reproductor, Pantalla Completa, Menú)
         self.header_bar.pack_end(self.menu_btn)
+        self.header_bar.pack_end(self.btn_fullscreen)
+        self.header_bar.pack_end(self.btn_mini_player)
+        self.header_bar.pack_end(self.btn_search)
 
         # Barra de búsqueda desplegable debajo de la cabecera (Gtk.SearchBar)
         self.search_bar = Gtk.SearchBar()
@@ -346,6 +362,11 @@ class MainWindow(Adw.ApplicationWindow):
         """Actualiza tooltips, búsqueda y menú al cambiar el idioma en caliente."""
         self.btn_scan.set_tooltip_text(i18n.t("header.scan_library"))
         self.btn_search.set_tooltip_text(i18n.t("header.search_tooltip"))
+        self.btn_mini_player.set_tooltip_text(i18n.t("header.mini_player"))
+        if self.is_fullscreen():
+            self.btn_fullscreen.set_tooltip_text(i18n.t("header.unfullscreen"))
+        else:
+            self.btn_fullscreen.set_tooltip_text(i18n.t("header.fullscreen"))
         self.search_entry.set_placeholder_text(i18n.t("header.search_placeholder"))
         self.window_title.set_subtitle(i18n.t("app.subtitle"))
         self._rebuild_menu()
@@ -357,11 +378,17 @@ class MainWindow(Adw.ApplicationWindow):
         action_dev.connect("activate", lambda *_: self._open_device_dialog())
         self.add_action(action_dev)
 
+        self.connect("notify::fullscreened", self._on_fullscreen_changed)
+
         key_controller = Gtk.EventControllerKey()
         key_controller.connect("key-pressed", self._on_key_pressed)
         self.add_controller(key_controller)
 
     def _on_key_pressed(self, _controller, keyval, _keycode, state) -> bool:
+        if keyval == Gdk.KEY_F11:
+            log.debug("Atajo teclado: F11 -> toggle fullscreen")
+            self._toggle_fullscreen()
+            return True
         if keyval == Gdk.KEY_space:
             focus = self.get_focus()
             if not isinstance(focus, (Gtk.Entry, Gtk.SearchEntry, Gtk.Editable)):
@@ -379,6 +406,22 @@ class MainWindow(Adw.ApplicationWindow):
                 self.search_entry.grab_focus()
             return True
         return False
+
+    def _toggle_fullscreen(self):
+        """Alterna el modo de pantalla completa de la ventana principal."""
+        if self.is_fullscreen():
+            self.unfullscreen()
+        else:
+            self.fullscreen()
+
+    def _on_fullscreen_changed(self, *_):
+        """Actualiza icono y tooltip del botón de pantalla completa."""
+        if self.is_fullscreen():
+            self.btn_fullscreen.set_icon_name("view-restore-symbolic")
+            self.btn_fullscreen.set_tooltip_text(i18n.t("header.unfullscreen"))
+        else:
+            self.btn_fullscreen.set_icon_name("view-fullscreen-symbolic")
+            self.btn_fullscreen.set_tooltip_text(i18n.t("header.fullscreen"))
 
     def _toggle_play_pause(self):
         """Alterna reproducción y pausa. Si no hay pista activa, arranca la primera pista disponible."""

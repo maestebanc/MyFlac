@@ -113,7 +113,7 @@ class InspectorPanel(Gtk.Box):
         # Osciloscopio en tiempo real superpuesto a la carátula
         self.scope_widget = OscilloscopeWidget()
         self.scope_widget.set_can_target(False)
-        self.scope_widget.set_visible(True)
+        self.scope_widget.set_visible(False)
         self.art_overlay.add_overlay(self.scope_widget)
 
         self.frame_overlay.set_child(self.art_overlay)
@@ -247,14 +247,15 @@ class InspectorPanel(Gtk.Box):
 
         # Configurar visibilidad y estado de cada modo
         if mode == 0:
-            # Modo 0: Portada + Osciloscopio en tiempo real superpuesto (por defecto)
-            self.scope_widget.set_visible(True)
+            # Modo 0: Portada + Osciloscopio en tiempo real superpuesto (sólo visible mientras reproduce)
             self.scope_widget.set_active(True)
             self.scope_widget.set_playing(self._is_playing)
+            self.scope_widget.set_visible(self._is_playing)
         else:
             # Modo 1: Portada limpia HD
-            self.scope_widget.set_visible(False)
             self.scope_widget.set_active(False)
+            self.scope_widget.set_playing(False)
+            self.scope_widget.set_visible(False)
 
         self._update_mode_tooltip()
 
@@ -278,15 +279,19 @@ class InspectorPanel(Gtk.Box):
             is_playing = (self._engine.state == PlaybackState.PLAYING)
             self._is_playing = is_playing
             self.scope_widget.set_playing(is_playing)
+            if self.visualizer_mode == 0:
+                self.scope_widget.set_visible(is_playing)
 
     def _on_audio_level(self, rms: list[float], peak: list[float]):
-        if self.visualizer_mode == 0:
+        if self.visualizer_mode == 0 and self._is_playing:
             self.scope_widget.update_levels(rms, peak)
 
     def _on_playback_state_changed(self, state: PlaybackState):
         is_playing = (state == PlaybackState.PLAYING)
         self._is_playing = is_playing
         self.scope_widget.set_playing(is_playing)
+        if self.visualizer_mode == 0:
+            self.scope_widget.set_visible(is_playing)
 
     def _load_placeholder_image(self):
         """Carga el diseño estético de carátula MyFlac cuando no hay carátula activa."""

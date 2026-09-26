@@ -111,6 +111,21 @@ STRINGS: dict[str, dict[str, str]] = {
         "en": "Search library (Ctrl+F)",
         "ca": "Cercar a la biblioteca (Ctrl+F)",
     },
+    "header.fullscreen": {
+        "es": "Pantalla completa (F11)",
+        "en": "Fullscreen (F11)",
+        "ca": "Pantalla completa (F11)",
+    },
+    "header.unfullscreen": {
+        "es": "Salir de pantalla completa (F11)",
+        "en": "Leave fullscreen (F11)",
+        "ca": "Sortir de pantalla completa (F11)",
+    },
+    "header.mini_player": {
+        "es": "Activar Mini-Reproductor",
+        "en": "Activate Mini Player",
+        "ca": "Activar Mini-Reproductor",
+    },
     "app.subtitle": {
         "es": "Biblioteca Audiófila",
         "en": "Audiophile Library",

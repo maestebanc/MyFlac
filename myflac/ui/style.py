@@ -523,6 +523,19 @@ paned > separator:hover {
 .mini-player-aux-btn.active {
     color: #f59e0b;
 }
+
+.mini-player-window.fullscreen-mode {
+    border-radius: 0px;
+    background-color: #000000;
+}
+
+.mini-player-window.fullscreen-mode .mini-player-title {
+    font-size: 1.6em;
+}
+
+.mini-player-window.fullscreen-mode .mini-player-sub {
+    font-size: 1.1em;
+}
 """
 
 
