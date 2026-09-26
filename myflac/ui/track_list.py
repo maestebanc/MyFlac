@@ -471,6 +471,10 @@ class TrackListView(Gtk.Box):
             return self.list_store.get_item(index).track
         return None
 
+    def get_first_track(self) -> AudioTrack | None:
+        """Devuelve la primera pista de la lista actual, o None si está vacía."""
+        return self.get_track_at_index(0)
+
     def get_next_track(self, shuffle: bool = False, repeat_mode: str = "none") -> AudioTrack | None:
         n = self.list_store.get_n_items()
         if n == 0:

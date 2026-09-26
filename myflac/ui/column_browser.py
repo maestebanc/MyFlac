@@ -91,6 +91,7 @@ class ColumnBrowserView(Gtk.Box):
         self.artist_listbox.set_show_separators(False)
         self.artist_listbox.set_selection_mode(Gtk.SelectionMode.SINGLE)
         self.artist_listbox.connect("row-selected", self._on_artist_selected)
+        self.artist_listbox.connect("row-activated", self._on_artist_activated)
         self.artist_scrolled.set_child(self.artist_listbox)
         self.artist_box.append(self.artist_scrolled)
 
@@ -121,6 +122,7 @@ class ColumnBrowserView(Gtk.Box):
         self.album_listbox.set_show_separators(False)
         self.album_listbox.set_selection_mode(Gtk.SelectionMode.SINGLE)
         self.album_listbox.connect("row-selected", self._on_album_selected)
+        self.album_listbox.connect("row-activated", self._on_album_activated)
         self.album_scrolled.set_child(self.album_listbox)
         self.album_box.append(self.album_scrolled)
 
@@ -272,6 +274,48 @@ class ColumnBrowserView(Gtk.Box):
 
         log.debug("Álbum seleccionado en navegador: %s", self.current_album)
         self.refresh_tracks()
+
+    def _on_artist_activated(self, box: Gtk.ListBox, row: Gtk.ListBoxRow | None):
+        if row is None:
+            return
+        self._on_artist_selected(box, row)
+        first_track = self.track_list.get_first_track()
+        if first_track and self.on_track_activate:
+            log.info("Doble clic en artista '%s': reproduciendo primera pista '%s'", self.current_artist, first_track.title)
+            self.on_track_activate(first_track)
+
+    def _on_album_activated(self, box: Gtk.ListBox, row: Gtk.ListBoxRow | None):
+        if row is None:
+            return
+        self._on_album_selected(box, row)
+        first_track = self.track_list.get_first_track()
+        if first_track and self.on_track_activate:
+            log.info("Doble clic en álbum '%s': reproduciendo primera pista '%s'", self.current_album, first_track.title)
+            self.on_track_activate(first_track)
+
+    def select_album_and_play(self, album_name: str):
+        """Selecciona un álbum específico y reproduce inmediatamente su primera canción."""
+        if not album_name:
+            return
+        # 1. Buscar en la lista de álbumes actual
+        for idx, (alb, _, _) in enumerate(self._albums_data):
+            if alb.lower() == album_name.lower():
+                row = self.album_listbox.get_row_at_index(idx + 1)
+                if row:
+                    self.album_listbox.select_row(row)
+                    self._on_album_activated(self.album_listbox, row)
+                    return
+
+        # 2. Si no está en el filtro de artista actual, restablecer a Todos y buscar
+        self.current_artist = "__ALL__"
+        self.refresh_albums()
+        for idx, (alb, _, _) in enumerate(self._albums_data):
+            if alb.lower() == album_name.lower():
+                row = self.album_listbox.get_row_at_index(idx + 1)
+                if row:
+                    self.album_listbox.select_row(row)
+                    self._on_album_activated(self.album_listbox, row)
+                    return
 
     # -------------------------------------------------------------------------
     # Búsqueda e Internacionalización

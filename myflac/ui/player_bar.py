@@ -7,7 +7,7 @@ gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
 from gi.repository import Adw, Gdk, GdkPixbuf, Gio, GLib, Gtk, Pango
 
-from ..audio.devices import find_device_by_id, get_default_device
+from ..audio.devices import AudioDevice, find_device_by_id, get_available_devices, get_default_device
 from ..audio.engine import AudioEngine, PlaybackState
 from ..audio.track import AudioTrack
 from .. import i18n
@@ -52,6 +52,8 @@ class PlayerBar(Gtk.Box):
         self.on_queue_track_clicked: Callable[[int], None] | None = None
         self.on_queue_track_removed: Callable[[int], None] | None = None
         self.on_clear_queue_clicked: Callable[[], None] | None = None
+        self.on_device_selected: Callable[[AudioDevice], None] | None = None
+        self.on_mini_player_requested: Callable[[], None] | None = None
 
         self._queue: list[AudioTrack] = []
 
@@ -81,6 +83,13 @@ class PlayerBar(Gtk.Box):
         self.cover_frame.set_vexpand(True)
         self.cover_frame.set_valign(Gtk.Align.FILL)
         self.cover_frame.set_overflow(Gtk.Overflow.HIDDEN)
+        self.cover_frame.set_cursor_from_name("pointer")
+        self.cover_frame.set_tooltip_text("Abrir modo Mini-Reproductor (500×500)")
+
+        # Clic en la miniportada para abrir el Mini-Reproductor
+        cover_gesture = Gtk.GestureClick()
+        cover_gesture.connect("released", lambda *_: self.on_mini_player_requested and self.on_mini_player_requested())
+        self.cover_frame.add_controller(cover_gesture)
 
         self.cover_stack = Gtk.Stack()
         self.cover_stack.set_vexpand(True)
@@ -250,15 +259,21 @@ class PlayerBar(Gtk.Box):
         text_box.append(sub_box)
         btn_content.append(text_box)
 
-        # Flecha indicadora de menú / desplegable
-        self.device_chevron = Gtk.Image.new_from_icon_name("pan-down-symbolic")
+        # Flecha indicadora de menú hacia arriba
+        self.device_chevron = Gtk.Image.new_from_icon_name("pan-up-symbolic")
         self.device_chevron.set_pixel_size(12)
         self.device_chevron.set_opacity(0.5)
         self.device_chevron.set_valign(Gtk.Align.CENTER)
         btn_content.append(self.device_chevron)
 
         self.device_btn.set_child(btn_content)
-        self.device_btn.connect("clicked", lambda *_: self.on_device_click and self.on_device_click())
+
+        # Popover desplegable hacia arriba para seleccionar dispositivo de audio
+        self.device_popover = Gtk.Popover()
+        self.device_popover.set_parent(self.device_btn)
+        self.device_popover.set_position(Gtk.PositionType.TOP)
+        self.device_popover.set_autohide(True)
+        self.device_btn.connect("clicked", self._toggle_device_popover)
         right_box.append(self.device_btn)
 
         # Botón de Cola de reproducción ("A continuación")
@@ -420,6 +435,96 @@ class PlayerBar(Gtk.Box):
         m = s // 60
         sec = s % 60
         return f"{m}:{sec:02d}"
+
+    def _toggle_device_popover(self, *_):
+        self._rebuild_device_popover()
+        self.device_popover.popup()
+
+    def _rebuild_device_popover(self):
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        box.set_margin_top(10)
+        box.set_margin_bottom(10)
+        box.set_margin_start(10)
+        box.set_margin_end(10)
+        box.set_size_request(300, -1)
+
+        # Cabecera
+        header = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        lbl_title = Gtk.Label(label=i18n.t("devices.title"), xalign=0.0)
+        lbl_title.add_css_class("heading")
+        lbl_title.set_hexpand(True)
+        header.append(lbl_title)
+        box.append(header)
+
+        # Scrolled con la lista de dispositivos
+        scrolled = Gtk.ScrolledWindow()
+        scrolled.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        scrolled.set_max_content_height(280)
+        scrolled.set_vexpand(True)
+
+        list_box = Gtk.ListBox()
+        list_box.add_css_class("boxed-list")
+        list_box.set_selection_mode(Gtk.SelectionMode.NONE)
+
+        devices = get_available_devices()
+        current_id = self.engine.device_id if self.engine else "default"
+
+        for dev in devices:
+            is_active = (dev.id == current_id)
+            row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+            row.add_css_class("queue-row")
+            row.set_cursor_from_name("pointer")
+
+            # Icono según dispositivo
+            icon_name = dev.icon_name or "audio-speakers-symbolic"
+            icon = Gtk.Image.new_from_icon_name(icon_name)
+            icon.set_pixel_size(18)
+            row.append(icon)
+
+            # Nombre y subtítulo
+            txt_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=1)
+            txt_box.set_hexpand(True)
+
+            name_lbl = Gtk.Label(label=dev.name, xalign=0.0)
+            name_lbl.set_ellipsize(Pango.EllipsizeMode.END)
+            name_lbl.set_max_width_chars(24)
+            if is_active:
+                name_lbl.add_css_class("heading")
+
+            desc = dev.description or ("USB Audio" if dev.is_usb else "Sistema")
+            desc_lbl = Gtk.Label(label=desc, xalign=0.0)
+            desc_lbl.add_css_class("dim-label")
+            desc_lbl.add_css_class("caption")
+            desc_lbl.set_ellipsize(Pango.EllipsizeMode.END)
+            desc_lbl.set_max_width_chars(24)
+
+            txt_box.append(name_lbl)
+            txt_box.append(desc_lbl)
+            row.append(txt_box)
+
+            if is_active:
+                check_icon = Gtk.Image.new_from_icon_name("emblem-ok-symbolic")
+                check_icon.add_css_class("accent")
+                check_icon.set_pixel_size(16)
+                row.append(check_icon)
+
+            gesture = Gtk.GestureClick()
+            def make_click_handler(target_dev):
+                def on_dev_click(*_):
+                    if self.on_device_selected:
+                        self.on_device_selected(target_dev)
+                    elif self.on_device_click:
+                        self.on_device_click()
+                    self.device_popover.popdown()
+                return on_dev_click
+            gesture.connect("released", make_click_handler(dev))
+            row.add_controller(gesture)
+
+            list_box.append(row)
+
+        scrolled.set_child(list_box)
+        box.append(scrolled)
+        self.device_popover.set_child(box)
 
     def _toggle_queue_popover(self, *_):
         self._rebuild_queue_popover()

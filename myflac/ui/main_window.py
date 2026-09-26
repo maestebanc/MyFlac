@@ -22,6 +22,7 @@ from .column_browser import ColumnBrowserView
 from .device_popover import DeviceSelectionDialog
 from .inspector_panel import InspectorPanel
 from .library_setup_dialog import LibrarySetupDialog
+from .mini_player import MiniPlayerWindow
 from .player_bar import PlayerBar
 
 log = get_logger("ui.main_window")
@@ -41,6 +42,7 @@ class MainWindow(Adw.ApplicationWindow):
         self.cfg = cfg
         self._inhibit_cookie: int = 0
         self.play_queue: list[AudioTrack] = []
+        self.mini_player: MiniPlayerWindow | None = None
 
         # 1. Base de datos y escáner de biblioteca musical
         self.db = LibraryDB()
@@ -163,12 +165,13 @@ class MainWindow(Adw.ApplicationWindow):
 
         # Panel Inspector de audio con visualizadores en tiempo real
         self.inspector = InspectorPanel(engine=self.engine)
+        self.inspector.on_album_activate = self._on_album_activate_from_inspector
         self.paned.set_end_child(self.inspector)
 
         # Barra inferior del reproductor (altura acotada a 64px)
         self.player_bar = PlayerBar(
             engine=self.engine,
-            on_device_click=lambda: self._open_device_dialog(),
+            on_device_click=lambda: None,
         )
         self.player_bar.on_play_pause_clicked = self._toggle_play_pause
         self.player_bar.on_previous_clicked = self._play_previous
@@ -177,6 +180,8 @@ class MainWindow(Adw.ApplicationWindow):
         self.player_bar.on_shuffle_toggled = self._on_shuffle_toggled
         self.player_bar.on_clear_queue_clicked = self._on_clear_queue
         self.player_bar.on_queue_track_removed = self._on_remove_from_queue
+        self.player_bar.on_device_selected = self._on_device_selected
+        self.player_bar.on_mini_player_requested = self._open_mini_player
 
         # Contenedor inferior: Barra de progreso azul no obstructiva + Barra del reproductor
         self.bottom_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
@@ -393,6 +398,8 @@ class MainWindow(Adw.ApplicationWindow):
         self.browser.set_current_playing_track(track, is_paused=False)
         self.inspector.set_track(track)
         self.player_bar.set_track(track)
+        if self.mini_player:
+            self.mini_player.set_track(track)
         self.engine.load_track(track, play_now=True)
         self._prepare_gapless_next()
         self._update_output_status()
@@ -403,6 +410,8 @@ class MainWindow(Adw.ApplicationWindow):
         self.browser.set_current_playing_track(track, is_paused=is_paused)
         self.inspector.set_track(track)
         self.player_bar.set_track(track)
+        if self.mini_player:
+            self.mini_player.set_track(track)
         self._prepare_gapless_next()
         self._update_output_status()
 
@@ -571,8 +580,29 @@ class MainWindow(Adw.ApplicationWindow):
         self.engine.set_device(dev.id)
         self._update_output_status()
 
+    def _on_album_activate_from_inspector(self, album_name: str):
+        """Disparado por doble clic en la etiqueta de álbum del inspector."""
+        log.info("Activando álbum completo desde Inspector: '%s'", album_name)
+        self.browser.select_album_and_play(album_name)
+
+    def _open_mini_player(self):
+        """Activa el modo Mini-Reproductor (500x500) y oculta la ventana principal."""
+        log.info("Activando modo Mini-Reproductor y ocultando ventana principal")
+        if self.mini_player is None:
+            self.mini_player = MiniPlayerWindow(main_window=self, engine=self.engine)
+        if self.engine.current_track:
+            self.mini_player.set_track(self.engine.current_track)
+        self.set_visible(False)
+        self.mini_player.present()
+
     def _on_close_request(self, _window) -> bool:
         log.info("Cerrando aplicación...")
+        if self.mini_player:
+            try:
+                self.mini_player.destroy()
+            except Exception:
+                pass
+            self.mini_player = None
         if self.engine.current_track:
             self.cfg["last_track_path"] = self.engine.current_track.filepath
             self.cfg["last_position"] = self.engine.position

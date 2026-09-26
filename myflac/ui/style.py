@@ -394,6 +394,43 @@ paned > separator:hover {
 .queue-row:hover {
     background-color: alpha(@window_fg_color, 0.06);
 }
+
+/* Modo Mini-Reproductor (500x500) */
+.mini-player-window {
+    background-color: #0d0f12;
+}
+
+.mini-player-btn {
+    border-radius: 9999px;
+    background-color: rgba(18, 20, 24, 0.65);
+    color: #ffffff;
+    padding: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+    transition: background-color 200ms ease, transform 150ms ease;
+}
+
+.mini-player-btn:hover {
+    background-color: rgba(35, 40, 48, 0.85);
+}
+
+.mini-player-overlay-card {
+    background-color: rgba(14, 16, 20, 0.82);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 14px;
+    padding: 12px 16px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.55);
+}
+
+.mini-player-title {
+    font-weight: 700;
+    font-size: 1.05em;
+    color: #ffffff;
+}
+
+.mini-player-sub {
+    font-size: 0.86em;
+    color: rgba(255, 255, 255, 0.68);
+}
 """
 
 

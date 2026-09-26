@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import os
-from typing import TYPE_CHECKING
+from typing import Callable, TYPE_CHECKING
 
 import gi
 
@@ -14,7 +14,7 @@ from ..audio.engine import PlaybackState
 from ..audio.track import AudioTrack
 from ..config import load_config, save_config
 from ..logger import get_logger
-from ..ui.visualizers import OscilloscopeWidget, VUMeterWidget
+from ..ui.visualizers import OscilloscopeWidget
 from .. import i18n
 
 if TYPE_CHECKING:
@@ -37,10 +37,11 @@ class InspectorPanel(Gtk.Box):
         self._is_playing: bool = False
         self.current_track: AudioTrack | None = None
         self._last_output_info: dict = {}
+        self.on_album_activate: Callable[[str], None] | None = None
 
-        # Cargar modo visualizador persistente (0: Portada, 1: Portada+Osciloscopio, 2: Vúmetro)
+        # Cargar modo visualizador persistente (0: Portada+Osciloscopio [por defecto], 1: Portada limpia)
         cfg = load_config()
-        self.visualizer_mode: int = cfg.get("visualizer_mode", 0)
+        self.visualizer_mode: int = cfg.get("visualizer_mode", 0) % 2
 
         self._build_ui()
         self._apply_visualizer_mode(self.visualizer_mode)
@@ -78,13 +79,6 @@ class InspectorPanel(Gtk.Box):
         self.frame_overlay.set_hexpand(True)
         self.frame_overlay.set_vexpand(False)
 
-        # Stack de capas principales (art_layer vs vu_layer) con crossfade suave
-        self.main_stack = Gtk.Stack()
-        self.main_stack.set_transition_type(Gtk.StackTransitionType.CROSSFADE)
-        self.main_stack.set_transition_duration(250)
-        self.main_stack.set_hexpand(True)
-        self.main_stack.set_vexpand(False)
-
         # Capa de arte (con soporte para osciloscopio superpuesto)
         self.art_overlay = Gtk.Overlay()
         self.art_overlay.set_hexpand(True)
@@ -119,19 +113,12 @@ class InspectorPanel(Gtk.Box):
         # Osciloscopio en tiempo real superpuesto a la carátula
         self.scope_widget = OscilloscopeWidget()
         self.scope_widget.set_can_target(False)
-        self.scope_widget.set_visible(False)
+        self.scope_widget.set_visible(True)
         self.art_overlay.add_overlay(self.scope_widget)
 
-        self.main_stack.add_named(self.art_overlay, "art_layer")
+        self.frame_overlay.set_child(self.art_overlay)
 
-        # Vúmetro analógico vintage (doble aguja L/R, retroiluminado ámbar)
-        self.vu_widget = VUMeterWidget()
-        self.vu_widget.set_can_target(False)
-        self.main_stack.add_named(self.vu_widget, "vu_layer")
-
-        self.frame_overlay.set_child(self.main_stack)
-
-        # Indicador de modo elegante en la base de la carátula (cápsula con 3 puntos)
+        # Indicador de modo en la base de la carátula (cápsula con 2 puntos: Osciloscopio / Limpio)
         self.badge_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=3)
         self.badge_box.add_css_class("visualizer-pill")
         self.badge_box.set_halign(Gtk.Align.CENTER)
@@ -140,7 +127,7 @@ class InspectorPanel(Gtk.Box):
         self.badge_box.set_can_target(False)
 
         self.mode_dots = []
-        for i in range(3):
+        for i in range(2):
             dot = Gtk.Box()
             dot.add_css_class("visualizer-dot")
             self.mode_dots.append(dot)
@@ -148,7 +135,7 @@ class InspectorPanel(Gtk.Box):
 
         self.frame_overlay.add_overlay(self.badge_box)
 
-        # Gesto de clic sobre la carátula para ciclar modos interactivamente
+        # Gesto de clic sobre la carátula para alternar entre Osciloscopio y Portada limpia
         click_gesture = Gtk.GestureClick()
         click_gesture.connect("released", lambda *_: self.cycle_visualizer_mode())
         self.cover_frame.add_controller(click_gesture)
@@ -176,6 +163,13 @@ class InspectorPanel(Gtk.Box):
         self.album_label.set_ellipsize(Pango.EllipsizeMode.END)
         self.album_label.add_css_class("dim-label")
         self.album_label.set_max_width_chars(25)
+        self.album_label.set_cursor_from_name("pointer")
+        self.album_label.set_tooltip_text("Doble clic para reproducir este álbum")
+
+        # Gesto de doble clic en álbum para reproducir desde la primera pista
+        album_click = Gtk.GestureClick()
+        album_click.connect("released", self._on_album_label_clicked)
+        self.album_label.add_controller(album_click)
 
         info_box.append(self.title_label)
         info_box.append(self.artist_label)
@@ -223,9 +217,16 @@ class InspectorPanel(Gtk.Box):
         scrolled.set_child(content)
         self.append(scrolled)
 
+    def _on_album_label_clicked(self, _gesture: Gtk.GestureClick, n_press: int, _x: float, _y: float):
+        if n_press == 2 and self.on_album_activate and self.current_track:
+            album_name = self.current_track.album
+            if album_name:
+                log.info("Doble clic en etiqueta de álbum del inspector: '%s'", album_name)
+                self.on_album_activate(album_name)
+
     def cycle_visualizer_mode(self):
-        """Alterna cíclicamente entre los 3 modos: Portada -> Portada+Osciloscopio -> Vúmetro."""
-        self.visualizer_mode = (self.visualizer_mode + 1) % 3
+        """Alterna entre los 2 modos: Portada+Osciloscopio <-> Portada limpia."""
+        self.visualizer_mode = (self.visualizer_mode + 1) % 2
         self._apply_visualizer_mode(self.visualizer_mode)
         try:
             cfg = load_config()
@@ -237,7 +238,7 @@ class InspectorPanel(Gtk.Box):
     def _apply_visualizer_mode(self, mode: int):
         self.visualizer_mode = mode
 
-        # Actualizar estado de los puntos de la pastilla
+        # Actualizar estado de los puntos de la pastilla (2 puntos)
         for i, dot in enumerate(self.mode_dots):
             if i == mode:
                 dot.add_css_class("active")
@@ -246,33 +247,21 @@ class InspectorPanel(Gtk.Box):
 
         # Configurar visibilidad y estado de cada modo
         if mode == 0:
-            # Modo 0: Portada limpia HD
-            self.main_stack.set_visible_child_name("art_layer")
-            self.scope_widget.set_visible(False)
-            self.scope_widget.set_active(False)
-            self.vu_widget.set_active(False)
-        elif mode == 1:
-            # Modo 1: Portada + Osciloscopio en tiempo real superpuesto
-            self.main_stack.set_visible_child_name("art_layer")
+            # Modo 0: Portada + Osciloscopio en tiempo real superpuesto (por defecto)
             self.scope_widget.set_visible(True)
             self.scope_widget.set_active(True)
             self.scope_widget.set_playing(self._is_playing)
-            self.vu_widget.set_active(False)
-        elif mode == 2:
-            # Modo 2: Vúmetro analógico vintage
-            self.main_stack.set_visible_child_name("vu_layer")
+        else:
+            # Modo 1: Portada limpia HD
             self.scope_widget.set_visible(False)
             self.scope_widget.set_active(False)
-            self.vu_widget.set_active(True)
-            self.vu_widget.set_playing(self._is_playing)
 
         self._update_mode_tooltip()
 
     def _update_mode_tooltip(self):
         tooltips = [
-            i18n.t("inspector.mode_cover"),
             i18n.t("inspector.mode_scope"),
-            i18n.t("inspector.mode_vu"),
+            i18n.t("inspector.mode_cover"),
         ]
         if 0 <= self.visualizer_mode < len(tooltips):
             self.cover_frame.set_tooltip_text(tooltips[self.visualizer_mode])
@@ -289,19 +278,15 @@ class InspectorPanel(Gtk.Box):
             is_playing = (self._engine.state == PlaybackState.PLAYING)
             self._is_playing = is_playing
             self.scope_widget.set_playing(is_playing)
-            self.vu_widget.set_playing(is_playing)
 
     def _on_audio_level(self, rms: list[float], peak: list[float]):
-        if self.visualizer_mode == 1:
+        if self.visualizer_mode == 0:
             self.scope_widget.update_levels(rms, peak)
-        elif self.visualizer_mode == 2:
-            self.vu_widget.update_levels(rms, peak)
 
     def _on_playback_state_changed(self, state: PlaybackState):
         is_playing = (state == PlaybackState.PLAYING)
         self._is_playing = is_playing
         self.scope_widget.set_playing(is_playing)
-        self.vu_widget.set_playing(is_playing)
 
     def _load_placeholder_image(self):
         """Carga el diseño estético de carátula MyFlac cuando no hay carátula activa."""

@@ -48,7 +48,7 @@ DEFAULTS = {
     "repeat_mode": "none",      # "none", "all", "one"
     "shuffle": False,
     "library_folders": [],      # Lista de rutas absolutas de carpetas de biblioteca
-    "visualizer_mode": 0,       # 0: Portada, 1: Portada + Osciloscopio, 2: Vúmetro analógico
+    "visualizer_mode": 0,       # 0: Portada + Osciloscopio (por defecto), 1: Portada limpia
     "last_track_path": "",      # Ruta del último archivo reproducido
     "last_position": 0.0,       # Última posición en segundos
 }
