@@ -126,6 +126,41 @@ STRINGS: dict[str, dict[str, str]] = {
         "en": "Activate Mini Player",
         "ca": "Activar Mini-Reproductor",
     },
+    "header.super_player": {
+        "es": "Super-Reproductor a Pantalla Completa (F11)",
+        "en": "Fullscreen Super Player (F11)",
+        "ca": "Super-Reproductor a Pantalla Completa (F11)",
+    },
+    "header.dock_main": {
+        "es": "Volver a la ventana principal (Escape)",
+        "en": "Return to main window (Escape)",
+        "ca": "Tornar a la finestra principal (Escape)",
+    },
+    "lyrics.title": {
+        "es": "Letra",
+        "en": "Lyrics",
+        "ca": "Lletra",
+    },
+    "lyrics.loading": {
+        "es": "Buscando letra...",
+        "en": "Searching lyrics...",
+        "ca": "Cercant lletra...",
+    },
+    "lyrics.not_found": {
+        "es": "Letra no disponible",
+        "en": "Lyrics not available",
+        "ca": "Lletra no disponible",
+    },
+    "lyrics.instrumental": {
+        "es": "Pista Instrumental",
+        "en": "Instrumental Track",
+        "ca": "Pista Instrumental",
+    },
+    "lyrics.source_online": {
+        "es": "Letra en línea",
+        "en": "Online lyrics",
+        "ca": "Lletra en línia",
+    },
     "app.subtitle": {
         "es": "Biblioteca Audiófila",
         "en": "Audiophile Library",

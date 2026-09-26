@@ -126,18 +126,18 @@ class MainWindow(Adw.ApplicationWindow):
         self.btn_mini_player.set_tooltip_text(i18n.t("header.mini_player"))
         self.btn_mini_player.connect("clicked", lambda *_: self._open_mini_player())
 
-        # Botón para conmutar pantalla completa
+        # Botón para activar Super-Reproductor a Pantalla Completa
         self.btn_fullscreen = Gtk.Button()
         self.btn_fullscreen.set_icon_name("view-fullscreen-symbolic")
-        self.btn_fullscreen.set_tooltip_text(i18n.t("header.fullscreen"))
-        self.btn_fullscreen.connect("clicked", lambda *_: self._toggle_fullscreen())
+        self.btn_fullscreen.set_tooltip_text(i18n.t("header.super_player"))
+        self.btn_fullscreen.connect("clicked", lambda *_: self._open_super_player())
 
         # Menú principal a la derecha
         self.menu_btn = Gtk.MenuButton()
         self.menu_btn.set_icon_name("open-menu-symbolic")
         self._rebuild_menu()
 
-        # Empaquetar en el extremo derecho (orden visual LTR: Buscar, Mini-Reproductor, Pantalla Completa, Menú)
+        # Empaquetar en el extremo derecho (orden visual LTR: Buscar, Mini-Reproductor, Super-Reproductor, Menú)
         self.header_bar.pack_end(self.menu_btn)
         self.header_bar.pack_end(self.btn_fullscreen)
         self.header_bar.pack_end(self.btn_mini_player)
@@ -363,10 +363,7 @@ class MainWindow(Adw.ApplicationWindow):
         self.btn_scan.set_tooltip_text(i18n.t("header.scan_library"))
         self.btn_search.set_tooltip_text(i18n.t("header.search_tooltip"))
         self.btn_mini_player.set_tooltip_text(i18n.t("header.mini_player"))
-        if self.is_fullscreen():
-            self.btn_fullscreen.set_tooltip_text(i18n.t("header.unfullscreen"))
-        else:
-            self.btn_fullscreen.set_tooltip_text(i18n.t("header.fullscreen"))
+        self.btn_fullscreen.set_tooltip_text(i18n.t("header.super_player"))
         self.search_entry.set_placeholder_text(i18n.t("header.search_placeholder"))
         self.window_title.set_subtitle(i18n.t("app.subtitle"))
         self._rebuild_menu()
@@ -378,16 +375,14 @@ class MainWindow(Adw.ApplicationWindow):
         action_dev.connect("activate", lambda *_: self._open_device_dialog())
         self.add_action(action_dev)
 
-        self.connect("notify::fullscreened", self._on_fullscreen_changed)
-
         key_controller = Gtk.EventControllerKey()
         key_controller.connect("key-pressed", self._on_key_pressed)
         self.add_controller(key_controller)
 
     def _on_key_pressed(self, _controller, keyval, _keycode, state) -> bool:
         if keyval == Gdk.KEY_F11:
-            log.debug("Atajo teclado: F11 -> toggle fullscreen")
-            self._toggle_fullscreen()
+            log.debug("Atajo teclado: F11 -> super player a pantalla completa")
+            self._open_super_player()
             return True
         if keyval == Gdk.KEY_space:
             focus = self.get_focus()
@@ -637,6 +632,16 @@ class MainWindow(Adw.ApplicationWindow):
         if self.engine.current_track:
             self.mini_player.set_track(self.engine.current_track)
         self.mini_player.present_mini_player()
+        self.set_visible(False)
+
+    def _open_super_player(self):
+        """Activa el modo Super-Reproductor a pantalla completa y oculta la ventana principal."""
+        log.info("Activando Super-Reproductor a pantalla completa y ocultando ventana principal")
+        if self.mini_player is None:
+            self.mini_player = MiniPlayerWindow(main_window=self, engine=self.engine)
+        if self.engine.current_track:
+            self.mini_player.set_track(self.engine.current_track)
+        self.mini_player.present_super_player()
         self.set_visible(False)
 
     def _on_close_request(self, _window) -> bool:

@@ -529,12 +529,84 @@ paned > separator:hover {
     background-color: #000000;
 }
 
-.mini-player-window.fullscreen-mode .mini-player-title {
-    font-size: 1.6em;
+/* Estilos de Super-Reproductor a Pantalla Completa */
+.super-player-window {
+    background-color: #07080a;
+    color: #ffffff;
 }
 
-.mini-player-window.fullscreen-mode .mini-player-sub {
-    font-size: 1.1em;
+.super-player-container {
+    padding: 24px 36px;
+}
+
+.super-player-art-card {
+    border-radius: 18px;
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.70);
+    background-color: #111317;
+}
+
+.super-player-title {
+    font-size: 2.20em;
+    font-weight: 800;
+    color: #ffffff;
+    letter-spacing: -0.02em;
+}
+
+.super-player-artist {
+    font-size: 1.45em;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.88);
+}
+
+.super-player-album {
+    font-size: 1.15em;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.55);
+}
+
+.super-player-badge {
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 9999px;
+    padding: 4px 14px;
+    font-size: 0.85em;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.80);
+    letter-spacing: 0.03em;
+}
+
+.super-player-lyrics-section {
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 14px;
+    padding: 20px 24px;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.super-player-lyrics-header {
+    font-size: 1.0em;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.10em;
+    color: #38bdf8;
+    margin-bottom: 12px;
+}
+
+.super-player-lyrics-text {
+    font-size: 1.35em;
+    line-height: 1.85;
+    color: rgba(255, 255, 255, 0.92);
+    font-weight: 500;
+    letter-spacing: 0.01em;
+}
+
+.super-player-instrumental-badge {
+    background: rgba(245, 158, 11, 0.12);
+    border: 1px solid rgba(245, 158, 11, 0.30);
+    border-radius: 12px;
+    padding: 16px 24px;
+    font-size: 1.25em;
+    font-weight: 600;
+    color: #f59e0b;
 }
 """
 

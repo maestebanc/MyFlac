@@ -129,11 +129,13 @@ class OscilloscopeWidget(Gtk.DrawingArea):
         cr.line_to(w, h / 2)
         cr.stroke()
 
-        # 3. Puntos de la forma de onda
+        # 3. Puntos de la forma de onda optimizados (paso adaptativo ~350 puntos máx)
+        step_x = max(1, w // 350)
         pts = []
         amp_scale = self._amplitude * (h * 0.34)
-        for x in range(w):
-            nx = x / float(w)
+        for x in range(0, w + step_x, step_x):
+            cx = min(x, w)
+            nx = cx / float(w)
             # Envolvente sinusoidal para fundir suavemente con los bordes
             env = math.sin(nx * math.pi)
             val = (
@@ -142,38 +144,32 @@ class OscilloscopeWidget(Gtk.DrawingArea):
                 + 0.22 * math.cos(nx * 34.0 * math.pi + self._phase * 2.2)
             )
             y = h / 2 + env * (amp_scale * val)
-            pts.append((x, y))
+            pts.append((cx, y))
 
         if not pts:
             return
 
-        # Capa 1: Resplandor cian amplio (Wide Glow)
+        # Trazado multicapa ultra-rápido usando stroke_preserve
         cr.new_sub_path()
         cr.set_line_join(cairo.LINE_JOIN_ROUND)
         cr.set_line_cap(cairo.LINE_CAP_ROUND)
-        cr.set_source_rgba(0.0, 0.90, 1.0, 0.20)
-        cr.set_line_width(8.0)
         cr.move_to(pts[0][0], pts[0][1])
         for px, py in pts[1:]:
             cr.line_to(px, py)
-        cr.stroke()
+
+        # Capa 1: Resplandor cian amplio (Wide Glow)
+        cr.set_source_rgba(0.0, 0.90, 1.0, 0.20)
+        cr.set_line_width(7.5)
+        cr.stroke_preserve()
 
         # Capa 2: Resplandor medio (Medium Glow)
-        cr.new_sub_path()
         cr.set_source_rgba(0.0, 0.95, 1.0, 0.60)
-        cr.set_line_width(3.2)
-        cr.move_to(pts[0][0], pts[0][1])
-        for px, py in pts[1:]:
-            cr.line_to(px, py)
-        cr.stroke()
+        cr.set_line_width(3.0)
+        cr.stroke_preserve()
 
         # Capa 3: Núcleo brillante ultra nítido (Crisp Core)
-        cr.new_sub_path()
         cr.set_source_rgba(0.92, 1.0, 1.0, 0.95)
         cr.set_line_width(1.2)
-        cr.move_to(pts[0][0], pts[0][1])
-        for px, py in pts[1:]:
-            cr.line_to(px, py)
         cr.stroke()
 
         # 4. HUD audiófilo discreto en esquina superior izquierda
