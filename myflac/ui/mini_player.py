@@ -1,8 +1,10 @@
 """Ventana de Mini-Reproductor y Super-Reproductor a pantalla completa con osciloscopio y letras online."""
 from __future__ import annotations
 
+import io
 import os
 from typing import TYPE_CHECKING
+from PIL import Image
 
 import gi
 
@@ -23,16 +25,70 @@ if TYPE_CHECKING:
 log = get_logger("ui.mini_player")
 
 
+def _extract_ambient_palette(cover_bytes: bytes | None) -> tuple[str, str, str]:
+    """
+    Extrae dos colores atmosféricos y un color de resplandor para el marco de arte en < 2ms.
+    Devuelve (rgba1, rgba2, glow_rgba).
+    """
+    if not cover_bytes:
+        return (
+            "rgba(30, 48, 80, 0.45)",
+            "rgba(15, 22, 36, 0.70)",
+            "rgba(56, 189, 248, 0.20)",
+        )
+    try:
+        img = Image.open(io.BytesIO(cover_bytes)).convert("RGB")
+        img.thumbnail((32, 32), Image.Resampling.NEAREST)
+        quant = img.quantize(colors=6)
+        palette = quant.getpalette()[:18]
+        colors = [
+            (palette[i * 3], palette[i * 3 + 1], palette[i * 3 + 2])
+            for i in range(len(palette) // 3)
+        ]
+
+        def vibrancy(rgb: tuple[int, int, int]) -> float:
+            r, g, b = rgb
+            max_c = max(r, g, b)
+            min_c = min(r, g, b)
+            sat = (max_c - min_c) / max(1, max_c)
+            lum = 0.299 * r + 0.587 * g + 0.114 * b
+            lum_factor = 1.0 - abs(lum - 128) / 128
+            return sat * 1.6 + lum_factor
+
+        colors.sort(key=vibrancy, reverse=True)
+        c1 = colors[0] if colors else (30, 48, 80)
+        c2 = colors[1] if len(colors) > 1 else (c1[0] // 2, c1[1] // 2, c1[2] // 2)
+
+        # Si el color extraído es excesivamente oscuro, aportar piso de color audiófilo
+        lum1 = 0.299 * c1[0] + 0.587 * c1[1] + 0.114 * c1[2]
+        if lum1 < 35:
+            c1 = (max(22, c1[0] + 16), max(36, c1[1] + 28), max(60, c1[2] + 48))
+
+        rgba1 = f"rgba({c1[0]}, {c1[1]}, {c1[2]}, 0.45)"
+        rgba2 = f"rgba({c2[0]}, {c2[1]}, {c2[2]}, 0.22)"
+        glow = f"rgba({c1[0]}, {c1[1]}, {c1[2]}, 0.28)"
+        return (rgba1, rgba2, glow)
+    except Exception as e:
+        log.warning("No se pudo extraer paleta atmosférica de carátula: %s", e)
+        return (
+            "rgba(30, 48, 80, 0.45)",
+            "rgba(15, 22, 36, 0.70)",
+            "rgba(56, 189, 248, 0.20)",
+        )
+
+
 class MiniPlayerWindow(Adw.Window):
     """
     Ventana flotante y expansible para MyFlac:
-    1. Modo Mini-Reproductor (500x500 px): Carátula HD centrada con osciloscopio superpuesto,
-       controles HUD auto-ocultables y arrastre por WindowHandle.
+    1. Modo Mini-Reproductor (estrictamente 500x500 px): Carátula HD centrada con osciloscopio
+       superpuesto, controles HUD auto-ocultables y arrastre por WindowHandle.
     2. Modo Super-Reproductor (Pantalla Completa):
-       - Panel izquierdo: Carátula de gran tamaño (~800x800 px) con osciloscopio optimizado a 60 FPS
-         y controles ampliados auto-ocultables.
-       - Panel derecho: Metadatos en gran formato y visor de letras descargadas automáticamente
-         de Internet con scroll fluido.
+       - Fondo atmosférico dinámico derivado de la carátula.
+       - Panel izquierdo: Marco de arte de gran tamaño con osciloscopio de 60 FPS y
+         dock flotante de controles auto-ocultable.
+       - Panel derecho: Tipografía editorial grande (Hi-Res badge, título, artista, álbum)
+         y letras online (LRCLIB) flotantes con scroll suave.
+       - Botón superior derecho único de restauración.
     """
 
     def __init__(self, main_window: MainWindow, engine: AudioEngine):
@@ -41,15 +97,7 @@ class MiniPlayerWindow(Adw.Window):
         self.engine = engine
         self.lyrics_service = LyricsService()
 
-        self.set_title("MyFlac - Mini Reproductor")
-        self.set_default_size(500, 500)
-        self.set_resizable(True)
-        self.add_css_class("mini-player-window")
-
-        app = main_window.get_application()
-        if app:
-            self.set_application(app)
-
+        self._launched_from = "mini"  # 'mini' o 'main'
         self._is_seeking = False
         self._current_duration = 0.0
         self._current_position = 0.0
@@ -61,6 +109,24 @@ class MiniPlayerWindow(Adw.Window):
         self._press_y = 0.0
         self._last_lyrics_track_id: str | None = None
 
+        # Proveedor de CSS dinámico para el fondo atmosférico del Super-Reproductor
+        self._ambient_css_provider = Gtk.CssProvider()
+        disp = Gdk.Display.get_default()
+        if disp:
+            Gtk.StyleContext.add_provider_for_display(
+                disp, self._ambient_css_provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION + 20
+            )
+
+        self.set_title("MyFlac - Mini Reproductor")
+        self.set_default_size(500, 500)
+        self.set_size_request(500, 500)
+        self.set_resizable(False)
+        self.add_css_class("mini-player-window")
+
+        app = main_window.get_application()
+        if app:
+            self.set_application(app)
+
         self.connect("notify::fullscreened", self._on_fullscreen_changed)
 
         self._build_ui()
@@ -70,14 +136,17 @@ class MiniPlayerWindow(Adw.Window):
         self.connect("close-request", self._on_close_request)
 
     def _build_ui(self):
+        # Stack no homogéneo para que la vista Super no fuerce a la vista Mini a expandirse
         self.main_stack = Gtk.Stack()
         self.main_stack.set_transition_type(Gtk.StackTransitionType.CROSSFADE)
+        self.main_stack.set_hhomogeneous(False)
+        self.main_stack.set_vhomogeneous(False)
 
         # 1. Página Modo Mini-Reproductor (500x500 px)
         mini_page = self._build_mini_ui()
         self.main_stack.add_named(mini_page, "mini")
 
-        # 2. Página Modo Super-Reproductor a Pantalla Completa (2 columnas)
+        # 2. Página Modo Super-Reproductor a Pantalla Completa (Canvas Hi-Fi)
         super_page = self._build_super_ui()
         self.main_stack.add_named(super_page, "super")
 
@@ -94,20 +163,18 @@ class MiniPlayerWindow(Adw.Window):
     def _build_mini_ui(self) -> Gtk.Widget:
         root_overlay = Gtk.Overlay()
         root_overlay.set_size_request(500, 500)
-        root_overlay.set_hexpand(True)
-        root_overlay.set_vexpand(True)
+        root_overlay.set_hexpand(False)
+        root_overlay.set_vexpand(False)
 
         # 1.1 Base: Carátula en alta resolución
         self.mini_cover_stack = Gtk.Stack()
         self.mini_cover_stack.set_transition_type(Gtk.StackTransitionType.CROSSFADE)
-        self.mini_cover_stack.set_hexpand(True)
-        self.mini_cover_stack.set_vexpand(True)
+        self.mini_cover_stack.set_size_request(500, 500)
 
         self.mini_cover_picture = Gtk.Picture()
         self.mini_cover_picture.set_can_shrink(True)
         self.mini_cover_picture.set_content_fit(Gtk.ContentFit.COVER)
-        self.mini_cover_picture.set_hexpand(True)
-        self.mini_cover_picture.set_vexpand(True)
+        self.mini_cover_picture.set_size_request(500, 500)
         self.mini_cover_stack.add_named(self.mini_cover_picture, "picture")
 
         placeholder = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
@@ -124,17 +191,15 @@ class MiniPlayerWindow(Adw.Window):
 
         # 1.2 Capa de Osciloscopio Superpuesto
         self.mini_scope = OscilloscopeWidget()
-        self.mini_scope.set_hexpand(True)
-        self.mini_scope.set_vexpand(True)
+        self.mini_scope.set_size_request(500, 500)
         self.mini_scope.set_active(True)
         self.mini_scope.set_visible(False)
         root_overlay.add_overlay(self.mini_scope)
 
-        # 1.3 Capa HUD Apple Music centrada con auto-ocultación
+        # 1.3 Capa HUD centrada con auto-ocultación
         self.mini_hud_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         self.mini_hud_box.add_css_class("mini-player-hud")
-        self.mini_hud_box.set_hexpand(True)
-        self.mini_hud_box.set_vexpand(True)
+        self.mini_hud_box.set_size_request(500, 500)
 
         # Barra Superior: Pantalla Completa y Regreso (Flecha Abajo)
         top_bar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
@@ -269,33 +334,62 @@ class MiniPlayerWindow(Adw.Window):
     # 2. CONSTRUCCIÓN MODO SUPER-REPRODUCTOR A PANTALLA COMPLETA
     # =========================================================================
     def _build_super_ui(self) -> Gtk.Widget:
-        super_container = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=44)
+        super_root_overlay = Gtk.Overlay()
+        super_root_overlay.add_css_class("super-player-ambient-bg")
+        super_root_overlay.set_hexpand(True)
+        super_root_overlay.set_vexpand(True)
+
+        super_container = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=80)
         super_container.add_css_class("super-player-container")
+        super_container.set_valign(Gtk.Align.CENTER)
+        super_container.set_halign(Gtk.Align.CENTER)
         super_container.set_hexpand(True)
         super_container.set_vexpand(True)
+        super_root_overlay.set_child(super_container)
+
+        # Botón superior derecho de restauración como capa flotante independiente
+        top_nav_bar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
+        top_nav_bar.set_halign(Gtk.Align.END)
+        top_nav_bar.set_valign(Gtk.Align.START)
+        top_nav_bar.set_margin_top(28)
+        top_nav_bar.set_margin_end(36)
+
+        self.super_btn_restore = Gtk.Button.new_from_icon_name("view-restore-symbolic")
+        self.super_btn_restore.add_css_class("super-player-btn-restore")
+        self.super_btn_restore.add_css_class("flat")
+        self.super_btn_restore.set_tooltip_text(i18n.t("header.unfullscreen"))
+        self.super_btn_restore.connect("clicked", lambda *_: self._on_super_restore_clicked())
+        top_nav_bar.append(self.super_btn_restore)
+        super_root_overlay.add_overlay(top_nav_bar)
 
         # ---------------------------------------------------------------------
-        # 2.1 Panel Izquierdo: Carátula HD + Osciloscopio + Controles Ampliados
+        # 2.1 Panel Izquierdo: Marco de Arte HD + Osciloscopio + Dock de Controles
         # ---------------------------------------------------------------------
-        left_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        left_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=20)
         left_box.set_valign(Gtk.Align.CENTER)
         left_box.set_halign(Gtk.Align.CENTER)
 
+        # Marco de Carátula con bordes redondeados y sombra multicapa
         self.super_art_overlay = Gtk.Overlay()
-        self.super_art_overlay.add_css_class("super-player-art-card")
-        self.super_art_overlay.set_size_request(760, 760)
+        self.super_art_overlay.add_css_class("super-player-art-frame")
+        self.super_art_overlay.set_size_request(620, 620)
+        self.super_art_overlay.set_halign(Gtk.Align.CENTER)
+        self.super_art_overlay.set_valign(Gtk.Align.CENTER)
+
+        # Gesto de clic exclusivo sobre el marco de carátula para conmutar osciloscopio
+        art_click = Gtk.GestureClick()
+        art_click.connect("released", self._on_art_frame_clicked)
+        self.super_art_overlay.add_controller(art_click)
 
         # Carátula en alta definición
         self.super_cover_stack = Gtk.Stack()
         self.super_cover_stack.set_transition_type(Gtk.StackTransitionType.CROSSFADE)
-        self.super_cover_stack.set_hexpand(True)
-        self.super_cover_stack.set_vexpand(True)
+        self.super_cover_stack.set_size_request(620, 620)
 
         self.super_cover_picture = Gtk.Picture()
         self.super_cover_picture.set_can_shrink(True)
         self.super_cover_picture.set_content_fit(Gtk.ContentFit.COVER)
-        self.super_cover_picture.set_hexpand(True)
-        self.super_cover_picture.set_vexpand(True)
+        self.super_cover_picture.set_size_request(620, 620)
         self.super_cover_stack.add_named(self.super_cover_picture, "picture")
 
         super_placeholder = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
@@ -310,31 +404,22 @@ class MiniPlayerWindow(Adw.Window):
 
         self.super_art_overlay.set_child(self.super_cover_stack)
 
-        # Osciloscopio en el super-reproductor
+        # Osciloscopio en el super-reproductor a 60 FPS
         self.super_scope = OscilloscopeWidget()
-        self.super_scope.set_hexpand(True)
-        self.super_scope.set_vexpand(True)
+        self.super_scope.set_size_request(620, 620)
         self.super_scope.set_active(True)
         self.super_scope.set_visible(False)
         self.super_art_overlay.add_overlay(self.super_scope)
 
-        # Controles HUD superpuestos sobre la carátula izquierda (Auto-Hide)
-        self.super_hud_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-        self.super_hud_box.add_css_class("mini-player-hud")
-        self.super_hud_box.set_hexpand(True)
-        self.super_hud_box.set_vexpand(True)
+        left_box.append(self.super_art_overlay)
 
-        super_mid_spacer = Gtk.Box()
-        super_mid_spacer.set_vexpand(True)
-        self.super_hud_box.append(super_mid_spacer)
+        # Panel de Controles Flotante (Dock estilizado ubicado bajo la carátula)
+        self.super_controls_panel = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=14)
+        self.super_controls_panel.add_css_class("super-player-controls-panel")
+        self.super_controls_panel.set_size_request(620, -1)
+        self.super_controls_panel.set_halign(Gtk.Align.CENTER)
 
-        super_controls_card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
-        super_controls_card.set_halign(Gtk.Align.CENTER)
-        super_controls_card.set_valign(Gtk.Align.END)
-        super_controls_card.set_size_request(540, -1)
-        super_controls_card.set_margin_bottom(28)
-
-        # Barra de tiempo amplia
+        # Fila 1: Barra de tiempo Hi-Fi
         super_seek_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
         super_seek_box.set_valign(Gtk.Align.CENTER)
 
@@ -355,13 +440,12 @@ class MiniPlayerWindow(Adw.Window):
         self.super_dur_label.set_xalign(0.0)
         super_seek_box.append(self.super_dur_label)
 
-        super_controls_card.append(super_seek_box)
+        self.super_controls_panel.append(super_seek_box)
 
-        # Botones de transporte ampliados
-        super_transport = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=24)
+        # Fila 2: Botones de transporte principales y control de volumen
+        super_transport = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=16)
         super_transport.set_halign(Gtk.Align.CENTER)
         super_transport.set_valign(Gtk.Align.CENTER)
-        super_transport.set_margin_top(8)
 
         self.super_shuffle_btn = Gtk.ToggleButton()
         self.super_shuffle_btn.set_icon_name("media-playlist-shuffle-symbolic")
@@ -378,10 +462,10 @@ class MiniPlayerWindow(Adw.Window):
         self.super_btn_prev.connect("clicked", lambda *_: self.main_window._play_previous())
         super_transport.append(self.super_btn_prev)
 
+        # Botón Play/Pause grande y resplandeciente
         self.super_btn_play = Gtk.Button.new_from_icon_name("media-playback-start-symbolic")
         self.super_btn_play.add_css_class("flat")
-        self.super_btn_play.add_css_class("mini-player-play-btn")
-        self.super_btn_play.set_size_request(60, 60)
+        self.super_btn_play.add_css_class("super-player-play-btn")
         self.super_btn_play.set_tooltip_text(i18n.t("player.play_pause"))
         self.super_btn_play.connect("clicked", lambda *_: self.main_window._toggle_play_pause())
         super_transport.append(self.super_btn_play)
@@ -400,48 +484,49 @@ class MiniPlayerWindow(Adw.Window):
         self.super_repeat_btn.connect("clicked", lambda *_: self.main_window._toggle_repeat())
         super_transport.append(self.super_repeat_btn)
 
-        super_controls_card.append(super_transport)
-        self.super_hud_box.append(super_controls_card)
+        # Separador y control de volumen integrado
+        vol_sep = Gtk.Separator(orientation=Gtk.Orientation.VERTICAL)
+        vol_sep.set_margin_start(10)
+        vol_sep.set_margin_end(6)
+        super_transport.append(vol_sep)
 
-        self.super_art_overlay.add_overlay(self.super_hud_box)
-        left_box.append(self.super_art_overlay)
+        self.super_vol_btn = Gtk.Button.new_from_icon_name("audio-volume-high-symbolic")
+        self.super_vol_btn.add_css_class("flat")
+        self.super_vol_btn.add_css_class("mini-player-aux-btn")
+        self.super_vol_btn.set_tooltip_text(i18n.t("player.volume"))
+        self.super_vol_btn.connect("clicked", self._on_super_vol_btn_clicked)
+        super_transport.append(self.super_vol_btn)
+
+        self.super_vol_scale = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 0.0, 1.0, 0.02)
+        self.super_vol_scale.add_css_class("super-player-vol-scale")
+        self.super_vol_scale.set_draw_value(False)
+        self.super_vol_scale.set_value(self.engine.volume)
+        self.super_vol_scale.connect("value-changed", self._on_super_vol_scale_changed)
+        super_transport.append(self.super_vol_scale)
+
+        self.super_controls_panel.append(super_transport)
+        left_box.append(self.super_controls_panel)
+
         super_container.append(left_box)
 
         # ---------------------------------------------------------------------
-        # 2.2 Panel Derecho: Metadatos en gran formato y Letra online
+        # 2.2 Panel Derecho: Metadatos Editoriales y Letra Flotante
         # ---------------------------------------------------------------------
-        right_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=16)
-        right_box.set_hexpand(True)
-        right_box.set_vexpand(True)
+        right_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=14)
+        right_box.set_valign(Gtk.Align.CENTER)
+        right_box.set_size_request(820, 770)
 
-        # Fila superior de navegación del super-reproductor
-        top_nav_bar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
-        top_nav_bar.set_halign(Gtk.Align.FILL)
-
-        nav_spacer = Gtk.Box()
-        nav_spacer.set_hexpand(True)
-        top_nav_bar.append(nav_spacer)
-
-        self.super_btn_unfullscreen = Gtk.Button.new_from_icon_name("view-restore-symbolic")
-        self.super_btn_unfullscreen.add_css_class("mini-player-btn-circle")
-        self.super_btn_unfullscreen.add_css_class("flat")
-        self.super_btn_unfullscreen.set_tooltip_text(i18n.t("header.unfullscreen"))
-        self.super_btn_unfullscreen.connect("clicked", lambda *_: self.toggle_fullscreen())
-        top_nav_bar.append(self.super_btn_unfullscreen)
-
-        self.super_btn_dock = Gtk.Button.new_from_icon_name("go-down-symbolic")
-        self.super_btn_dock.add_css_class("mini-player-btn-circle")
-        self.super_btn_dock.add_css_class("flat")
-        self.super_btn_dock.set_tooltip_text(i18n.t("header.dock_main"))
-        self.super_btn_dock.connect("clicked", lambda *_: self.restore_main_window())
-        top_nav_bar.append(self.super_btn_dock)
-
-        right_box.append(top_nav_bar)
-
-        # Metadatos del tema
-        meta_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        # Metadatos del tema en gran formato editorial
+        meta_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
         meta_box.set_halign(Gtk.Align.FILL)
 
+        # Insignia de Calidad Audiófila
+        self.super_badge_label = Gtk.Label(label="")
+        self.super_badge_label.add_css_class("super-player-hi-res-pill")
+        self.super_badge_label.set_halign(Gtk.Align.START)
+        meta_box.append(self.super_badge_label)
+
+        # Título principal en negrita de gran tamaño
         self.super_title_label = Gtk.Label(label=i18n.t("inspector.no_playback"))
         self.super_title_label.add_css_class("super-player-title")
         self.super_title_label.set_halign(Gtk.Align.START)
@@ -449,37 +534,28 @@ class MiniPlayerWindow(Adw.Window):
         self.super_title_label.set_xalign(0.0)
         meta_box.append(self.super_title_label)
 
+        # Artista destacado
         self.super_artist_label = Gtk.Label(label="")
         self.super_artist_label.add_css_class("super-player-artist")
         self.super_artist_label.set_halign(Gtk.Align.START)
         self.super_artist_label.set_xalign(0.0)
         meta_box.append(self.super_artist_label)
 
+        # Álbum y fecha
         self.super_album_label = Gtk.Label(label="")
         self.super_album_label.add_css_class("super-player-album")
         self.super_album_label.set_halign(Gtk.Align.START)
         self.super_album_label.set_xalign(0.0)
         meta_box.append(self.super_album_label)
 
-        self.super_badge_label = Gtk.Label(label="")
-        self.super_badge_label.add_css_class("super-player-badge")
-        self.super_badge_label.set_halign(Gtk.Align.START)
-        self.super_badge_label.set_margin_top(4)
-        meta_box.append(self.super_badge_label)
-
         right_box.append(meta_box)
 
         sep = Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL)
         sep.set_margin_top(4)
-        sep.set_margin_bottom(4)
+        sep.set_margin_bottom(8)
         right_box.append(sep)
 
-        # Sección de Letras con Scroll
-        lyrics_container = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
-        lyrics_container.add_css_class("super-player-lyrics-section")
-        lyrics_container.set_vexpand(True)
-        lyrics_container.set_hexpand(True)
-
+        # Sección de Letras Flotantes (sin marcos toscos)
         lyrics_header_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
         lbl_lyr_title = Gtk.Label(label=i18n.t("lyrics.title"))
         lbl_lyr_title.add_css_class("super-player-lyrics-header")
@@ -493,7 +569,7 @@ class MiniPlayerWindow(Adw.Window):
         self.lyrics_status_label.add_css_class("dim-label")
         lyrics_header_box.append(self.lyrics_status_label)
 
-        lyrics_container.append(lyrics_header_box)
+        right_box.append(lyrics_header_box)
 
         # Stack de estados de letra: 'loading', 'lyrics', 'instrumental', 'not_found'
         self.lyrics_stack = Gtk.Stack()
@@ -506,15 +582,16 @@ class MiniPlayerWindow(Adw.Window):
         loading_box.set_valign(Gtk.Align.CENTER)
         loading_box.set_halign(Gtk.Align.CENTER)
         self.lyrics_spinner = Gtk.Spinner()
-        self.lyrics_spinner.set_size_request(24, 24)
+        self.lyrics_spinner.set_size_request(28, 28)
         loading_box.append(self.lyrics_spinner)
         lbl_loading = Gtk.Label(label=i18n.t("lyrics.loading"))
         lbl_loading.add_css_class("dim-label")
         loading_box.append(lbl_loading)
         self.lyrics_stack.add_named(loading_box, "loading")
 
-        # Estado 2: Letra encontrada con scroll
+        # Estado 2: Letra encontrada con scroll fluido y texto flotante
         scrolled = Gtk.ScrolledWindow()
+        scrolled.add_css_class("super-player-lyrics-scroll")
         scrolled.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
         scrolled.set_vexpand(True)
         scrolled.set_hexpand(True)
@@ -522,28 +599,30 @@ class MiniPlayerWindow(Adw.Window):
         self.super_lyrics_label = Gtk.Label(label="")
         self.super_lyrics_label.add_css_class("super-player-lyrics-text")
         self.super_lyrics_label.set_wrap(True)
+        self.super_lyrics_label.set_wrap_mode(Pango.WrapMode.WORD)
+        self.super_lyrics_label.set_width_chars(45)
         self.super_lyrics_label.set_xalign(0.0)
         self.super_lyrics_label.set_yalign(0.0)
         self.super_lyrics_label.set_justify(Gtk.Justification.LEFT)
         self.super_lyrics_label.set_selectable(True)
-        self.super_lyrics_label.set_margin_end(16)
+        self.super_lyrics_label.set_margin_end(24)
         scrolled.set_child(self.super_lyrics_label)
         self.lyrics_stack.add_named(scrolled, "lyrics")
 
         # Estado 3: Pista Instrumental
-        inst_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+        inst_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
         inst_box.add_css_class("super-player-instrumental-badge")
         inst_box.set_valign(Gtk.Align.CENTER)
         inst_box.set_halign(Gtk.Align.CENTER)
         icon_inst = Gtk.Image.new_from_icon_name("audio-x-generic-symbolic")
-        icon_inst.set_pixel_size(24)
+        icon_inst.set_pixel_size(28)
         inst_box.append(icon_inst)
         lbl_inst = Gtk.Label(label=i18n.t("lyrics.instrumental"))
         inst_box.append(lbl_inst)
         self.lyrics_stack.add_named(inst_box, "instrumental")
 
         # Estado 4: Letra no disponible
-        not_found_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        not_found_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
         not_found_box.set_valign(Gtk.Align.CENTER)
         not_found_box.set_halign(Gtk.Align.CENTER)
         icon_nf = Gtk.Image.new_from_icon_name("text-x-generic-symbolic")
@@ -556,12 +635,10 @@ class MiniPlayerWindow(Adw.Window):
         self.lyrics_stack.add_named(not_found_box, "not_found")
 
         self.lyrics_stack.set_visible_child_name("not_found")
-        lyrics_container.append(self.lyrics_stack)
+        right_box.append(self.lyrics_stack)
 
-        right_box.append(lyrics_container)
         super_container.append(right_box)
-
-        return super_container
+        return super_root_overlay
 
     # =========================================================================
     # 3. CONTROLADORES DE EVENTOS Y GESTOS
@@ -577,11 +654,12 @@ class MiniPlayerWindow(Adw.Window):
         motion_ctrl.connect("leave", self._on_pointer_leave)
         self.add_controller(motion_ctrl)
 
-        click_gesture = Gtk.GestureClick()
-        click_gesture.set_propagation_phase(Gtk.PropagationPhase.BUBBLE)
-        click_gesture.connect("pressed", self._on_click_pressed)
-        click_gesture.connect("released", self._on_click_released)
-        self.add_controller(click_gesture)
+        # Clic para modo mini
+        mini_click = Gtk.GestureClick()
+        mini_click.set_propagation_phase(Gtk.PropagationPhase.BUBBLE)
+        mini_click.connect("pressed", self._on_click_pressed)
+        mini_click.connect("released", self._on_click_released)
+        self.add_controller(mini_click)
 
     def _on_click_pressed(self, _gesture: Gtk.GestureClick, _n_press: int, x: float, y: float):
         self._press_x = x
@@ -592,18 +670,16 @@ class MiniPlayerWindow(Adw.Window):
         dy = y - self._press_y
         dist_sq = dx * dx + dy * dy
 
-        if dist_sq < 36:
-            # En modo mini, evitar clics en la barra superior o controles
-            if not self.is_fullscreen():
-                is_hud_visible = self.mini_hud_box.has_css_class("visible")
-                if is_hud_visible and (y < 60 or y > 330):
-                    return
-            else:
-                # En modo super, sólo alternar osciloscopio si el clic fue en la mitad izquierda
-                w = self.get_width() or 1920
-                if x > (w * 0.50):
-                    return
+        # Solo procesar en modo mini (en modo super se usa el gesto dedicado en la carátula)
+        if dist_sq < 36 and not self.is_fullscreen():
+            is_hud_visible = self.mini_hud_box.has_css_class("visible")
+            if is_hud_visible and (y < 60 or y > 330):
+                return
             self.toggle_oscilloscope_mode()
+
+    def _on_art_frame_clicked(self, _gesture: Gtk.GestureClick, _n_press: int, _x: float, _y: float):
+        """Conmuta el osciloscopio al hacer clic directamente en la carátula en modo super."""
+        self.toggle_oscilloscope_mode()
 
     def toggle_oscilloscope_mode(self):
         """Conmuta entre Modo 0 (Osciloscopio superpuesto) y Modo 1 (Portada limpia)."""
@@ -622,8 +698,19 @@ class MiniPlayerWindow(Adw.Window):
         self.super_scope.set_playing(is_playing)
         self.super_scope.set_visible(is_active and is_playing)
 
+    def _on_super_restore_clicked(self):
+        """
+        Acción del único botón de restauración en el super-reproductor:
+        - Si se abrió desde la ventana principal, vuelve a la ventana principal.
+        - Si se abrió desde el mini-reproductor, vuelve al mini-reproductor compacto (500x500).
+        """
+        if self._launched_from == "main":
+            self.restore_main_window()
+        else:
+            self.toggle_fullscreen()
+
     def toggle_fullscreen(self):
-        """Alterna entre el Mini-Reproductor y el Super-Reproductor a Pantalla Completa."""
+        """Alterna entre el Mini-Reproductor (500x500) y el Super-Reproductor a Pantalla Completa."""
         is_currently_super = (self.main_stack.get_visible_child_name() == "super") or self.is_fullscreen()
         if is_currently_super:
             self.unfullscreen()
@@ -637,20 +724,23 @@ class MiniPlayerWindow(Adw.Window):
         scope_on = (self._oscilloscope_mode == 0) and is_playing
 
         if is_super:
+            self.set_resizable(True)
+            self.set_size_request(-1, -1)
             self.main_stack.set_visible_child_name("super")
             self.add_css_class("super-player-window")
             self.remove_css_class("mini-player-window")
             self.set_title(f"MyFlac - {i18n.t('header.super_player')}")
 
-            # Calcular tamaño del cuadrado de carátula en función de la altura disponible
+            # Calcular tamaño de carátula según la altura de la pantalla (máx 640px)
             h = self.get_height()
             if h <= 0:
                 h = 1080
-            art_size = max(480, min(860, h - 120))
+            art_size = max(440, min(640, h - 240))
             self.super_art_overlay.set_size_request(art_size, art_size)
             self.super_cover_stack.set_size_request(art_size, art_size)
             self.super_cover_picture.set_size_request(art_size, art_size)
             self.super_scope.set_size_request(art_size, art_size)
+            self.super_controls_panel.set_size_request(art_size, -1)
 
             self.super_scope.set_active(self._oscilloscope_mode == 0)
             self.super_scope.set_playing(is_playing)
@@ -660,6 +750,9 @@ class MiniPlayerWindow(Adw.Window):
                 self._load_lyrics_for_track(self.engine.current_track)
         else:
             self.main_stack.set_visible_child_name("mini")
+            self.set_resizable(False)
+            self.set_size_request(500, 500)
+            self.set_default_size(500, 500)
             self.add_css_class("mini-player-window")
             self.remove_css_class("super-player-window")
             self.set_title("MyFlac - Mini Reproductor")
@@ -673,7 +766,7 @@ class MiniPlayerWindow(Adw.Window):
         self._apply_player_mode(self.is_fullscreen())
 
     # -------------------------------------------------------------------------
-    # Auto-ocultación del HUD (Hover)
+    # Auto-ocultación del HUD y Controles (Hover)
     # -------------------------------------------------------------------------
     def _on_pointer_enter(self, _ctrl: Gtk.EventControllerMotion, _x: float, _y: float):
         self._mouse_inside = True
@@ -690,20 +783,23 @@ class MiniPlayerWindow(Adw.Window):
         self.reset_hud_timeout(0.6)
 
     def show_hud(self):
-        """Muestra los controles HUD suavemente."""
+        """Muestra los controles suavemente."""
         if not self.mini_hud_box.has_css_class("visible"):
             self.mini_hud_box.add_css_class("visible")
-        if not self.super_hud_box.has_css_class("visible"):
-            self.super_hud_box.add_css_class("visible")
+        if not self.super_controls_panel.has_css_class("visible"):
+            self.super_controls_panel.add_css_class("visible")
+        self.super_btn_restore.set_opacity(1.0)
 
     def hide_hud(self):
-        """Oculta los controles HUD para dejar la portada pura."""
+        """Oculta los controles para una experiencia inmersiva."""
         if self._is_seeking:
             return
         if self.mini_hud_box.has_css_class("visible"):
             self.mini_hud_box.remove_css_class("visible")
-        if self.super_hud_box.has_css_class("visible"):
-            self.super_hud_box.remove_css_class("visible")
+        if self.super_controls_panel.has_css_class("visible"):
+            self.super_controls_panel.remove_css_class("visible")
+        # Mantener el botón de restauración sutilmente visible para orientación
+        self.super_btn_restore.set_opacity(0.25)
 
     def reset_hud_timeout(self, seconds: float = 3.0):
         if self._hud_timeout_id is not None:
@@ -719,30 +815,37 @@ class MiniPlayerWindow(Adw.Window):
         self._hud_timeout_id = GLib.timeout_add(int(seconds * 1000), _timeout_cb)
 
     def present_mini_player(self):
-        """Muestra el mini-reproductor compacto (500x500)."""
+        """Muestra el mini-reproductor compacto estrictamente en 500x500 px."""
+        self._launched_from = "mini"
         if self.is_fullscreen():
             self.unfullscreen()
+        self.set_resizable(False)
+        self.set_size_request(500, 500)
         self.set_default_size(500, 500)
-        self.present()
         self._apply_player_mode(is_super=False)
+        self.present()
         self.show_hud()
         self.reset_hud_timeout(2.5)
 
     def present_super_player(self):
         """Muestra directamente el Super-Reproductor a pantalla completa."""
+        self._launched_from = "main"
+        self._apply_player_mode(is_super=True)
         self.fullscreen()
         self.present()
-        self._apply_player_mode(is_super=True)
         self.show_hud()
         self.reset_hud_timeout(3.0)
 
     def _on_key_pressed(self, _ctrl, keyval, _keycode, _state) -> bool:
         if keyval == Gdk.KEY_F11:
-            self.toggle_fullscreen()
+            if self.is_fullscreen():
+                self._on_super_restore_clicked()
+            else:
+                self.present_super_player()
             return True
         elif keyval == Gdk.KEY_Escape:
             if self.is_fullscreen():
-                self.unfullscreen()
+                self._on_super_restore_clicked()
             else:
                 self.restore_main_window()
             return True
@@ -758,6 +861,53 @@ class MiniPlayerWindow(Adw.Window):
         if hasattr(self.main_window, "player_bar") and hasattr(self.main_window.player_bar, "shuffle_btn"):
             if self.main_window.player_bar.shuffle_btn.get_active() != active:
                 self.main_window.player_bar.shuffle_btn.set_active(active)
+
+    def _on_super_vol_scale_changed(self, scale: Gtk.Scale):
+        val = scale.get_value()
+        self.engine.set_volume(val)
+        self._update_volume_icons(val)
+        if hasattr(self.main_window, "player_bar") and hasattr(self.main_window.player_bar, "vol_scale"):
+            self.main_window.player_bar.vol_scale.set_value(val)
+
+    def _on_super_vol_btn_clicked(self, _btn: Gtk.Button):
+        if self.engine.volume > 0.0:
+            self._prev_vol = self.engine.volume
+            self.super_vol_scale.set_value(0.0)
+        else:
+            restore_val = getattr(self, "_prev_vol", 0.8)
+            self.super_vol_scale.set_value(restore_val)
+
+    def _update_volume_icons(self, val: float):
+        if val <= 0.001:
+            icon = "audio-volume-muted-symbolic"
+        elif val < 0.33:
+            icon = "audio-volume-low-symbolic"
+        elif val < 0.66:
+            icon = "audio-volume-medium-symbolic"
+        else:
+            icon = "audio-volume-high-symbolic"
+        self.super_vol_btn.set_icon_name(icon)
+
+    def _update_ambient_background(self, cover_bytes: bytes | None):
+        """Actualiza el fondo radial de alta fidelidad y el halo del marco de arte."""
+        rgba1, rgba2, glow = _extract_ambient_palette(cover_bytes)
+        css = f"""
+        .super-player-ambient-bg {{
+            background: radial-gradient(
+                circle at 26% 48%,
+                {rgba1} 0%,
+                {rgba2} 48%,
+                #06070b 84%
+            );
+        }}
+        .super-player-art-frame {{
+            box-shadow:
+                0 32px 80px -15px rgba(0, 0, 0, 0.88),
+                0 0 70px -10px {glow},
+                0 0 0 1px rgba(255, 255, 255, 0.12);
+        }}
+        """
+        self._ambient_css_provider.load_from_string(css)
 
     def _connect_engine(self):
         self.engine.add_state_listener(self._on_playback_state_changed)
@@ -792,6 +942,7 @@ class MiniPlayerWindow(Adw.Window):
             self.super_badge_label.set_text("")
             self.super_cover_stack.set_visible_child_name("placeholder")
             self.lyrics_stack.set_visible_child_name("not_found")
+            self._update_ambient_background(None)
             return
 
         title = track.title or os.path.basename(track.filepath)
@@ -811,7 +962,7 @@ class MiniPlayerWindow(Adw.Window):
             meta_sub = f"{album} ({track.date})" if album else f"({track.date})"
         self.super_album_label.set_text(meta_sub)
 
-        # Ficha técnica de calidad de audio
+        # Ficha técnica de calidad audiófila
         rate_khz = track.sample_rate / 1000.0 if track.sample_rate else 44.1
         depth_str = f"{track.bits_per_sample} bits" if track.bits_per_sample > 1 else "1 bit (DSD)"
         badge_text = f"{track.format_name} • {rate_khz:g} kHz • {depth_str} • {track.formatted_bitrate}"
@@ -821,7 +972,7 @@ class MiniPlayerWindow(Adw.Window):
         self.mini_scale.set_range(0.0, max(1.0, self._current_duration))
         self.super_scale.set_range(0.0, max(1.0, self._current_duration))
 
-        # Cargar carátula HD en ambas vistas
+        # Cargar carátula HD en ambas vistas y actualizar paleta ambiental
         cover_info = track.get_cover_image_bytes()
         if cover_info:
             data, _mime = cover_info
@@ -831,13 +982,15 @@ class MiniPlayerWindow(Adw.Window):
             self.mini_cover_stack.set_visible_child_name("picture")
             self.super_cover_picture.set_paintable(texture)
             self.super_cover_stack.set_visible_child_name("picture")
+            self._update_ambient_background(data)
         else:
             self.mini_cover_picture.set_paintable(None)
             self.mini_cover_stack.set_visible_child_name("placeholder")
             self.super_cover_picture.set_paintable(None)
             self.super_cover_stack.set_visible_child_name("placeholder")
+            self._update_ambient_background(None)
 
-        # Cargar letra si estamos en pantalla completa o cuando se pase a ella
+        # Cargar letra
         self._load_lyrics_for_track(track)
 
     def _load_lyrics_for_track(self, track: AudioTrack):
@@ -856,6 +1009,8 @@ class MiniPlayerWindow(Adw.Window):
         self.lyrics_spinner.stop()
         if status == "ready" and lyrics:
             self.super_lyrics_label.set_text(lyrics)
+            self.super_lyrics_label.set_wrap_mode(Pango.WrapMode.WORD)
+            self.super_lyrics_label.set_width_chars(45)
             self.lyrics_stack.set_visible_child_name("lyrics")
             self.lyrics_status_label.set_text(i18n.t("lyrics.source_online"))
         elif status == "instrumental":

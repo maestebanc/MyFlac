@@ -529,84 +529,188 @@ paned > separator:hover {
     background-color: #000000;
 }
 
-/* Estilos de Super-Reproductor a Pantalla Completa */
-.super-player-window {
-    background-color: #07080a;
-    color: #ffffff;
+/* =========================================================================
+   Super-Reproductor a Pantalla Completa (Hi-Fi Ambient Canvas)
+   ========================================================================= */
+
+.super-player-ambient-bg {
+    background: radial-gradient(
+        circle at 28% 46%,
+        rgba(30, 48, 80, 0.45) 0%,
+        rgba(15, 22, 36, 0.70) 50%,
+        #07080b 85%
+    );
+    transition: background 600ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .super-player-container {
-    padding: 24px 36px;
+    padding: 36px 64px;
 }
 
-.super-player-art-card {
-    border-radius: 18px;
-    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.70);
-    background-color: #111317;
+.super-player-art-frame {
+    border-radius: 28px;
+    box-shadow:
+        0 30px 80px -15px rgba(0, 0, 0, 0.85),
+        0 0 70px -10px rgba(0, 180, 255, 0.20),
+        0 0 0 1px rgba(255, 255, 255, 0.12);
+    background-color: #0d0f14;
+    transition: box-shadow 400ms ease, transform 300ms ease;
+}
+
+.super-player-art-frame:hover {
+    box-shadow:
+        0 36px 90px -10px rgba(0, 0, 0, 0.90),
+        0 0 90px -5px rgba(0, 200, 255, 0.30),
+        0 0 0 1px rgba(255, 255, 255, 0.18);
+}
+
+.super-player-controls-panel {
+    background: rgba(18, 20, 26, 0.68);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 20px;
+    padding: 16px 24px;
+    opacity: 0.0;
+    transition: opacity 300ms cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.40);
+}
+
+.super-player-controls-panel.visible {
+    opacity: 1.0;
+}
+
+.super-player-btn-restore {
+    border-radius: 9999px;
+    background: rgba(255, 255, 255, 0.09);
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    color: #ffffff;
+    padding: 10px;
+    min-width: 46px;
+    min-height: 46px;
+    transition: background 180ms ease, transform 150ms ease, box-shadow 180ms ease, opacity 250ms ease;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.30);
+}
+
+.super-player-btn-restore:hover {
+    background: rgba(255, 255, 255, 0.22);
+    transform: scale(1.08);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
 }
 
 .super-player-title {
-    font-size: 2.20em;
+    font-size: 2.80em;
     font-weight: 800;
     color: #ffffff;
-    letter-spacing: -0.02em;
+    letter-spacing: -0.025em;
+    text-shadow: 0 3px 14px rgba(0, 0, 0, 0.75);
 }
 
 .super-player-artist {
-    font-size: 1.45em;
+    font-size: 1.75em;
     font-weight: 600;
-    color: rgba(255, 255, 255, 0.88);
+    color: #f59e0b;
+    letter-spacing: -0.01em;
+    text-shadow: 0 2px 10px rgba(0, 0, 0, 0.65);
 }
 
 .super-player-album {
-    font-size: 1.15em;
+    font-size: 1.30em;
     font-weight: 500;
-    color: rgba(255, 255, 255, 0.55);
+    color: rgba(255, 255, 255, 0.65);
 }
 
-.super-player-badge {
-    background: rgba(255, 255, 255, 0.08);
-    border: 1px solid rgba(255, 255, 255, 0.14);
+.super-player-hi-res-pill {
+    background: linear-gradient(135deg, rgba(56, 189, 248, 0.14) 0%, rgba(245, 158, 11, 0.14) 100%);
+    border: 1px solid rgba(56, 189, 248, 0.35);
     border-radius: 9999px;
-    padding: 4px 14px;
-    font-size: 0.85em;
-    font-weight: 600;
-    color: rgba(255, 255, 255, 0.80);
-    letter-spacing: 0.03em;
-}
-
-.super-player-lyrics-section {
-    background: rgba(255, 255, 255, 0.03);
-    border-radius: 14px;
-    padding: 20px 24px;
-    border: 1px solid rgba(255, 255, 255, 0.06);
+    padding: 6px 18px;
+    font-size: 0.95em;
+    font-weight: 700;
+    color: #ffffff;
+    letter-spacing: 0.04em;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
 }
 
 .super-player-lyrics-header {
-    font-size: 1.0em;
-    font-weight: 700;
+    font-size: 0.90em;
+    font-weight: 800;
     text-transform: uppercase;
-    letter-spacing: 0.10em;
+    letter-spacing: 0.16em;
     color: #38bdf8;
-    margin-bottom: 12px;
+}
+
+.super-player-lyrics-scroll {
+    background: transparent;
+    border: none;
+    outline: none;
+    box-shadow: none;
+}
+
+.super-player-lyrics-scroll viewport {
+    background: transparent;
+    border: none;
+}
+
+.super-player-lyrics-scroll scrollbar {
+    background: transparent;
+    opacity: 0.30;
+}
+
+.super-player-lyrics-scroll scrollbar:hover {
+    opacity: 0.85;
 }
 
 .super-player-lyrics-text {
-    font-size: 1.35em;
-    line-height: 1.85;
-    color: rgba(255, 255, 255, 0.92);
-    font-weight: 500;
-    letter-spacing: 0.01em;
+    font-size: 1.80em;
+    line-height: 2.05;
+    color: rgba(255, 255, 255, 0.96);
+    font-weight: 700;
+    letter-spacing: 0.015em;
+    text-shadow: 0 2px 16px rgba(0, 0, 0, 0.80);
+}
+
+.super-player-play-btn {
+    border-radius: 9999px;
+    min-width: 64px;
+    min-height: 64px;
+    padding: 0;
+    color: #ffffff;
+    background: linear-gradient(135deg, #0284c7 0%, #38bdf8 100%);
+    box-shadow: 0 6px 20px rgba(56, 189, 248, 0.40);
+    transition: transform 140ms ease, box-shadow 140ms ease;
+}
+
+.super-player-play-btn:hover {
+    transform: scale(1.08);
+    box-shadow: 0 8px 26px rgba(56, 189, 248, 0.55);
+}
+
+.super-player-vol-scale {
+    min-width: 90px;
+}
+
+.super-player-vol-scale highlight {
+    background: #38bdf8;
+    border-radius: 9999px;
+}
+
+.super-player-vol-scale slider {
+    min-width: 16px;
+    min-height: 16px;
+    margin: 0;
+    padding: 0;
+    background: #ffffff;
+    border-radius: 9999px;
 }
 
 .super-player-instrumental-badge {
-    background: rgba(245, 158, 11, 0.12);
-    border: 1px solid rgba(245, 158, 11, 0.30);
-    border-radius: 12px;
-    padding: 16px 24px;
-    font-size: 1.25em;
-    font-weight: 600;
+    background: rgba(245, 158, 11, 0.14);
+    border: 1px solid rgba(245, 158, 11, 0.35);
+    border-radius: 16px;
+    padding: 24px 36px;
+    font-size: 1.4em;
+    font-weight: 700;
     color: #f59e0b;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
 }
 """
 
