@@ -355,6 +355,45 @@ paned > separator:hover {
     background-color: alpha(@window_fg_color, 0.012);
 }
 
+/* Menú contextual de pista */
+.context-menu-box {
+    min-width: 220px;
+}
+
+.context-menu-item {
+    padding: 6px 10px;
+    border-radius: 6px;
+    font-size: 0.88em;
+}
+
+.context-menu-item:hover {
+    background-color: alpha(@window_fg_color, 0.08);
+}
+
+/* Botón y Popover de Cola de reproducción (A continuación) */
+.queue-btn {
+    border-radius: 9999px;
+    padding: 6px;
+}
+
+.queue-btn.accent {
+    color: #3584e4;
+    background-color: alpha(#3584e4, 0.15);
+}
+
+.queue-popover-box {
+    min-width: 320px;
+}
+
+.queue-row {
+    padding: 6px 8px;
+    border-radius: 6px;
+    transition: background-color 150ms ease;
+}
+
+.queue-row:hover {
+    background-color: alpha(@window_fg_color, 0.06);
+}
 """
 
 

@@ -10,7 +10,8 @@ from gi.repository import Adw, Gdk, Gio, GLib, GObject, Gtk
 
 from ..audio.devices import AudioDevice, find_device_by_id, get_default_device
 from ..audio.engine import AudioEngine, PlaybackState
-from ..audio.track import AudioTrack
+from ..audio.track import AudioTrack, load_track
+from ..audio.mpris import MprisServer
 from ..config import save_config
 from ..constants import APP_ID, APP_NAME
 from ..library.db import LibraryDB
@@ -38,6 +39,8 @@ class MainWindow(Adw.ApplicationWindow):
             self.maximize()
 
         self.cfg = cfg
+        self._inhibit_cookie: int = 0
+        self.play_queue: list[AudioTrack] = []
 
         # 1. Base de datos y escáner de biblioteca musical
         self.db = LibraryDB()
@@ -47,6 +50,9 @@ class MainWindow(Adw.ApplicationWindow):
         dev_id = cfg.get("audio_device_id", "default")
         self.engine = AudioEngine(device_id=dev_id)
         self.engine.volume = cfg.get("software_volume", 1.0)
+
+        # 3. Servidor D-Bus MPRIS2 (control por teclas multimedia, auriculares y GNOME)
+        self.mpris = MprisServer(window=self, engine=self.engine)
 
         # 3. Configurar vistas de UI
         self._build_ui()
@@ -147,7 +153,12 @@ class MainWindow(Adw.ApplicationWindow):
         self.paned.set_shrink_end_child(False)
 
         # Navegador multicolumnas estilo iTunes (Artista -> Álbum -> Tema)
-        self.browser = ColumnBrowserView(db=self.db, on_track_activate=self._on_track_activated)
+        self.browser = ColumnBrowserView(
+            db=self.db,
+            on_track_activate=self._on_track_activated,
+            on_play_next_queue=self._on_play_next_queue,
+            on_add_to_queue=self._on_add_to_queue,
+        )
         self.paned.set_start_child(self.browser)
 
         # Panel Inspector de audio con visualizadores en tiempo real
@@ -164,6 +175,8 @@ class MainWindow(Adw.ApplicationWindow):
         self.player_bar.on_next_clicked = self._play_next
         self.player_bar.on_repeat_clicked = self._cycle_repeat_mode
         self.player_bar.on_shuffle_toggled = self._on_shuffle_toggled
+        self.player_bar.on_clear_queue_clicked = self._on_clear_queue
+        self.player_bar.on_queue_track_removed = self._on_remove_from_queue
 
         # Contenedor inferior: Barra de progreso azul no obstructiva + Barra del reproductor
         self.bottom_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
@@ -206,10 +219,30 @@ class MainWindow(Adw.ApplicationWindow):
             # Carga instantánea de los datos ya indexados en SQLite
             self.browser.load_initial_data()
 
-            first_track = self.browser.get_selected_or_first_track()
-            if first_track and not self.inspector.current_track:
-                self.inspector.set_track(first_track)
-                self.player_bar.set_track(first_track)
+            # Restauración de sesión previa si existe
+            last_path = self.cfg.get("last_track_path", "")
+            restored = False
+            if last_path and os.path.exists(last_path):
+                try:
+                    last_track = load_track(last_path)
+                    if last_track:
+                        log.info("Restaurando pista de sesión anterior: '%s'", last_track.title)
+                        self.inspector.set_track(last_track)
+                        self.player_bar.set_track(last_track)
+                        self.engine.load_track(last_track, play_now=False)
+                        last_pos = float(self.cfg.get("last_position", 0.0))
+                        if last_pos > 0.0:
+                            GLib.timeout_add(300, lambda: self.engine.seek(last_pos))
+                        self.browser.set_current_playing_track(last_track, is_paused=True)
+                        restored = True
+                except Exception as e:
+                    log.warning("No se pudo restaurar la sesión anterior: %s", e)
+
+            if not restored:
+                first_track = self.browser.get_selected_or_first_track()
+                if first_track and not self.inspector.current_track:
+                    self.inspector.set_track(first_track)
+                    self.player_bar.set_track(first_track)
 
             # Escaneo RÁPIDO y transparente en segundo plano (no bloquea)
             log.info("Iniciando escaneo rápido de inicio en segundo plano...")
@@ -373,13 +406,52 @@ class MainWindow(Adw.ApplicationWindow):
         self._prepare_gapless_next()
         self._update_output_status()
 
+    def _on_play_next_queue(self, track: AudioTrack):
+        """Inserta la pista al principio de la cola para ser la siguiente en reproducir."""
+        log.info("Pista insertada como siguiente en la cola: '%s'", track.title)
+        self.play_queue.insert(0, track)
+        self.player_bar.update_queue(self.play_queue)
+        self._prepare_gapless_next()
+
+    def _on_add_to_queue(self, track: AudioTrack):
+        """Añade la pista al final de la cola de reproducción."""
+        log.info("Pista añadida a la cola: '%s'", track.title)
+        self.play_queue.append(track)
+        self.player_bar.update_queue(self.play_queue)
+        self._prepare_gapless_next()
+
+    def _on_remove_from_queue(self, index: int):
+        """Elimina una pista específica de la cola."""
+        if 0 <= index < len(self.play_queue):
+            removed = self.play_queue.pop(index)
+            log.info("Pista eliminada de la cola: '%s'", removed.title)
+            self.player_bar.update_queue(self.play_queue)
+            self._prepare_gapless_next()
+
+    def _on_clear_queue(self):
+        """Vacía toda la cola de reproducción."""
+        log.info("Vaciando cola de reproducción (%d pistas)", len(self.play_queue))
+        self.play_queue.clear()
+        self.player_bar.update_queue(self.play_queue)
+        self._prepare_gapless_next()
+
     def _prepare_gapless_next(self):
-        shuffle = self.cfg.get("shuffle", False)
-        repeat = self.cfg.get("repeat_mode", "none")
-        nxt = self.browser.get_next_track(shuffle=shuffle, repeat_mode=repeat)
+        if self.play_queue:
+            nxt = self.play_queue[0]
+        else:
+            shuffle = self.cfg.get("shuffle", False)
+            repeat = self.cfg.get("repeat_mode", "none")
+            nxt = self.browser.get_next_track(shuffle=shuffle, repeat_mode=repeat)
         self.engine.queue_next_track(nxt)
 
     def _play_next(self):
+        if self.play_queue:
+            nxt = self.play_queue.pop(0)
+            self.player_bar.update_queue(self.play_queue)
+            log.info("Reproduciendo siguiente pista de la cola: '%s'", nxt.title)
+            self._on_track_activated(nxt)
+            return
+
         shuffle = self.cfg.get("shuffle", False)
         repeat = self.cfg.get("repeat_mode", "none")
         nxt = self.browser.get_next_track(shuffle=shuffle, repeat_mode=repeat)
@@ -411,6 +483,27 @@ class MainWindow(Adw.ApplicationWindow):
             is_paused=is_paused,
         )
 
+        # Inhibidor de suspensión del sistema mientras reproduce
+        app = self.get_application()
+        if app:
+            if is_playing and self._inhibit_cookie == 0:
+                try:
+                    self._inhibit_cookie = app.inhibit(
+                        self,
+                        Gtk.ApplicationInhibitFlags.SUSPEND | Gtk.ApplicationInhibitFlags.IDLE,
+                        "Reproduciendo audio Hi-Fi en MyFlac",
+                    )
+                    log.info("Inhibidor de suspensión activado (cookie=%d)", self._inhibit_cookie)
+                except Exception as e:
+                    log.warning("No se pudo activar inhibidor de suspensión: %s", e)
+            elif not is_playing and self._inhibit_cookie != 0:
+                try:
+                    app.uninhibit(self._inhibit_cookie)
+                    log.info("Inhibidor de suspensión liberado (cookie=%d)", self._inhibit_cookie)
+                except Exception as e:
+                    log.warning("Error liberando inhibidor de suspensión: %s", e)
+                self._inhibit_cookie = 0
+
     def _update_output_status(self):
         dev = find_device_by_id(self.engine.device_id) or get_default_device(self.engine.device_id)
         info = {
@@ -421,29 +514,46 @@ class MainWindow(Adw.ApplicationWindow):
         self.inspector.update_dac_status(info)
         self.player_bar.update_active_device()
 
-    def _cycle_repeat_mode(self):
-        curr = self.cfg.get("repeat_mode", "none")
-        modes = ["none", "all", "one"]
-        nxt_mode = modes[(modes.index(curr) + 1) % len(modes)]
-        log.info("Ciclo de modo repetición: %s -> %s", curr, nxt_mode)
-        self.cfg["repeat_mode"] = nxt_mode
+    def set_repeat_mode(self, mode: str):
+        """Establece el modo de repetición y actualiza la UI y MPRIS."""
+        self.cfg["repeat_mode"] = mode
         save_config(self.cfg)
         icons = {
             "none": "media-playlist-repeat-symbolic",
             "all": "media-playlist-repeat-symbolic",
             "one": "media-playlist-repeat-song-symbolic",
         }
-        self.player_bar.repeat_btn.set_icon_name(icons.get(nxt_mode, "media-playlist-repeat-symbolic"))
-        if nxt_mode != "none":
+        self.player_bar.repeat_btn.set_icon_name(icons.get(mode, "media-playlist-repeat-symbolic"))
+        if mode != "none":
             self.player_bar.repeat_btn.add_css_class("accent")
         else:
             self.player_bar.repeat_btn.remove_css_class("accent")
+        if hasattr(self, "mpris"):
+            mpris_val = "Track" if mode == "one" else ("Playlist" if mode == "all" else "None")
+            self.mpris.notify_property_changed({"LoopStatus": GLib.Variant("s", mpris_val)})
+
+    def set_shuffle(self, active: bool):
+        """Establece el modo aleatorio y actualiza la UI y MPRIS."""
+        self.cfg["shuffle"] = active
+        save_config(self.cfg)
+        if active:
+            self.player_bar.shuffle_btn.add_css_class("accent")
+        else:
+            self.player_bar.shuffle_btn.remove_css_class("accent")
+        self._prepare_gapless_next()
+        if hasattr(self, "mpris"):
+            self.mpris.notify_property_changed({"Shuffle": GLib.Variant("b", active)})
+
+    def _cycle_repeat_mode(self):
+        curr = self.cfg.get("repeat_mode", "none")
+        modes = ["none", "all", "one"]
+        nxt_mode = modes[(modes.index(curr) + 1) % len(modes)]
+        log.info("Ciclo de modo repetición: %s -> %s", curr, nxt_mode)
+        self.set_repeat_mode(nxt_mode)
 
     def _on_shuffle_toggled(self, active: bool):
         log.info("Modo aleatorio (shuffle) cambiado a: %s", active)
-        self.cfg["shuffle"] = active
-        save_config(self.cfg)
-        self._prepare_gapless_next()
+        self.set_shuffle(active)
 
     def _open_device_dialog(self):
         log.info("Abriendo diálogo de selección de dispositivo de salida")
@@ -463,7 +573,20 @@ class MainWindow(Adw.ApplicationWindow):
 
     def _on_close_request(self, _window) -> bool:
         log.info("Cerrando aplicación...")
+        if self.engine.current_track:
+            self.cfg["last_track_path"] = self.engine.current_track.filepath
+            self.cfg["last_position"] = self.engine.position
         self.scanner.stop()
+        if self._inhibit_cookie != 0:
+            app = self.get_application()
+            if app:
+                try:
+                    app.uninhibit(self._inhibit_cookie)
+                except Exception:
+                    pass
+            self._inhibit_cookie = 0
+        if hasattr(self, "mpris"):
+            self.mpris.stop()
         self.engine.stop()
         w, h = self.get_default_size()
         self.cfg["window_width"] = w

@@ -288,6 +288,65 @@ STRINGS: dict[str, dict[str, str]] = {
         "ca": "Mode Vúmetre Analògic Vintage (Clica per alternar a portada)",
     },
 
+    # --- Menú contextual de pista ---
+    "context.play_now": {
+        "es": "Reproducir ahora",
+        "en": "Play Now",
+        "ca": "Reprodueix ara",
+    },
+    "context.play_next": {
+        "es": "Reproducir a continuación",
+        "en": "Play Next",
+        "ca": "Reprodueix a continuació",
+    },
+    "context.add_queue": {
+        "es": "Añadir a la cola",
+        "en": "Add to Queue",
+        "ca": "Afegeix a la cua",
+    },
+    "context.show_in_files": {
+        "es": "Mostrar en el gestor de archivos",
+        "en": "Show in File Manager",
+        "ca": "Mostra al gestor de fitxers",
+    },
+
+    # --- Cola de reproducción ("A continuación") ---
+    "queue.title": {
+        "es": "A continuación",
+        "en": "Up Next",
+        "ca": "A continuació",
+    },
+    "queue.clear": {
+        "es": "Vaciar cola",
+        "en": "Clear Queue",
+        "ca": "Buidar cua",
+    },
+    "queue.empty": {
+        "es": "Cola de reproducción vacía",
+        "en": "Playback Queue Empty",
+        "ca": "Cua de reproducció buida",
+    },
+    "queue.empty_hint": {
+        "es": "Haz clic derecho en cualquier canción y selecciona 'Añadir a la cola'",
+        "en": "Right-click any track and select 'Add to Queue'",
+        "ca": "Fes clic dret a qualsevol cançó i selecciona 'Afegeix a la cua'",
+    },
+    "queue.tooltip": {
+        "es": "Cola de reproducción",
+        "en": "Play Queue",
+        "ca": "Cua de reproducció",
+    },
+    "queue.tooltip_count": {
+        "es": "Cola de reproducción ({n} en cola)",
+        "en": "Play Queue ({n} queued)",
+        "ca": "Cua de reproducció ({n} a la cua)",
+    },
+    "queue.tracks_count": {
+        "es": "{n} temas",
+        "en": "{n} tracks",
+        "ca": "{n} temes",
+    },
+
     "inspector.device": {
         "es": "Dispositivo",
         "en": "Device",

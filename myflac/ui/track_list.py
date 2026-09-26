@@ -16,12 +16,46 @@ from ..constants import SUPPORTED_EXTENSIONS
 from .track_item import FlacTrackItem
 from .wave_indicator import PlayingWaveIndicator
 from .. import i18n
+from ..logger import get_logger
+
+log = get_logger(__name__)
+
+
+def show_in_file_manager(filepath: str):
+    """Abre el gestor de archivos del sistema mostrando y seleccionando la pista."""
+    abs_path = os.path.abspath(filepath)
+    uri = "file://" + abs_path
+    try:
+        bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
+        msg = Gio.DBusMessage.new_method_call(
+            "org.freedesktop.FileManager1",
+            "/org/freedesktop/FileManager1",
+            "org.freedesktop.FileManager1",
+            "ShowItems",
+        )
+        msg.set_body(GLib.Variant("(ass)", ([uri], "")))
+        bus.send_message(msg, Gio.DBusSendMessageFlags.NONE)
+        return
+    except Exception as e:
+        log.debug("FileManager1.ShowItems no disponible: %s", e)
+    try:
+        folder_uri = "file://" + os.path.dirname(abs_path)
+        Gio.AppInfo.launch_default_for_uri(folder_uri, None)
+    except Exception as e:
+        log.error("Fallo al abrir carpeta en gestor de archivos: %s", e)
 
 
 class TrackListView(Gtk.Box):
-    def __init__(self, on_track_activate: Callable[[AudioTrack], None]):
+    def __init__(
+        self,
+        on_track_activate: Callable[[AudioTrack], None],
+        on_play_next_queue: Callable[[AudioTrack], None] | None = None,
+        on_add_to_queue: Callable[[AudioTrack], None] | None = None,
+    ):
         super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=0)
         self.on_track_activate = on_track_activate
+        self.on_play_next_queue = on_play_next_queue
+        self.on_add_to_queue = on_add_to_queue
 
         self.list_store = Gio.ListStore.new(FlacTrackItem)
         self.current_playing_index: int | None = None
@@ -55,6 +89,11 @@ class TrackListView(Gtk.Box):
         # Configurar columnas
         self._setup_columns()
 
+        # Gesto de clic secundario (clic derecho) para menú contextual de temas
+        self.right_click = Gtk.GestureClick(button=Gdk.BUTTON_SECONDARY)
+        self.right_click.connect("pressed", self._on_right_click)
+        self.column_view.add_controller(self.right_click)
+
         scrolled.set_child(self.column_view)
         self.append(scrolled)
 
@@ -75,6 +114,10 @@ class TrackListView(Gtk.Box):
         self.footer_box.append(self.footer_info_label)
         self.footer_box.append(self.footer_hires_summary)
         self.append(self.footer_box)
+
+    def _attach_item_ref(self, widget: Gtk.Widget, list_item: Gtk.ListItem):
+        widget._list_item = list_item
+        list_item.set_child(widget)
 
     def _setup_columns(self):
         # 1. Columna de estado (reproduciendo / onda animada)
@@ -114,7 +157,7 @@ class TrackListView(Gtk.Box):
         self.col_artist.set_expand(True)
         self.col_artist.set_resizable(True)
         artist_factory = Gtk.SignalListItemFactory()
-        artist_factory.connect("setup", lambda _, item: item.set_child(Gtk.Label(xalign=0.0, ellipsize=Pango.EllipsizeMode.END)))
+        artist_factory.connect("setup", lambda _, item: self._attach_item_ref(Gtk.Label(xalign=0.0, ellipsize=Pango.EllipsizeMode.END), item))
         artist_factory.connect("bind", lambda _, item: item.get_child().set_text(item.get_item().artist))
         self.col_artist.set_factory(artist_factory)
         self.column_view.append_column(self.col_artist)
@@ -124,7 +167,7 @@ class TrackListView(Gtk.Box):
         self.col_album.set_expand(True)
         self.col_album.set_resizable(True)
         album_factory = Gtk.SignalListItemFactory()
-        album_factory.connect("setup", lambda _, item: item.set_child(Gtk.Label(xalign=0.0, ellipsize=Pango.EllipsizeMode.END)))
+        album_factory.connect("setup", lambda _, item: self._attach_item_ref(Gtk.Label(xalign=0.0, ellipsize=Pango.EllipsizeMode.END), item))
         album_factory.connect("bind", lambda _, item: item.get_child().set_text(item.get_item().album))
         self.col_album.set_factory(album_factory)
         self.column_view.append_column(self.col_album)
@@ -133,7 +176,7 @@ class TrackListView(Gtk.Box):
         self.col_dur = Gtk.ColumnViewColumn(title=i18n.t("col.duration"))
         self.col_dur.set_fixed_width(70)
         dur_factory = Gtk.SignalListItemFactory()
-        dur_factory.connect("setup", lambda _, item: item.set_child(Gtk.Label(xalign=1.0)))
+        dur_factory.connect("setup", lambda _, item: self._attach_item_ref(Gtk.Label(xalign=1.0), item))
         dur_factory.connect("bind", lambda _, item: item.get_child().set_text(item.get_item().duration_str))
         self.col_dur.set_factory(dur_factory)
         self.column_view.append_column(self.col_dur)
@@ -149,7 +192,7 @@ class TrackListView(Gtk.Box):
 
     def _col_status_setup(self, _factory, list_item: Gtk.ListItem):
         ind = PlayingWaveIndicator()
-        list_item.set_child(ind)
+        self._attach_item_ref(ind, list_item)
 
     def _col_status_bind(self, _factory, list_item: Gtk.ListItem):
         ind = list_item.get_child()
@@ -183,7 +226,7 @@ class TrackListView(Gtk.Box):
     def _col_num_setup(self, _factory, list_item: Gtk.ListItem):
         lbl = Gtk.Label(xalign=0.5)
         lbl.add_css_class("track-number-cell")
-        list_item.set_child(lbl)
+        self._attach_item_ref(lbl, list_item)
 
     def _col_num_bind(self, _factory, list_item: Gtk.ListItem):
         lbl = list_item.get_child()
@@ -218,7 +261,7 @@ class TrackListView(Gtk.Box):
 
     def _col_title_setup(self, _factory, list_item: Gtk.ListItem):
         lbl = Gtk.Label(xalign=0.0, ellipsize=Pango.EllipsizeMode.END)
-        list_item.set_child(lbl)
+        self._attach_item_ref(lbl, list_item)
 
     def _col_title_bind(self, _factory, list_item: Gtk.ListItem):
         lbl = list_item.get_child()
@@ -253,7 +296,7 @@ class TrackListView(Gtk.Box):
 
     def _col_quality_setup(self, _factory, list_item: Gtk.ListItem):
         badge = Gtk.Label(xalign=0.5)
-        list_item.set_child(badge)
+        self._attach_item_ref(badge, list_item)
 
     def _col_quality_bind(self, _factory, list_item: Gtk.ListItem):
         badge = list_item.get_child()
@@ -270,6 +313,102 @@ class TrackListView(Gtk.Box):
             badge.add_css_class("hires-badge")
         else:
             badge.add_css_class("hires-cd-badge")
+
+    def _on_right_click(self, _gesture: Gtk.GestureClick, _n_press: int, x: float, y: float):
+        picked = self.column_view.pick(x, y, Gtk.PickFlags.DEFAULT)
+        curr = picked
+        while curr and not hasattr(curr, "_list_item") and curr != self.column_view:
+            curr = curr.get_parent()
+
+        if curr and hasattr(curr, "_list_item"):
+            list_item = curr._list_item
+            track_item: FlacTrackItem | None = list_item.get_item()
+            if track_item and track_item.track:
+                pos = list_item.get_position()
+                self.selection_model.set_selected(pos)
+                self._show_context_menu(track_item.track, x, y)
+
+    def _show_context_menu(self, track: AudioTrack, x: float, y: float):
+        popover = Gtk.Popover()
+        popover.set_parent(self.column_view)
+        popover.set_has_arrow(True)
+        rect = Gdk.Rectangle()
+        rect.x = int(x)
+        rect.y = int(y)
+        rect.width = 1
+        rect.height = 1
+        popover.set_pointing_to(rect)
+
+        menu_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+        menu_box.add_css_class("context-menu-box")
+        menu_box.set_margin_top(4)
+        menu_box.set_margin_bottom(4)
+        menu_box.set_margin_start(4)
+        menu_box.set_margin_end(4)
+
+        def make_btn(icon_name: str, label_text: str, callback) -> Gtk.Button:
+            btn = Gtk.Button()
+            btn.add_css_class("flat")
+            btn.add_css_class("context-menu-item")
+            b_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+            img = Gtk.Image.new_from_icon_name(icon_name)
+            img.set_pixel_size(16)
+            lbl = Gtk.Label(label=label_text, xalign=0.0)
+            lbl.set_hexpand(True)
+            b_box.append(img)
+            b_box.append(lbl)
+            btn.set_child(b_box)
+
+            def on_click(*_):
+                popover.popdown()
+                callback()
+
+            btn.connect("clicked", on_click)
+            return btn
+
+        # 1. Reproducir ahora
+        btn_play = make_btn(
+            "media-playback-start-symbolic",
+            i18n.t("context.play_now"),
+            lambda: self.on_track_activate and self.on_track_activate(track),
+        )
+        menu_box.append(btn_play)
+
+        # 2. Reproducir a continuación
+        if self.on_play_next_queue:
+            btn_next = make_btn(
+                "media-skip-forward-symbolic",
+                i18n.t("context.play_next"),
+                lambda: self.on_play_next_queue(track),
+            )
+            menu_box.append(btn_next)
+
+        # 3. Añadir a la cola
+        if self.on_add_to_queue:
+            btn_queue = make_btn(
+                "list-add-symbolic",
+                i18n.t("context.add_queue"),
+                lambda: self.on_add_to_queue(track),
+            )
+            menu_box.append(btn_queue)
+
+        # Separador
+        sep = Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL)
+        sep.set_margin_top(4)
+        sep.set_margin_bottom(4)
+        menu_box.append(sep)
+
+        # 4. Mostrar en el gestor de archivos
+        btn_files = make_btn(
+            "folder-open-symbolic",
+            i18n.t("context.show_in_files"),
+            lambda: show_in_file_manager(track.filepath),
+        )
+        menu_box.append(btn_files)
+
+        popover.set_child(menu_box)
+        popover.connect("closed", lambda *_: popover.unparent())
+        popover.popup()
 
     def _on_row_activated(self, _view: Gtk.ColumnView, position: int):
         item = self.filter_model.get_item(position)

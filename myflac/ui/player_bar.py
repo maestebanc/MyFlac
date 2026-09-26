@@ -49,6 +49,11 @@ class PlayerBar(Gtk.Box):
         self.on_next_clicked: Callable[[], None] | None = None
         self.on_shuffle_toggled: Callable[[bool], None] | None = None
         self.on_repeat_clicked: Callable[[], None] | None = None
+        self.on_queue_track_clicked: Callable[[int], None] | None = None
+        self.on_queue_track_removed: Callable[[int], None] | None = None
+        self.on_clear_queue_clicked: Callable[[], None] | None = None
+
+        self._queue: list[AudioTrack] = []
 
         self._build_ui()
         self._connect_engine()
@@ -256,6 +261,21 @@ class PlayerBar(Gtk.Box):
         self.device_btn.connect("clicked", lambda *_: self.on_device_click and self.on_device_click())
         right_box.append(self.device_btn)
 
+        # Botón de Cola de reproducción ("A continuación")
+        self.queue_btn = Gtk.Button()
+        self.queue_btn.add_css_class("flat")
+        self.queue_btn.add_css_class("queue-btn")
+        self.queue_btn.set_icon_name("view-list-bullet-symbolic")
+        self.queue_btn.set_tooltip_text(i18n.t("queue.tooltip"))
+        self.queue_btn.connect("clicked", self._toggle_queue_popover)
+        right_box.append(self.queue_btn)
+
+        # Popover de cola de reproducción
+        self.queue_popover = Gtk.Popover()
+        self.queue_popover.set_parent(self.queue_btn)
+        self.queue_popover.set_has_arrow(True)
+        self.queue_popover.set_position(Gtk.PositionType.TOP)
+
         # Bloque de Volumen deslizante
         vol_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
         self.vol_btn = Gtk.MenuButton()
@@ -401,6 +421,142 @@ class PlayerBar(Gtk.Box):
         sec = s % 60
         return f"{m}:{sec:02d}"
 
+    def _toggle_queue_popover(self, *_):
+        self._rebuild_queue_popover()
+        self.queue_popover.popup()
+
+    def _rebuild_queue_popover(self):
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        box.add_css_class("queue-popover-box")
+        box.set_margin_top(8)
+        box.set_margin_bottom(8)
+        box.set_margin_start(8)
+        box.set_margin_end(8)
+
+        # Cabecera
+        header = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        lbl_title = Gtk.Label(label=i18n.t("queue.title"), xalign=0.0)
+        lbl_title.add_css_class("heading")
+        lbl_title.set_hexpand(True)
+        header.append(lbl_title)
+
+        if self._queue:
+            badge_cnt = Gtk.Label(label=i18n.t("queue.tracks_count", n=len(self._queue)))
+            badge_cnt.add_css_class("dim-label")
+            badge_cnt.add_css_class("caption")
+            header.append(badge_cnt)
+
+            btn_clear = Gtk.Button(label=i18n.t("queue.clear"))
+            btn_clear.add_css_class("flat")
+
+            def on_clear_click(*_):
+                if self.on_clear_queue_clicked:
+                    self.on_clear_queue_clicked()
+                self.queue_popover.popdown()
+
+            btn_clear.connect("clicked", on_clear_click)
+            header.append(btn_clear)
+
+        box.append(header)
+
+        # Contenido de la lista o mensaje vacío
+        if not self._queue:
+            empty_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+            empty_box.set_valign(Gtk.Align.CENTER)
+            empty_box.set_margin_top(20)
+            empty_box.set_margin_bottom(20)
+
+            icon = Gtk.Image.new_from_icon_name("view-list-bullet-symbolic")
+            icon.set_pixel_size(32)
+            icon.set_opacity(0.35)
+            lbl_empty = Gtk.Label(label=i18n.t("queue.empty"))
+            lbl_empty.add_css_class("heading")
+            lbl_empty.set_opacity(0.8)
+            lbl_hint = Gtk.Label(label=i18n.t("queue.empty_hint"))
+            lbl_hint.add_css_class("caption")
+            lbl_hint.add_css_class("dim-label")
+            lbl_hint.set_wrap(True)
+            lbl_hint.set_max_width_chars(26)
+            lbl_hint.set_justify(Gtk.Justification.CENTER)
+
+            empty_box.append(icon)
+            empty_box.append(lbl_empty)
+            empty_box.append(lbl_hint)
+            box.append(empty_box)
+        else:
+            scrolled = Gtk.ScrolledWindow()
+            scrolled.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+            scrolled.set_vexpand(True)
+            scrolled.set_min_content_height(140)
+            scrolled.set_max_content_height(260)
+
+            list_box = Gtk.ListBox()
+            list_box.add_css_class("boxed-list")
+            list_box.set_selection_mode(Gtk.SelectionMode.NONE)
+
+            for idx, track in enumerate(self._queue):
+                row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+                row.add_css_class("queue-row")
+
+                num_lbl = Gtk.Label(label=str(idx + 1), xalign=0.5)
+                num_lbl.add_css_class("dim-label")
+                num_lbl.set_size_request(20, -1)
+                row.append(num_lbl)
+
+                info_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=1)
+                info_box.set_hexpand(True)
+                title = Gtk.Label(label=track.title or os.path.basename(track.filepath), xalign=0.0)
+                title.set_ellipsize(Pango.EllipsizeMode.END)
+                title.set_max_width_chars(20)
+                sub = Gtk.Label(label=track.artist or "", xalign=0.0)
+                sub.add_css_class("dim-label")
+                sub.add_css_class("caption")
+                sub.set_ellipsize(Pango.EllipsizeMode.END)
+                sub.set_max_width_chars(20)
+                info_box.append(title)
+                info_box.append(sub)
+                row.append(info_box)
+
+                dur_lbl = Gtk.Label(label=self._format_sec(track.duration), xalign=1.0)
+                dur_lbl.add_css_class("dim-label")
+                dur_lbl.add_css_class("time-label")
+                row.append(dur_lbl)
+
+                btn_remove = Gtk.Button()
+                btn_remove.set_icon_name("window-close-symbolic")
+                btn_remove.add_css_class("flat")
+                btn_remove.add_css_class("circular")
+                btn_remove.set_valign(Gtk.Align.CENTER)
+
+                def make_remove_cb(i):
+                    def cb(*_):
+                        if self.on_queue_track_removed:
+                            self.on_queue_track_removed(i)
+                    return cb
+
+                btn_remove.connect("clicked", make_remove_cb(idx))
+                row.append(btn_remove)
+
+                list_box.append(row)
+
+            scrolled.set_child(list_box)
+            box.append(scrolled)
+
+        self.queue_popover.set_child(box)
+
+    def update_queue(self, queue: list[AudioTrack]):
+        """Actualiza la lista interna de la cola y el estado visual del botón."""
+        self._queue = list(queue)
+        if self._queue:
+            self.queue_btn.add_css_class("accent")
+            self.queue_btn.set_tooltip_text(i18n.t("queue.tooltip_count", n=len(self._queue)))
+        else:
+            self.queue_btn.remove_css_class("accent")
+            self.queue_btn.set_tooltip_text(i18n.t("queue.tooltip"))
+
+        if self.queue_popover.get_visible():
+            self._rebuild_queue_popover()
+
     def refresh_i18n(self):
         """Actualiza tooltips y textos traducidos."""
         self.shuffle_btn.set_tooltip_text(i18n.t("player.shuffle"))
@@ -410,5 +566,6 @@ class PlayerBar(Gtk.Box):
         self.repeat_btn.set_tooltip_text(i18n.t("player.repeat"))
         self.vol_btn.set_tooltip_text(i18n.t("player.volume"))
         self.update_active_device()
+        self.update_queue(self._queue)
         if not self.engine.current_track:
             self.title_label.set_text(i18n.t("inspector.no_playback"))

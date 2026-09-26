@@ -25,10 +25,18 @@ class ColumnBrowserView(Gtk.Box):
     Columna 3: Temas (TrackListView con calidad Hi-Res y animación de onda)
     """
 
-    def __init__(self, db: LibraryDB, on_track_activate: Callable[[AudioTrack], None]):
+    def __init__(
+        self,
+        db: LibraryDB,
+        on_track_activate: Callable[[AudioTrack], None],
+        on_play_next_queue: Callable[[AudioTrack], None] | None = None,
+        on_add_to_queue: Callable[[AudioTrack], None] | None = None,
+    ):
         super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=0)
         self.db = db
         self.on_track_activate = on_track_activate
+        self.on_play_next_queue = on_play_next_queue
+        self.on_add_to_queue = on_add_to_queue
 
         self.current_artist: str = "__ALL__"
         self.current_album: str = "__ALL__"
@@ -119,7 +127,11 @@ class ColumnBrowserView(Gtk.Box):
         self.h_browser_paned.set_end_child(self.album_box)
 
         # Columna 3 / Vista Inferior: Tabla de pistas
-        self.track_list = TrackListView(on_track_activate=self.on_track_activate)
+        self.track_list = TrackListView(
+            on_track_activate=self.on_track_activate,
+            on_play_next_queue=self.on_play_next_queue,
+            on_add_to_queue=self.on_add_to_queue,
+        )
 
         self.v_paned.set_start_child(self.h_browser_paned)
         self.v_paned.set_end_child(self.track_list)
