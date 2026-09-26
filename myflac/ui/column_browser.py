@@ -91,7 +91,6 @@ class ColumnBrowserView(Gtk.Box):
         self.artist_listbox.set_show_separators(False)
         self.artist_listbox.set_selection_mode(Gtk.SelectionMode.SINGLE)
         self.artist_listbox.connect("row-selected", self._on_artist_selected)
-        self.artist_listbox.connect("row-activated", self._on_artist_activated)
         self.artist_scrolled.set_child(self.artist_listbox)
         self.artist_box.append(self.artist_scrolled)
 
@@ -121,6 +120,8 @@ class ColumnBrowserView(Gtk.Box):
         self.album_listbox.add_css_class("column-list")
         self.album_listbox.set_show_separators(False)
         self.album_listbox.set_selection_mode(Gtk.SelectionMode.SINGLE)
+        # Exigir estrictamente doble clic (o Enter) para activar la reproducción del álbum
+        self.album_listbox.set_activate_on_single_click(False)
         self.album_listbox.connect("row-selected", self._on_album_selected)
         self.album_listbox.connect("row-activated", self._on_album_activated)
         self.album_scrolled.set_child(self.album_listbox)
@@ -274,15 +275,6 @@ class ColumnBrowserView(Gtk.Box):
 
         log.debug("Álbum seleccionado en navegador: %s", self.current_album)
         self.refresh_tracks()
-
-    def _on_artist_activated(self, box: Gtk.ListBox, row: Gtk.ListBoxRow | None):
-        if row is None:
-            return
-        self._on_artist_selected(box, row)
-        first_track = self.track_list.get_first_track()
-        if first_track and self.on_track_activate:
-            log.info("Doble clic en artista '%s': reproduciendo primera pista '%s'", self.current_artist, first_track.title)
-            self.on_track_activate(first_track)
 
     def _on_album_activated(self, box: Gtk.ListBox, row: Gtk.ListBoxRow | None):
         if row is None:

@@ -395,41 +395,133 @@ paned > separator:hover {
     background-color: alpha(@window_fg_color, 0.06);
 }
 
-/* Modo Mini-Reproductor (500x500) */
+/* Modo Mini-Reproductor (500x500) estilo Apple Music */
 .mini-player-window {
-    background-color: #0d0f12;
+    background-color: #0b0d10;
+    border-radius: 16px;
 }
 
-.mini-player-btn {
+.mini-player-hud {
+    opacity: 0.0;
+    transition: opacity 280ms cubic-bezier(0.4, 0, 0.2, 1);
+    background: linear-gradient(
+        to bottom,
+        rgba(0, 0, 0, 0.55) 0%,
+        rgba(0, 0, 0, 0.20) 18%,
+        transparent 35%,
+        rgba(0, 0, 0, 0.40) 65%,
+        rgba(0, 0, 0, 0.78) 82%,
+        rgba(0, 0, 0, 0.90) 100%
+    );
+}
+
+.mini-player-hud.visible {
+    opacity: 1.0;
+}
+
+.mini-player-btn-circle {
     border-radius: 9999px;
-    background-color: rgba(18, 20, 24, 0.65);
+    background-color: rgba(20, 20, 24, 0.55);
     color: #ffffff;
-    padding: 8px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
-    transition: background-color 200ms ease, transform 150ms ease;
+    padding: 7px;
+    transition: background-color 150ms ease, transform 120ms ease;
 }
 
-.mini-player-btn:hover {
-    background-color: rgba(35, 40, 48, 0.85);
-}
-
-.mini-player-overlay-card {
-    background-color: rgba(14, 16, 20, 0.82);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 14px;
-    padding: 12px 16px;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.55);
+.mini-player-btn-circle:hover {
+    background-color: rgba(255, 255, 255, 0.22);
+    transform: scale(1.06);
 }
 
 .mini-player-title {
     font-weight: 700;
-    font-size: 1.05em;
+    font-size: 1.20em;
     color: #ffffff;
+    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.75);
+    letter-spacing: -0.01em;
 }
 
 .mini-player-sub {
-    font-size: 0.86em;
-    color: rgba(255, 255, 255, 0.68);
+    font-size: 0.90em;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.78);
+    text-shadow: 0 1px 5px rgba(0, 0, 0, 0.65);
+}
+
+.mini-player-time {
+    font-size: 0.80em;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.75);
+    font-variant-numeric: tabular-nums;
+    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.65);
+    min-width: 36px;
+}
+
+.mini-player-scale trough {
+    min-height: 4px;
+    border-radius: 2px;
+    background-color: rgba(255, 255, 255, 0.28);
+}
+
+.mini-player-scale highlight {
+    border-radius: 2px;
+    background-color: #ffffff;
+}
+
+.mini-player-scale slider {
+    min-width: 10px;
+    min-height: 10px;
+    border-radius: 9999px;
+    background-color: #ffffff;
+    margin: -3px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.45);
+}
+
+.mini-player-play-btn {
+    border-radius: 9999px;
+    min-width: 50px;
+    min-height: 50px;
+    padding: 0;
+    color: #ffffff;
+    background-color: rgba(255, 255, 255, 0.22);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+    transition: background-color 150ms ease, transform 120ms ease;
+}
+
+.mini-player-play-btn:hover {
+    background-color: rgba(255, 255, 255, 0.35);
+    transform: scale(1.06);
+}
+
+.mini-player-skip-btn {
+    border-radius: 9999px;
+    min-width: 38px;
+    min-height: 38px;
+    padding: 0;
+    color: rgba(255, 255, 255, 0.90);
+    background: transparent;
+    transition: color 150ms ease, transform 120ms ease;
+}
+
+.mini-player-skip-btn:hover {
+    color: #ffffff;
+    transform: scale(1.12);
+}
+
+.mini-player-aux-btn {
+    border-radius: 9999px;
+    min-width: 32px;
+    min-height: 32px;
+    padding: 0;
+    color: rgba(255, 255, 255, 0.65);
+    background: transparent;
+}
+
+.mini-player-aux-btn:hover {
+    color: #ffffff;
+}
+
+.mini-player-aux-btn.active {
+    color: #f59e0b;
 }
 """
 

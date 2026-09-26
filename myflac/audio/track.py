@@ -118,9 +118,23 @@ class AudioTrack:
                             self.cover_mime = getattr(v, "mime", "image/jpeg")
                             return self.cover_data, self.cover_mime
                         elif k == "covr" and isinstance(v, list) and v:
-                            self.cover_data = bytes(v[0])
-                            self.cover_mime = "image/jpeg"
+                            covr_item = v[0]
+                            self.cover_data = bytes(covr_item)
+                            img_fmt = getattr(covr_item, "imageformat", None)
+                            self.cover_mime = "image/png" if img_fmt == getattr(mutagen.mp4.MP4Cover, "FORMAT_PNG", 14) else "image/jpeg"
                             return self.cover_data, self.cover_mime
+                    if "metadata_block_picture" in audio.tags:
+                        mbp = audio.tags.get("metadata_block_picture")
+                        if mbp:
+                            try:
+                                from mutagen.flac import Picture
+                                raw_b64 = mbp[0] if isinstance(mbp, list) else mbp
+                                pic = Picture(base64.b64decode(raw_b64))
+                                self.cover_data = pic.data
+                                self.cover_mime = pic.mime or "image/jpeg"
+                                return self.cover_data, self.cover_mime
+                            except Exception:
+                                pass
             except Exception as e:
                 log.debug("No se pudo extraer carátula embebida de %s: %s", self.filepath, e)
 
@@ -141,6 +155,10 @@ class AudioTrack:
         return None
 
 
+import base64
+import re
+
+
 def _clean_tag(val: any) -> str:
     if val is None:
         return ""
@@ -150,6 +168,11 @@ def _clean_tag(val: any) -> str:
 
 
 def _parse_track_number(val: any) -> tuple[int | None, int | None]:
+    if isinstance(val, (list, tuple)) and len(val) >= 2:
+        try:
+            return int(val[0]), int(val[1])
+        except (ValueError, TypeError):
+            pass
     s = _clean_tag(val)
     if not s:
         return None, None
@@ -163,6 +186,52 @@ def _parse_track_number(val: any) -> tuple[int | None, int | None]:
         return int(s), None
     except ValueError:
         return None, None
+
+
+def _infer_metadata_from_path(
+    filepath: str,
+    base_name: str,
+    title: str = "",
+    artist: str = "",
+    album: str = "",
+    track_num: int | None = None,
+) -> tuple[str, str, str, int | None]:
+    """Infiere metadatos de título, artista, álbum y pista a partir del nombre de archivo y carpeta."""
+    m_num = re.match(r"^(\d{1,3})[\s._-]+(.+)$", base_name)
+    if m_num:
+        if track_num is None:
+            try:
+                track_num = int(m_num.group(1))
+            except ValueError:
+                pass
+        rest = m_num.group(2).strip()
+    else:
+        rest = base_name.strip()
+
+    if " - " in rest:
+        parts = rest.split(" - ", 1)
+        if not artist:
+            artist = parts[0].strip()
+        if not title or title == base_name:
+            title = parts[1].strip()
+    elif not title or title == base_name:
+        title = rest
+
+    if not title:
+        title = base_name
+
+    if not album:
+        folder_name = os.path.basename(os.path.dirname(filepath))
+        if folder_name and folder_name not in ("/", ".", ""):
+            if " - " in folder_name:
+                f_parts = folder_name.split(" - ", 1)
+                if not artist:
+                    artist = f_parts[0].strip()
+                album = f_parts[1].strip()
+            else:
+                album = folder_name
+
+    return title, artist, album, track_num
 
 
 def load_track(filepath: str) -> AudioTrack | None:
@@ -182,20 +251,17 @@ def load_track(filepath: str) -> AudioTrack | None:
     try:
         audio = mutagen.File(filepath)
     except Exception:
-        # Fallback básico si mutagen falla
-        return AudioTrack(
-            filepath=filepath,
-            filename=filename,
-            title=base_name,
-            file_size_bytes=file_size,
-            format_name=fmt or "FLAC",
-        )
+        audio = None
 
     if audio is None:
+        title, artist, album, track_num = _infer_metadata_from_path(filepath, base_name)
         return AudioTrack(
             filepath=filepath,
             filename=filename,
-            title=base_name,
+            title=title,
+            artist=artist,
+            album=album,
+            track_number=track_num,
             file_size_bytes=file_size,
             format_name=fmt or "FLAC",
         )
@@ -214,8 +280,7 @@ def load_track(filepath: str) -> AudioTrack | None:
 
     # Extraer tags
     tags = getattr(audio, "tags", None) or {}
-    
-    # Mutagen almacena en minúsculas en FLAC/Ogg y mayúsculas en ID3
+
     def get_tag(*keys: str) -> str:
         for k in keys:
             v = tags.get(k) or tags.get(k.upper()) or tags.get(k.lower())
@@ -223,31 +288,72 @@ def load_track(filepath: str) -> AudioTrack | None:
                 return _clean_tag(v)
         return ""
 
-    title = get_tag("title") or base_name
-    artist = get_tag("artist")
-    album = get_tag("album")
-    album_artist = get_tag("albumartist", "album artist", "band")
-    date = get_tag("date", "year")
-    genre = get_tag("genre")
-    
-    raw_track = get_tag("tracknumber", "track")
-    track_num, track_total = _parse_track_number(raw_track)
+    # 1. Título
+    # Vorbis: title | ID3: TIT2 | MP4: ©nam | RIFF: INAM
+    title = get_tag("title", "TIT2", "\xa9nam", "INAM")
+
+    # 2. Artista
+    # Vorbis: artist | ID3: TPE1 | MP4: ©ART | RIFF: IART
+    artist = get_tag("artist", "TPE1", "\xa9ART", "IART")
+
+    # 3. Álbum
+    # Vorbis: album | ID3: TALB | MP4: ©alb | RIFF: IPRD
+    album = get_tag("album", "TALB", "\xa9alb", "IPRD")
+
+    # 4. Artista del Álbum
+    # Vorbis: albumartist | ID3: TPE2 | MP4: aART
+    album_artist = get_tag("albumartist", "album artist", "band", "TPE2", "aART")
+
+    # 5. Año / Fecha
+    # Vorbis: date, year | ID3: TDRC, TYER | MP4: ©day | RIFF: ICRD
+    date = get_tag("date", "year", "TDRC", "TYER", "\xa9day", "ICRD")
+
+    # 6. Género
+    # Vorbis: genre | ID3: TCON | MP4: ©gen | RIFF: IGNR
+    genre = get_tag("genre", "TCON", "\xa9gen", "IGNR")
+
+    # 7. Número de pista y total
+    raw_track = get_tag("tracknumber", "track", "TRCK", "ITRK")
+    if not raw_track and "trkn" in tags:
+        # MP4 trkn es [(track_num, track_total)]
+        mp4_trkn = tags.get("trkn")
+        if mp4_trkn and isinstance(mp4_trkn, (list, tuple)) and len(mp4_trkn) > 0:
+            track_num, track_total = _parse_track_number(mp4_trkn[0])
+        else:
+            track_num, track_total = None, None
+    else:
+        track_num, track_total = _parse_track_number(raw_track)
+
     if track_total is None:
         raw_total = get_tag("totaltracks", "tracktotal")
         if raw_total and raw_total.isdigit():
             track_total = int(raw_total)
 
-    raw_disc = get_tag("discnumber", "disc")
-    disc_num, _ = _parse_track_number(raw_disc)
+    # 8. Número de disco
+    raw_disc = get_tag("discnumber", "disc", "TPOS")
+    if not raw_disc and "disk" in tags:
+        mp4_disk = tags.get("disk")
+        if mp4_disk and isinstance(mp4_disk, (list, tuple)) and len(mp4_disk) > 0:
+            disc_num, _ = _parse_track_number(mp4_disk[0])
+        else:
+            disc_num = None
+    else:
+        disc_num, _ = _parse_track_number(raw_disc)
 
-    # Extraer carátula integrada
+    # 9. Heurística para pistas sin tags completos (ej: WAV, AIFF o MP3 sin ID3)
+    if not title or title == base_name or not artist or not album:
+        title, artist, album, track_num = _infer_metadata_from_path(
+            filepath, base_name, title=title, artist=artist, album=album, track_num=track_num
+        )
+
+    # 10. Extraer carátula integrada
     cover_data: bytes | None = None
     cover_mime: str = ""
 
     if isinstance(audio, FLAC) and audio.pictures:
         pic = audio.pictures[0]
         cover_data = pic.data
-        cover_mime = pic.mime
+        cover_mime = pic.mime or "image/jpeg"
     elif hasattr(audio, "tags") and audio.tags:
         # ID3 APIC frame
         for k, v in audio.tags.items():
@@ -256,9 +362,26 @@ def load_track(filepath: str) -> AudioTrack | None:
                 cover_mime = getattr(v, "mime", "image/jpeg")
                 break
             elif k == "covr" and isinstance(v, list) and v:
-                cover_data = bytes(v[0])
-                cover_mime = "image/jpeg"
+                covr_item = v[0]
+                cover_data = bytes(covr_item)
+                # Formato MP4
+                img_fmt = getattr(covr_item, "imageformat", None)
+                if img_fmt == getattr(mutagen.mp4.MP4Cover, "FORMAT_PNG", 14):
+                    cover_mime = "image/png"
+                else:
+                    cover_mime = "image/jpeg"
                 break
+        if not cover_data and "metadata_block_picture" in audio.tags:
+            mbp = audio.tags.get("metadata_block_picture")
+            if mbp:
+                try:
+                    from mutagen.flac import Picture
+                    raw_b64 = mbp[0] if isinstance(mbp, list) else mbp
+                    pic = Picture(base64.b64decode(raw_b64))
+                    cover_data = pic.data
+                    cover_mime = pic.mime or "image/jpeg"
+                except Exception:
+                    pass
 
     track_obj = AudioTrack(
         filepath=filepath,

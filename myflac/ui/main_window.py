@@ -595,7 +595,7 @@ class MainWindow(Adw.ApplicationWindow):
             self.mini_player = MiniPlayerWindow(main_window=self, engine=self.engine)
         if self.engine.current_track:
             self.mini_player.set_track(self.engine.current_track)
-        self.mini_player.present()
+        self.mini_player.present_mini_player()
         self.set_visible(False)
 
     def _on_close_request(self, _window) -> bool:

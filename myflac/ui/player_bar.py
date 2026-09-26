@@ -220,49 +220,29 @@ class PlayerBar(Gtk.Box):
         right_box.set_halign(Gtk.Align.END)
         right_box.set_valign(Gtk.Align.CENTER)
 
-        # Botón selector de dispositivo de audio (Píldora audiófila enriquecida)
+        # Botón selector de dispositivo de audio en una sola línea elegante
         self.device_btn = Gtk.Button()
         self.device_btn.add_css_class("flat")
         self.device_btn.add_css_class("audiophile-device-pill")
 
-        btn_content = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        btn_content = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
         btn_content.set_valign(Gtk.Align.CENTER)
 
-        # Burbuja de icono con realce ámbar
-        self.device_bubble = Gtk.Box()
-        self.device_bubble.add_css_class("device-icon-bubble")
         self.device_icon = Gtk.Image.new_from_icon_name("audio-card-symbolic")
         self.device_icon.set_pixel_size(16)
-        self.device_bubble.append(self.device_icon)
-        btn_content.append(self.device_bubble)
-
-        # Bloque de textos (Nombre de dispositivo + Subtítulo con LED de estado)
-        text_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=1)
-        text_box.set_valign(Gtk.Align.CENTER)
+        self.device_icon.add_css_class("accent")
+        btn_content.append(self.device_icon)
 
         self.device_label = Gtk.Label(label="", xalign=0.0)
         self.device_label.add_css_class("device-name-label")
         self.device_label.set_ellipsize(Pango.EllipsizeMode.END)
-        self.device_label.set_max_width_chars(16)
-
-        sub_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
-        self.device_led = Gtk.Label(label="●")
-        self.device_led.add_css_class("device-led-active")
-        self.device_sub_label = Gtk.Label(label="", xalign=0.0)
-        self.device_sub_label.add_css_class("device-sub-label")
-        self.device_sub_label.set_ellipsize(Pango.EllipsizeMode.END)
-        self.device_sub_label.set_max_width_chars(18)
-        sub_box.append(self.device_led)
-        sub_box.append(self.device_sub_label)
-
-        text_box.append(self.device_label)
-        text_box.append(sub_box)
-        btn_content.append(text_box)
+        self.device_label.set_max_width_chars(22)
+        btn_content.append(self.device_label)
 
         # Flecha indicadora de menú hacia arriba
         self.device_chevron = Gtk.Image.new_from_icon_name("pan-up-symbolic")
         self.device_chevron.set_pixel_size(12)
-        self.device_chevron.set_opacity(0.5)
+        self.device_chevron.set_opacity(0.6)
         self.device_chevron.set_valign(Gtk.Align.CENTER)
         btn_content.append(self.device_chevron)
 
@@ -329,23 +309,10 @@ class PlayerBar(Gtk.Box):
             self.engine.toggle_play_pause()
 
     def update_active_device(self):
-        """Actualiza el texto, subtítulo e icono del botón de dispositivo de audio."""
+        """Actualiza el texto e icono del botón de dispositivo de audio en una sola línea."""
         dev = find_device_by_id(self.engine.device_id) or get_default_device(self.engine.device_id)
         self.device_label.set_text(dev.name)
-        self.device_icon.set_from_icon_name(dev.icon_name)
-
-        if dev.is_usb:
-            sub = "DAC USB · SALIDA DIRECTA"
-        elif "hdmi" in dev.id.lower() or "hdmi" in dev.name.lower():
-            sub = "AUDIO DIGITAL HDMI"
-        elif "headphone" in dev.id.lower() or "auricular" in dev.name.lower():
-            sub = "AURICULARES"
-        elif dev.id == "default":
-            sub = "SALIDA DEL SISTEMA"
-        else:
-            sub = "MEZCLADOR DE AUDIO"
-
-        self.device_sub_label.set_text(sub)
+        self.device_icon.set_from_icon_name(dev.icon_name or "audio-card-symbolic")
         self.device_btn.set_tooltip_text(i18n.t("player.active_device", name=dev.name))
 
     def _on_state_changed(self, state: PlaybackState):
@@ -446,7 +413,7 @@ class PlayerBar(Gtk.Box):
         box.set_margin_bottom(10)
         box.set_margin_start(10)
         box.set_margin_end(10)
-        box.set_size_request(300, -1)
+        box.set_size_request(340, -1)
 
         # Cabecera
         header = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
@@ -456,11 +423,12 @@ class PlayerBar(Gtk.Box):
         header.append(lbl_title)
         box.append(header)
 
-        # Scrolled con la lista de dispositivos
+        # Scrolled con la lista de dispositivos (propagate_natural_height evita corte de interfaz)
         scrolled = Gtk.ScrolledWindow()
         scrolled.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
-        scrolled.set_max_content_height(280)
-        scrolled.set_vexpand(True)
+        scrolled.set_propagate_natural_height(True)
+        scrolled.set_propagate_natural_width(True)
+        scrolled.set_max_content_height(340)
 
         list_box = Gtk.ListBox()
         list_box.add_css_class("boxed-list")
@@ -470,61 +438,43 @@ class PlayerBar(Gtk.Box):
         current_id = self.engine.device_id if self.engine else "default"
 
         for dev in devices:
-            is_active = (dev.id == current_id)
-            row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
-            row.add_css_class("queue-row")
-            row.set_cursor_from_name("pointer")
+            is_active = (dev.id == current_id) or (current_id in ("default", "") and dev.id == "default")
+            row = Adw.ActionRow()
+            row.set_title(dev.name)
 
-            # Icono según dispositivo
-            icon_name = dev.icon_name or "audio-speakers-symbolic"
+            if dev.description and dev.description != dev.name:
+                row.set_subtitle(dev.description)
+
+            # Icono según dispositivo (DAC / tarjeta / HDMI / red, sin redundar con volumen)
+            icon_name = dev.icon_name or "audio-card-symbolic"
             icon = Gtk.Image.new_from_icon_name(icon_name)
             icon.set_pixel_size(18)
-            row.append(icon)
-
-            # Nombre y subtítulo
-            txt_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=1)
-            txt_box.set_hexpand(True)
-
-            name_lbl = Gtk.Label(label=dev.name, xalign=0.0)
-            name_lbl.set_ellipsize(Pango.EllipsizeMode.END)
-            name_lbl.set_max_width_chars(24)
-            if is_active:
-                name_lbl.add_css_class("heading")
-
-            desc = dev.description or ("USB Audio" if dev.is_usb else "Sistema")
-            desc_lbl = Gtk.Label(label=desc, xalign=0.0)
-            desc_lbl.add_css_class("dim-label")
-            desc_lbl.add_css_class("caption")
-            desc_lbl.set_ellipsize(Pango.EllipsizeMode.END)
-            desc_lbl.set_max_width_chars(24)
-
-            txt_box.append(name_lbl)
-            txt_box.append(desc_lbl)
-            row.append(txt_box)
+            row.add_prefix(icon)
 
             if is_active:
-                check_icon = Gtk.Image.new_from_icon_name("emblem-ok-symbolic")
+                check_icon = Gtk.Image.new_from_icon_name("object-select-symbolic")
                 check_icon.add_css_class("accent")
                 check_icon.set_pixel_size(16)
-                row.append(check_icon)
+                row.add_suffix(check_icon)
 
-            gesture = Gtk.GestureClick()
-            def make_click_handler(target_dev):
-                def on_dev_click(*_):
-                    if self.on_device_selected:
-                        self.on_device_selected(target_dev)
-                    elif self.on_device_click:
-                        self.on_device_click()
-                    self.device_popover.popdown()
-                return on_dev_click
-            gesture.connect("released", make_click_handler(dev))
-            row.add_controller(gesture)
+            row.set_activatable(True)
 
+            def make_handler(target_dev):
+                return lambda *_: self._select_device_from_popover(target_dev)
+
+            row.connect("activated", make_handler(dev))
             list_box.append(row)
 
         scrolled.set_child(list_box)
         box.append(scrolled)
         self.device_popover.set_child(box)
+
+    def _select_device_from_popover(self, dev: AudioDevice):
+        if self.on_device_selected:
+            self.on_device_selected(dev)
+        elif self.on_device_click:
+            self.on_device_click()
+        self.device_popover.popdown()
 
     def _toggle_queue_popover(self, *_):
         self._rebuild_queue_popover()

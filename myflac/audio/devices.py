@@ -66,7 +66,7 @@ def get_available_devices(force_refresh: bool = False) -> list[AudioDevice]:
             description=i18n.t("devices.default_desc"),
             is_usb=False,
             is_default=True,
-            icon_name="audio-volume-high-symbolic",
+            icon_name="audio-card-symbolic",
         )
     )
 
