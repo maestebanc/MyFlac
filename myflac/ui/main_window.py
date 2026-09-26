@@ -237,10 +237,8 @@ class MainWindow(Adw.ApplicationWindow):
                         log.info("Restaurando pista de sesión anterior: '%s'", last_track.title)
                         self.inspector.set_track(last_track)
                         self.player_bar.set_track(last_track)
-                        self.engine.load_track(last_track, play_now=False)
                         last_pos = float(self.cfg.get("last_position", 0.0))
-                        if last_pos > 0.0:
-                            GLib.timeout_add(300, lambda: self.engine.seek(last_pos))
+                        self.engine.load_track(last_track, play_now=False, initial_position=last_pos)
                         self.browser.set_current_playing_track(last_track, is_paused=True)
                         restored = True
                 except Exception as e:

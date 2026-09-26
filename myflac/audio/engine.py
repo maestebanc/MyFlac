@@ -42,6 +42,8 @@ class AudioEngine:
         self._level_filter: Gst.Element | None = None
         self._bus: Gst.Bus | None = None
         self._timer_id: int | None = None
+        self._pending_seek: float | None = None
+        self._is_prerolled: bool = False
 
         # Callbacks y Listeners múltiples
         self.on_state_changed: Callable[[PlaybackState], None] | None = None
@@ -177,16 +179,8 @@ class AudioEngine:
         device = find_device_by_id(self.device_id) or get_default_device(self.device_id)
         sink = None
 
-        # Intentar crear pipewiresink con target-object si no es default
-        if Gst.ElementFactory.find("pipewiresink"):
-            sink = Gst.ElementFactory.make("pipewiresink", "pw_sink")
-            if sink and device.id != "default":
-                try:
-                    sink.set_property("target-object", device.id)
-                    log.info("pipewiresink direccionado a target-object='%s' (%s)", device.id, device.name)
-                except Exception as e:
-                    log.warning("No se pudo fijar target-object en pipewiresink: %s", e)
-        elif Gst.ElementFactory.find("pulsesink"):
+        # Priorizar pulsesink (conecta a PipeWire vía pipewire-pulse de forma robusta y sin bloqueos en PAUSED)
+        if Gst.ElementFactory.find("pulsesink"):
             sink = Gst.ElementFactory.make("pulsesink", "pulse_sink")
             if sink and device.id != "default":
                 try:
@@ -194,6 +188,14 @@ class AudioEngine:
                     log.info("pulsesink direccionado a device='%s' (%s)", device.id, device.name)
                 except Exception as e:
                     log.warning("No se pudo fijar device en pulsesink: %s", e)
+        elif Gst.ElementFactory.find("pipewiresink"):
+            sink = Gst.ElementFactory.make("pipewiresink", "pw_sink")
+            if sink and device.id != "default":
+                try:
+                    sink.set_property("target-object", device.id)
+                    log.info("pipewiresink direccionado a target-object='%s' (%s)", device.id, device.name)
+                except Exception as e:
+                    log.warning("No se pudo fijar target-object en pipewiresink: %s", e)
 
         if sink is None:
             sink = Gst.ElementFactory.make("autoaudiosink", "auto_sink")
@@ -215,9 +217,7 @@ class AudioEngine:
         self._init_pipeline()
 
         if curr_track:
-            self.load_track(curr_track, play_now=was_playing)
-            if current_pos > 0:
-                GLib.timeout_add(150, lambda: (self.seek(current_pos), False)[1])
+            self.load_track(curr_track, play_now=was_playing, initial_position=current_pos)
 
     def set_volume(self, vol: float):
         """Ajusta el volumen software (0.0 a 1.0)."""
@@ -225,13 +225,20 @@ class AudioEngine:
         if self._playbin:
             self._playbin.set_property("volume", self.volume)
 
-    def load_track(self, track: AudioTrack, play_now: bool = True):
-        """Carga una pista para reproducción."""
+    def load_track(self, track: AudioTrack, play_now: bool = True, initial_position: float = 0.0):
+        """Carga una pista para reproducción de forma segura y sin bloqueos."""
         self.current_track = track
+        self._pending_seek = initial_position if initial_position > 0.0 else None
+        self._is_prerolled = False
         uri = "file://" + urllib.parse.quote(os.path.abspath(track.filepath))
         log.info("Cargando pista: '%s' (%s) | URI: %s", track.title, track.badge_full, uri)
 
-        self.stop()
+        if not self._playbin:
+            self._init_pipeline()
+
+        self._stop_timer()
+        # En GStreamer playbin3, para cambiar de pista se pasa a READY (no a NULL para evitar reabrir sinks)
+        self._playbin.set_state(Gst.State.READY)
         self._playbin.set_property("uri", uri)
 
         if play_now:
@@ -242,6 +249,8 @@ class AudioEngine:
             self._notify_state_changed()
 
         self._notify_track_changed(track)
+        if initial_position > 0.0:
+            self._notify_position(initial_position, self.get_duration())
 
     def queue_next_track(self, track: AudioTrack | None):
         self.next_track = track
@@ -289,7 +298,9 @@ class AudioEngine:
     def stop(self):
         if not self._playbin:
             return
-        self._playbin.set_state(Gst.State.NULL)
+        self._pending_seek = None
+        self._is_prerolled = False
+        self._playbin.set_state(Gst.State.READY)
         self.state = PlaybackState.STOPPED
         self._stop_timer()
         self._notify_state_changed()
@@ -297,17 +308,42 @@ class AudioEngine:
         self._notify_position(0.0, self.get_duration())
 
     def seek(self, position_seconds: float):
+        """Solicita avanzar o retroceder en la pista actual de forma segura y sin bloqueos."""
         if not self._playbin or self.state == PlaybackState.STOPPED:
             return
+
+        position_seconds = max(0.0, position_seconds)
+        dur = self.get_duration()
+        if dur > 0:
+            position_seconds = min(position_seconds, dur)
+
+        # Si el pipeline aún no ha completado el preroll (ASYNC_DONE), encolar el seek para evitar bloqueos
+        ret, cur, pend = self._playbin.get_state(0)
+        if cur < Gst.State.PAUSED or pend != Gst.State.VOID_PENDING or ret == Gst.StateChangeReturn.ASYNC or not self._is_prerolled:
+            log.debug("Pipeline aún en preroll o transición; encolando seek a %.2fs", position_seconds)
+            self._pending_seek = position_seconds
+            self._notify_position(position_seconds, dur)
+            return
+
+        self._perform_seek(position_seconds)
+
+    def _perform_seek(self, position_seconds: float):
+        """Aplica la operación de seek sobre el pipeline de GStreamer."""
+        if not self._playbin:
+            return
         target_ns = int(max(0.0, position_seconds) * Gst.SECOND)
-        self._playbin.seek_simple(
+        ret = self._playbin.seek_simple(
             Gst.Format.TIME,
             Gst.SeekFlags.FLUSH | Gst.SeekFlags.KEY_UNIT,
             target_ns,
         )
+        if not ret:
+            log.warning("seek_simple a %.2fs no pudo ser despachado por GStreamer", position_seconds)
         self._notify_position(position_seconds, self.get_duration())
 
     def get_position(self) -> float:
+        if self._pending_seek is not None:
+            return self._pending_seek
         if not self._playbin or self.state == PlaybackState.STOPPED:
             return 0.0
         success, pos_ns = self._playbin.query_position(Gst.Format.TIME)
@@ -358,6 +394,13 @@ class AudioEngine:
             self.stop()
             if self.on_track_finished:
                 self.on_track_finished()
+        elif m_type == Gst.MessageType.ASYNC_DONE:
+            self._is_prerolled = True
+            if self._pending_seek is not None:
+                pos = self._pending_seek
+                self._pending_seek = None
+                log.debug("ASYNC_DONE recibido en bus: ejecutando seek encolado a %.2fs", pos)
+                self._perform_seek(pos)
         elif m_type == Gst.MessageType.ELEMENT:
             s = message.get_structure()
             if s and s.get_name() == "level":
