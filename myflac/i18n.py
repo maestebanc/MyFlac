@@ -161,6 +161,11 @@ STRINGS: dict[str, dict[str, str]] = {
         "en": "Online lyrics",
         "ca": "Lletra en línia",
     },
+    "lyrics.source_synced": {
+        "es": "Letra sincronizada",
+        "en": "Synced lyrics",
+        "ca": "Lletra sincronitzada",
+    },
     "app.subtitle": {
         "es": "Biblioteca Audiófila",
         "en": "Audiophile Library",

@@ -23,3 +23,44 @@ def test_cache_round_trip_uses_xdg_cache(tmp_path):
     key = svc._get_cache_key("Artist", "Title")
     svc._write_cache(key, {"lyrics": "hola", "instrumental": False})
     assert svc._read_cache(key)["lyrics"] == "hola"
+
+
+def test_parse_lrc_basic_and_sorted():
+    from myflac.lyrics import parse_lrc
+
+    lrc = "[ar:Queen]\n[ti:Song]\n[00:12.50]Second\n[00:01.00]First\n[01:02.345]Third"
+    assert parse_lrc(lrc) == [(1.0, "First"), (12.5, "Second"), (62.345, "Third")]
+
+
+def test_parse_lrc_multiple_stamps_blank_lines_and_offset():
+    from myflac.lyrics import parse_lrc
+
+    lrc = "[offset:+500]\n[00:10.00][00:30.00]Chorus\n[00:20.00]\n"
+    assert parse_lrc(lrc) == [(9.5, "Chorus"), (19.5, ""), (29.5, "Chorus")]
+
+
+def test_parse_lrc_without_timestamps_returns_none():
+    from myflac.lyrics import parse_lrc
+
+    assert parse_lrc("Just plain text\nno times") is None
+    assert parse_lrc("") is None
+    assert parse_lrc(None) is None
+
+
+def test_best_search_result_prefers_synced_with_matching_duration():
+    from myflac.lyrics import _best_search_result
+
+    results = [
+        {"id": 1, "duration": 240, "syncedLyrics": "[00:01.00]a"},   # otra edición
+        {"id": 2, "duration": 181, "plainLyrics": "a"},
+        {"id": 3, "duration": 180, "syncedLyrics": "[00:01.00]a"},
+    ]
+    assert _best_search_result(results, 180.4)["id"] == 3
+
+
+def test_lrclib_entry_keeps_synced_lyrics():
+    svc = LyricsService()
+    plain, status, synced = svc._lrclib_entry_to_result({"syncedLyrics": "[00:01.00]Hola\n[00:02.00]Adiós"})
+    assert (plain, status) == ("Hola\nAdiós", "ready")
+    assert synced.startswith("[00:01.00]")
+    assert svc._lrclib_entry_to_result({"instrumental": True}) == (None, "instrumental", None)

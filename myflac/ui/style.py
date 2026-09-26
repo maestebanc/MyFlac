@@ -710,6 +710,32 @@ paned > separator:hover {
     text-shadow: 0 2px 16px rgba(0, 0, 0, 0.80);
 }
 
+/* Letra sincronizada: la línea cantada se resalta y el resto queda en segundo plano */
+.super-player-lyrics-text.lyrics-line {
+    line-height: 1.35;
+    padding: 9px 0;
+    transition: color 350ms ease, opacity 350ms ease;
+}
+
+.super-player-lyrics-text.lyrics-line-upcoming {
+    opacity: 0.55;
+}
+
+.super-player-lyrics-text.lyrics-line-past {
+    opacity: 0.30;
+}
+
+.super-player-lyrics-text.lyrics-line-active {
+    opacity: 1.0;
+    color: #38bdf8;
+    text-shadow: 0 0 22px rgba(56, 189, 248, 0.55), 0 2px 16px rgba(0, 0, 0, 0.80);
+}
+
+.super-player-lyrics-text.lyrics-line-past:hover,
+.super-player-lyrics-text.lyrics-line-upcoming:hover {
+    opacity: 0.90;
+}
+
 .super-player-play-btn {
     border-radius: 9999px;
     min-width: 64px;

@@ -653,6 +653,7 @@ class MiniPlayerWindow(SuperPlayerMixin, Adw.Window):
         if not self.get_visible():
             return
         self._current_position = pos
+        self._update_synced_lyrics(pos)
         if not self._is_seeking and self._current_duration > 0.0:
             self.mini_scale.set_value(pos)
             self.super_scale.set_value(pos)

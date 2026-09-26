@@ -4,21 +4,32 @@ Se integra en MiniPlayerWindow como mixin; comparte ventana, motor y estado con 
 """
 from __future__ import annotations
 
+import bisect
 import io
 import os
+import time
 from PIL import Image
 
 import gi
 
 gi.require_version("Gtk", "4.0")
-from gi.repository import Gtk, Pango
+gi.require_version("Adw", "1")
+gi.require_version("Graphene", "1.0")
+from gi.repository import Adw, Graphene, Gtk, Pango
 
 from ..audio.track import AudioTrack
 from ..logger import get_logger
+from ..lyrics import SyncedLyrics
 from .. import i18n
 from .visualizers import OscilloscopeWidget
 
 log = get_logger("ui.super_player")
+
+# Adelanto con el que se resalta cada línea: el ojo lee un instante antes de oír la voz
+LYRICS_LEAD_SECONDS = 0.15
+# Tras un scroll manual, el seguimiento automático de la letra se pausa este tiempo
+LYRICS_MANUAL_SCROLL_PAUSE = 4.0
+LYRICS_SCROLL_DURATION_MS = 450
 
 
 def _extract_ambient_palette(cover_bytes: bytes | None) -> tuple[str, str, str]:
@@ -355,25 +366,8 @@ class SuperPlayerMixin:
         loading_box.append(lbl_loading)
         self.lyrics_stack.add_named(loading_box, "loading")
 
-        # Estado 2: Letra encontrada con scroll fluido y texto flotante
-        scrolled = Gtk.ScrolledWindow()
-        scrolled.add_css_class("super-player-lyrics-scroll")
-        scrolled.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
-        scrolled.set_vexpand(True)
-        scrolled.set_hexpand(True)
-
-        self.super_lyrics_label = Gtk.Label(label="")
-        self.super_lyrics_label.add_css_class("super-player-lyrics-text")
-        self.super_lyrics_label.set_wrap(True)
-        self.super_lyrics_label.set_wrap_mode(Pango.WrapMode.WORD)
-        self.super_lyrics_label.set_width_chars(45)
-        self.super_lyrics_label.set_xalign(0.0)
-        self.super_lyrics_label.set_yalign(0.0)
-        self.super_lyrics_label.set_justify(Gtk.Justification.LEFT)
-        self.super_lyrics_label.set_selectable(True)
-        self.super_lyrics_label.set_margin_end(24)
-        scrolled.set_child(self.super_lyrics_label)
-        self.lyrics_stack.add_named(scrolled, "lyrics")
+        # Estado 2: Letra encontrada; con marcas de tiempo sigue la canción resaltando la línea actual
+        self.lyrics_stack.add_named(self._build_lyrics_view(), "lyrics")
 
         # Estado 3: Pista Instrumental
         inst_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
@@ -495,6 +489,133 @@ class SuperPlayerMixin:
             self.super_wallpaper_picture.set_paintable(None)
             self.super_wallpaper_picture.set_visible(False)
 
+    def _build_lyrics_view(self) -> Gtk.Widget:
+        """Lista de líneas de la letra dentro de un scroll que sigue a la línea cantada."""
+        self._lyrics_synced: SyncedLyrics | None = None
+        self._lyrics_times: list[float] = []
+        self._lyrics_line_labels: list[Gtk.Label] = []
+        self._lyrics_active_index = -1
+        self._lyrics_manual_scroll_until = 0.0
+        self._lyrics_scroll_animation: Adw.TimedAnimation | None = None
+
+        self.lyrics_scrolled = Gtk.ScrolledWindow()
+        self.lyrics_scrolled.add_css_class("super-player-lyrics-scroll")
+        self.lyrics_scrolled.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        self.lyrics_scrolled.set_vexpand(True)
+        self.lyrics_scrolled.set_hexpand(True)
+
+        self.lyrics_lines_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+        self.lyrics_lines_box.set_margin_end(24)
+        self.lyrics_scrolled.set_child(self.lyrics_lines_box)
+
+        # La rueda o el touchpad pausan el seguimiento automático, como en Roon
+        scroll_ctrl = Gtk.EventControllerScroll.new(Gtk.EventControllerScrollFlags.VERTICAL)
+        scroll_ctrl.connect("scroll", self._on_lyrics_manual_scroll)
+        self.lyrics_scrolled.add_controller(scroll_ctrl)
+
+        vadj = self.lyrics_scrolled.get_vadjustment()
+        target = Adw.CallbackAnimationTarget.new(lambda value: vadj.set_value(value))
+        self._lyrics_scroll_animation = Adw.TimedAnimation.new(
+            self.lyrics_scrolled, 0.0, 0.0, LYRICS_SCROLL_DURATION_MS, target
+        )
+        self._lyrics_scroll_animation.set_easing(Adw.Easing.EASE_OUT_CUBIC)
+        return self.lyrics_scrolled
+
+    def _set_lyrics_content(self, plain: str, synced: SyncedLyrics | None):
+        """Crea una etiqueta por línea; con letra sincronizada cada línea sabe cuándo se canta."""
+        child = self.lyrics_lines_box.get_first_child()
+        while child:
+            self.lyrics_lines_box.remove(child)
+            child = self.lyrics_lines_box.get_first_child()
+
+        self._lyrics_synced = synced
+        self._lyrics_times = [t for t, _ in synced] if synced else []
+        self._lyrics_line_labels = []
+        self._lyrics_active_index = -1
+        self._lyrics_manual_scroll_until = 0.0
+
+        entries = synced if synced else [(None, line) for line in plain.splitlines()]
+        for start, text in entries:
+            label = Gtk.Label(label=text or ("♪" if synced else " "))
+            label.add_css_class("super-player-lyrics-text")
+            label.set_wrap(True)
+            label.set_wrap_mode(Pango.WrapMode.WORD)
+            label.set_width_chars(45)
+            label.set_xalign(0.0)
+            label.set_justify(Gtk.Justification.LEFT)
+            if synced:
+                label.add_css_class("lyrics-line")
+                label.add_css_class("lyrics-line-upcoming")
+                # Clic en una línea: saltar a ese momento de la canción
+                click = Gtk.GestureClick()
+                click.connect("released", lambda *_a, t=start: self._on_lyrics_line_clicked(t))
+                label.add_controller(click)
+                label.set_cursor_from_name("pointer")
+            else:
+                label.set_selectable(True)
+            self.lyrics_lines_box.append(label)
+            self._lyrics_line_labels.append(label)
+
+        # Espacio final para que las últimas líneas también puedan quedar centradas
+        self.lyrics_lines_box.set_margin_bottom(320 if synced else 0)
+        self.lyrics_scrolled.get_vadjustment().set_value(0.0)
+        if synced:
+            self._update_synced_lyrics(self.engine.position, animate=False)
+
+    def _update_synced_lyrics(self, position: float, animate: bool = True):
+        """Resalta la línea que se está cantando y la mantiene centrada en el panel."""
+        if not self._lyrics_synced:
+            return
+        index = bisect.bisect_right(self._lyrics_times, position + LYRICS_LEAD_SECONDS) - 1
+        if index == self._lyrics_active_index:
+            return
+
+        # Un salto grande (seek) no se anima para no recorrer toda la letra
+        jump = abs(index - self._lyrics_active_index) > 3
+        self._lyrics_active_index = index
+        for i, label in enumerate(self._lyrics_line_labels):
+            for css in ("lyrics-line-active", "lyrics-line-past", "lyrics-line-upcoming"):
+                label.remove_css_class(css)
+            if i == index:
+                label.add_css_class("lyrics-line-active")
+            elif i < index:
+                label.add_css_class("lyrics-line-past")
+            else:
+                label.add_css_class("lyrics-line-upcoming")
+
+        if time.monotonic() >= self._lyrics_manual_scroll_until:
+            self._scroll_lyrics_to(max(index, 0), animate=animate and not jump)
+
+    def _scroll_lyrics_to(self, index: int, animate: bool = True):
+        if not (0 <= index < len(self._lyrics_line_labels)):
+            return
+        label = self._lyrics_line_labels[index]
+        ok, point = label.compute_point(self.lyrics_lines_box, Graphene.Point())
+        if not ok:
+            return
+        vadj = self.lyrics_scrolled.get_vadjustment()
+        page = vadj.get_page_size()
+        target = point.y + label.get_height() / 2 - page * 0.4
+        target = max(vadj.get_lower(), min(target, vadj.get_upper() - page))
+
+        self._lyrics_scroll_animation.pause()
+        if animate and self.get_mapped():
+            self._lyrics_scroll_animation.set_value_from(vadj.get_value())
+            self._lyrics_scroll_animation.set_value_to(target)
+            self._lyrics_scroll_animation.play()
+        else:
+            vadj.set_value(target)
+
+    def _on_lyrics_manual_scroll(self, *_args) -> bool:
+        if self._lyrics_synced:
+            self._lyrics_manual_scroll_until = time.monotonic() + LYRICS_MANUAL_SCROLL_PAUSE
+            self._lyrics_scroll_animation.pause()
+        return False
+
+    def _on_lyrics_line_clicked(self, start: float):
+        self._lyrics_manual_scroll_until = 0.0
+        self.engine.seek(start)
+
     def _load_lyrics_for_track(self, track: AudioTrack):
         track_id = f"{track.artist}___{track.title}"
         if self._last_lyrics_track_id == track_id:
@@ -507,14 +628,14 @@ class SuperPlayerMixin:
 
         self.lyrics_service.fetch_lyrics(track, self._on_lyrics_loaded)
 
-    def _on_lyrics_loaded(self, lyrics: str | None, status: str):
+    def _on_lyrics_loaded(self, lyrics: str | None, status: str, synced: SyncedLyrics | None = None):
         self.lyrics_spinner.stop()
         if status == "ready" and lyrics:
-            self.super_lyrics_label.set_text(lyrics)
-            self.super_lyrics_label.set_wrap_mode(Pango.WrapMode.WORD)
-            self.super_lyrics_label.set_width_chars(45)
+            self._set_lyrics_content(lyrics, synced)
             self.lyrics_stack.set_visible_child_name("lyrics")
-            self.lyrics_status_label.set_text(i18n.t("lyrics.source_online"))
+            self.lyrics_status_label.set_text(
+                i18n.t("lyrics.source_synced") if synced else i18n.t("lyrics.source_online")
+            )
         elif status == "instrumental":
             self.lyrics_stack.set_visible_child_name("instrumental")
             self.lyrics_status_label.set_text(i18n.t("lyrics.instrumental"))
