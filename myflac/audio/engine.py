@@ -50,6 +50,7 @@ class AudioEngine:
         self._track_listeners: list[Callable[[AudioTrack], None]] = []
         self._level_listeners: list[Callable[[list[float], list[float]], None]] = []
         self.on_position_updated: Callable[[float, float], None] | None = None
+        self._position_listeners: list[Callable[[float, float], None]] = []
         self.on_track_finished: Callable[[], None] | None = None
         self.on_error: Callable[[str], None] | None = None
 
@@ -85,6 +86,21 @@ class AudioEngine:
         """Elimina un listener de niveles de audio previamente registrado."""
         if callback in self._level_listeners:
             self._level_listeners.remove(callback)
+
+    def add_position_listener(self, callback: Callable[[float, float], None]):
+        """Registra un listener para actualizaciones periódicas de posición (pos, dur)."""
+        if callback not in self._position_listeners:
+            self._position_listeners.append(callback)
+
+    def remove_position_listener(self, callback: Callable[[float, float], None]):
+        """Elimina un listener de posición previamente registrado."""
+        if callback in self._position_listeners:
+            self._position_listeners.remove(callback)
+
+    @property
+    def position(self) -> float:
+        """Propiedad de acceso directo a la posición actual de reproducción en segundos."""
+        return self.get_position()
 
     def _notify_level(self, rms: list[float], peak: list[float]):
         """Notifica los niveles de audio en dB a los listeners registrados."""
@@ -278,8 +294,7 @@ class AudioEngine:
         self._stop_timer()
         self._notify_state_changed()
         self._notify_level([-100.0, -100.0], [-100.0, -100.0])
-        if self.on_position_updated:
-            self.on_position_updated(0.0, self.get_duration())
+        self._notify_position(0.0, self.get_duration())
 
     def seek(self, position_seconds: float):
         if not self._playbin or self.state == PlaybackState.STOPPED:
@@ -290,8 +305,7 @@ class AudioEngine:
             Gst.SeekFlags.FLUSH | Gst.SeekFlags.KEY_UNIT,
             target_ns,
         )
-        if self.on_position_updated:
-            self.on_position_updated(position_seconds, self.get_duration())
+        self._notify_position(position_seconds, self.get_duration())
 
     def get_position(self) -> float:
         if not self._playbin or self.state == PlaybackState.STOPPED:
@@ -317,13 +331,24 @@ class AudioEngine:
             GLib.source_remove(self._timer_id)
             self._timer_id = None
 
+    def _notify_position(self, pos: float, dur: float):
+        if self.on_position_updated:
+            try:
+                self.on_position_updated(pos, dur)
+            except Exception as e:
+                log.exception("Error en on_position_updated: %s", e)
+        for listener in list(self._position_listeners):
+            try:
+                listener(pos, dur)
+            except Exception as e:
+                log.exception("Error en position_listener: %s", e)
+
     def _on_timer_tick(self) -> bool:
         if self.state != PlaybackState.PLAYING:
             return False
         pos = self.get_position()
         dur = self.get_duration()
-        if self.on_position_updated:
-            self.on_position_updated(pos, dur)
+        self._notify_position(pos, dur)
         return True
 
     def _on_bus_message(self, _bus: Gst.Bus, message: Gst.Message):

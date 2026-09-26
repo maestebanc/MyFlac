@@ -43,6 +43,7 @@ class MainWindow(Adw.ApplicationWindow):
         self._inhibit_cookie: int = 0
         self.play_queue: list[AudioTrack] = []
         self.mini_player: MiniPlayerWindow | None = None
+        self._initial_startup_done = False
 
         # 1. Base de datos y escáner de biblioteca musical
         self.db = LibraryDB()
@@ -201,7 +202,9 @@ class MainWindow(Adw.ApplicationWindow):
 
     def _on_window_mapped(self):
         self._adjust_paned_position()
-        self._check_library_and_startup()
+        if not self._initial_startup_done:
+            self._initial_startup_done = True
+            self._check_library_and_startup()
 
     def _check_library_and_startup(self):
         """Verifica si hay carpetas en la biblioteca al iniciar la aplicación."""
@@ -592,14 +595,14 @@ class MainWindow(Adw.ApplicationWindow):
             self.mini_player = MiniPlayerWindow(main_window=self, engine=self.engine)
         if self.engine.current_track:
             self.mini_player.set_track(self.engine.current_track)
-        self.set_visible(False)
         self.mini_player.present()
+        self.set_visible(False)
 
     def _on_close_request(self, _window) -> bool:
         log.info("Cerrando aplicación...")
         if self.mini_player:
             try:
-                self.mini_player.destroy()
+                self.mini_player.destroy_window()
             except Exception:
                 pass
             self.mini_player = None

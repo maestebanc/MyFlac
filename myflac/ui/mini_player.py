@@ -21,7 +21,7 @@ if TYPE_CHECKING:
 log = get_logger("ui.mini_player")
 
 
-class MiniPlayerWindow(Gtk.Window):
+class MiniPlayerWindow(Adw.Window):
     """
     Ventana compacta independiente de 500x500 px.
     Muestra la carátula en alta definición a pantalla completa de la ventana
@@ -46,7 +46,6 @@ class MiniPlayerWindow(Gtk.Window):
 
         self._is_seeking = False
         self._current_duration = 0.0
-        self._pos_timer_id: int | None = None
 
         self._build_ui()
         self._connect_engine()
@@ -176,7 +175,11 @@ class MiniPlayerWindow(Gtk.Window):
         bottom_box.append(ctrl_box)
 
         root_overlay.add_overlay(bottom_box)
-        self.set_child(root_overlay)
+
+        # Envolver en WindowHandle para permitir arrastrar la ventana pulsando sobre el fondo
+        handle = Gtk.WindowHandle()
+        handle.set_child(root_overlay)
+        self.set_content(handle)
 
     def _setup_key_controller(self):
         key_ctrl = Gtk.EventControllerKey()
@@ -195,9 +198,15 @@ class MiniPlayerWindow(Gtk.Window):
     def _connect_engine(self):
         self.engine.add_state_listener(self._on_playback_state_changed)
         self.engine.add_track_listener(self._on_track_changed)
+        self.engine.add_position_listener(self._on_position_updated)
         if self.engine.current_track:
             self.set_track(self.engine.current_track)
         self._update_play_button(self.engine.state)
+        # Sincronizar posición actual inmediatamente
+        pos = self.engine.position
+        if self._current_duration > 0.0:
+            self.scale.set_value(pos)
+            self.pos_label.set_text(self._format_sec(pos))
 
     def set_track(self, track: AudioTrack | None):
         if not track:
@@ -225,6 +234,7 @@ class MiniPlayerWindow(Gtk.Window):
             self.cover_picture.set_paintable(texture)
             self.cover_stack.set_visible_child_name("picture")
         else:
+            self.cover_picture.set_paintable(None)
             self.cover_stack.set_visible_child_name("placeholder")
 
     def _on_track_changed(self, track: AudioTrack):
@@ -238,28 +248,12 @@ class MiniPlayerWindow(Gtk.Window):
         icon = "media-playback-pause-symbolic" if is_playing else "media-playback-start-symbolic"
         self.btn_play.set_icon_name(icon)
 
-        if is_playing:
-            self._ensure_pos_timer()
-        else:
-            self._stop_pos_timer()
-
-    def _ensure_pos_timer(self):
-        if self._pos_timer_id is None:
-            self._pos_timer_id = GLib.timeout_add(250, self._update_position)
-
-    def _stop_pos_timer(self):
-        if self._pos_timer_id is not None:
-            GLib.source_remove(self._pos_timer_id)
-            self._pos_timer_id = None
-
-    def _update_position(self) -> bool:
+    def _on_position_updated(self, pos: float, dur: float):
         if not self.get_visible():
-            return False
+            return
         if not self._is_seeking and self._current_duration > 0.0:
-            pos = self.engine.position
             self.scale.set_value(pos)
             self.pos_label.set_text(self._format_sec(pos))
-        return True
 
     def _on_scale_change_value(self, _scale, _scroll_type, value: float) -> bool:
         self.engine.seek(value)
@@ -275,10 +269,19 @@ class MiniPlayerWindow(Gtk.Window):
     def restore_main_window(self):
         """Cierra el mini-reproductor y vuelve a mostrar la ventana principal."""
         log.info("Restaurando ventana principal desde Mini-Reproductor")
-        self._stop_pos_timer()
         self.hide()
         self.main_window.set_visible(True)
         self.main_window.present()
+
+    def destroy_window(self):
+        """Desconecta listeners del motor y destruye la ventana."""
+        try:
+            self.engine.remove_state_listener(self._on_playback_state_changed)
+            self.engine.remove_track_listener(self._on_track_changed)
+            self.engine.remove_position_listener(self._on_position_updated)
+        except Exception:
+            pass
+        self.destroy()
 
     def _on_close_request(self, _window) -> bool:
         self.restore_main_window()
