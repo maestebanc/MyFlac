@@ -11,3 +11,6 @@ dist/
 *.egg-info/
 .coverage
 .flatpak-builder/
+build-dir/
+repo/
+*.flatpak
