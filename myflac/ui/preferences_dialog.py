@@ -15,6 +15,7 @@ from ..library.db import LibraryDB
 from ..library.scanner import LibraryScanner
 from ..logger import get_logger
 from .. import i18n
+from .backdrop import DEFAULT_INTENSITY, MAX_INTENSITY, MIN_INTENSITY
 from .style import apply_theme, apply_ui_scale
 
 log = get_logger("ui.preferences")
@@ -47,6 +48,7 @@ class PreferencesDialog(Adw.PreferencesWindow):
             self.set_transient_for(parent)
 
         self._available_devices = get_available_devices()
+        self._backdrop_save_id = 0
         self._build_ui()
 
         # Listener para actualizar el diálogo si cambia el idioma
@@ -127,6 +129,38 @@ class PreferencesDialog(Adw.PreferencesWindow):
         self.group_ui.add(self.scale_row)
 
         self.page_general.add(self.group_ui)
+
+        # Grupo: Fondo del artista detrás de la biblioteca
+        self.group_backdrop = Adw.PreferencesGroup(
+            title=i18n.t("prefs.backdrop_group"),
+            description=i18n.t("prefs.backdrop_desc"),
+        )
+        self.backdrop_row = Adw.SwitchRow()
+        self.backdrop_row.set_title(i18n.t("prefs.backdrop_enabled"))
+        self.backdrop_row.set_active(self.cfg.get("backdrop_enabled", True))
+        self.backdrop_row.connect("notify::active", self._on_backdrop_enabled_changed)
+        self.group_backdrop.add(self.backdrop_row)
+
+        self.backdrop_intensity_row = Adw.ActionRow()
+        self.backdrop_intensity_row.set_title(i18n.t("prefs.backdrop_intensity"))
+        self.backdrop_intensity_row.set_subtitle(i18n.t("prefs.backdrop_intensity_desc"))
+        self.backdrop_scale = Gtk.Scale.new_with_range(
+            Gtk.Orientation.HORIZONTAL, MIN_INTENSITY, MAX_INTENSITY, 1
+        )
+        self.backdrop_scale.set_value(float(self.cfg.get("backdrop_intensity", DEFAULT_INTENSITY)))
+        self.backdrop_scale.set_draw_value(True)
+        self.backdrop_scale.set_value_pos(Gtk.PositionType.RIGHT)
+        self.backdrop_scale.set_format_value_func(lambda _scale, value: f"{value:.0f} %")
+        self.backdrop_scale.add_mark(DEFAULT_INTENSITY, Gtk.PositionType.BOTTOM, None)
+        self.backdrop_scale.set_size_request(220, -1)
+        self.backdrop_scale.set_valign(Gtk.Align.CENTER)
+        self.backdrop_scale.connect("value-changed", self._on_backdrop_intensity_changed)
+        self.backdrop_intensity_row.add_suffix(self.backdrop_scale)
+        self.backdrop_intensity_row.set_sensitive(self.backdrop_row.get_active())
+        self.group_backdrop.add(self.backdrop_intensity_row)
+
+        self.page_general.add(self.group_backdrop)
+
         self.add(self.page_general)
 
         # =====================================================================
@@ -316,6 +350,11 @@ class PreferencesDialog(Adw.PreferencesWindow):
         self.theme_row.set_model(Gtk.StringList.new(theme_names))
 
     def _on_language_changed(self, _lang: str):
+        self.group_backdrop.set_title(i18n.t("prefs.backdrop_group"))
+        self.group_backdrop.set_description(i18n.t("prefs.backdrop_desc"))
+        self.backdrop_row.set_title(i18n.t("prefs.backdrop_enabled"))
+        self.backdrop_intensity_row.set_title(i18n.t("prefs.backdrop_intensity"))
+        self.backdrop_intensity_row.set_subtitle(i18n.t("prefs.backdrop_intensity_desc"))
         self.set_title(i18n.t("prefs.title"))
         self.page_general.set_title(i18n.t("prefs.general"))
         self.group_lang.set_title(i18n.t("prefs.language"))
@@ -372,6 +411,31 @@ class PreferencesDialog(Adw.PreferencesWindow):
         save_config(self.cfg)
         if self.on_config_changed:
             self.on_config_changed(self.cfg)
+
+    def _on_backdrop_enabled_changed(self, row: Adw.SwitchRow, _param):
+        enabled = row.get_active()
+        self.cfg["backdrop_enabled"] = enabled
+        self.backdrop_intensity_row.set_sensitive(enabled)
+        save_config(self.cfg)
+        if self.on_config_changed:
+            self.on_config_changed(self.cfg)
+
+    def _on_backdrop_intensity_changed(self, scale: Gtk.Scale):
+        value = int(round(scale.get_value()))
+        if value == self.cfg.get("backdrop_intensity"):
+            return
+        self.cfg["backdrop_intensity"] = value
+        # Se aplica al instante mientras se arrastra; se guarda al terminar para no escribir en cada paso
+        if self.on_config_changed:
+            self.on_config_changed(self.cfg)
+        if self._backdrop_save_id:
+            GLib.source_remove(self._backdrop_save_id)
+        self._backdrop_save_id = GLib.timeout_add(400, self._save_backdrop_intensity)
+
+    def _save_backdrop_intensity(self) -> bool:
+        self._backdrop_save_id = 0
+        save_config(self.cfg)
+        return False
 
     def _on_ui_scale_changed(self, row: Adw.SpinRow, _param):
         val = int(row.get_value())

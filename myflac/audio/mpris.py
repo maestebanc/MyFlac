@@ -5,6 +5,7 @@ auriculares Bluetooth, interfaz de bloqueo y bandeja de medios de GNOME Shell.
 """
 from __future__ import annotations
 
+import hashlib
 import os
 from typing import TYPE_CHECKING
 
@@ -93,6 +94,8 @@ class MprisServer:
         # Ruta en caché para la carátula de la pista en reproducción
         cache_dir = os.path.join(GLib.get_user_cache_dir(), "myflac")
         os.makedirs(cache_dir, exist_ok=True)
+        self._cover_dir = cache_dir
+        # Nombre distinto por pista: GNOME cachea las imágenes por su URL y no vería el cambio
         self._cover_cache_path = os.path.join(cache_dir, "current_mpris_cover.png")
         self._has_cached_cover = False
 
@@ -438,8 +441,18 @@ class MprisServer:
             cover_info = track.get_cover_image_bytes()
             if cover_info:
                 data, _ = cover_info
-                with open(self._cover_cache_path, "wb") as f:
-                    f.write(data)
+                name = f"mpris-cover-{hashlib.sha1(data).hexdigest()[:16]}.img"
+                path = os.path.join(self._cover_dir, name)
+                if path != self._cover_cache_path:
+                    old = self._cover_cache_path
+                    with open(path, "wb") as f:
+                        f.write(data)
+                    self._cover_cache_path = path
+                    if os.path.basename(old).startswith(("mpris-cover-", "current_mpris_cover")):
+                        try:
+                            os.remove(old)
+                        except OSError:
+                            pass
                 self._has_cached_cover = True
         except Exception as e:
             log.warning("No se pudo cachear carátula para MPRIS: %s", e)
@@ -456,11 +469,12 @@ class MprisServer:
 
     def _action_raise(self):
         if self.window:
-            self.window.present()
+            self.window.show_main_view()
 
     def _action_quit(self):
+        # Cierre ordenado: guardar configuración y liberar el DAC en modo exclusivo
         app = self.window.get_application()
         if app:
-            app.quit()
+            app.activate_action("quit")
         else:
             self.window.close()

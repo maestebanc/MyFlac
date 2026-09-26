@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
+  <!-- Disco con una nota: icono monocromo de MyFlac para la barra superior -->
+  <path fill="#222222" d="M8 0.5a7.5 7.5 0 1 0 0 15a7.5 7.5 0 0 0 0-15zm0 1.5a6 6 0 1 1 0 12a6 6 0 0 1 0-12z"/>
+  <path fill="#222222" d="M10.5 3.5l-4 1v4.75a1.75 1.75 0 1 0 1.25 1.68V6.5l2.75-0.7v2.95a1.75 1.75 0 1 0 1.25 1.68V3.5z"/>
+</svg>

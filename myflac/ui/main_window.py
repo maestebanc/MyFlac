@@ -13,17 +13,27 @@ from ..audio.engine import AudioEngine, PlaybackState
 from ..audio.track import AudioTrack, load_track
 from ..audio.mpris import MprisServer
 from ..config import save_config
+from ..hires_cover import HiResCoverService
+from ..music_info import MusicInfoService
 from ..constants import APP_ID, APP_NAME
 from ..library.db import LibraryDB
 from ..library.scanner import LibraryScanner
 from ..logger import get_logger
 from .. import i18n
+from .backdrop import DEFAULT_INTENSITY, ArtistBackdrop
 from .column_browser import ColumnBrowserView
+from .cover_popup import CoverPopup
+from .shortcuts import build_shortcuts_dialog, handle_playback_key
 from .device_popover import DeviceSelectionDialog
 from .inspector_panel import InspectorPanel
 from .library_setup_dialog import LibrarySetupDialog
 from .mini_player import MiniPlayerWindow
 from .player_bar import PlayerBar
+
+# Altura por defecto (px) de los paneles Artista/Álbum sobre la lista de temas
+DEFAULT_BROWSER_SPLIT = 430
+# Segundos que debe sonar una pista antes de precargar sus fichas
+INFO_PREFETCH_DELAY = 8
 
 log = get_logger("ui.main_window")
 
@@ -182,7 +192,13 @@ class MainWindow(Adw.ApplicationWindow):
             on_play_next_queue=self._on_play_next_queue,
             on_add_to_queue=self._on_add_to_queue,
         )
-        self.paned.set_start_child(self.browser)
+        # La biblioteca, con la foto del artista en reproducción desenfocada de fondo
+        self.library_backdrop = ArtistBackdrop(
+            self.browser,
+            enabled=self.cfg.get("backdrop_enabled", True),
+            intensity=self.cfg.get("backdrop_intensity", DEFAULT_INTENSITY),
+        )
+        self.paned.set_start_child(self.library_backdrop)
 
         # Panel Inspector de audio con visualizadores en tiempo real
         self.inspector = InspectorPanel(engine=self.engine)
@@ -204,7 +220,7 @@ class MainWindow(Adw.ApplicationWindow):
         self.player_bar.on_queue_track_removed = self._on_remove_from_queue
         self.player_bar.on_device_selected = self._on_device_selected
         self.player_bar.on_exclusive_toggled = self._on_exclusive_toggled
-        self.player_bar.on_mini_player_requested = self._open_mini_player
+        self.player_bar.on_cover_clicked = self._toggle_cover_popup
 
         # Contenedor inferior: Barra de progreso azul no obstructiva + Barra del reproductor
         self.bottom_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
@@ -222,7 +238,32 @@ class MainWindow(Adw.ApplicationWindow):
         self.toolbar_view.add_bottom_bar(self.bottom_box)
         self.toast_overlay = Adw.ToastOverlay()
         self.toast_overlay.set_child(self.toolbar_view)
-        self.set_content(self.toast_overlay)
+
+        # Portada a gran tamaño superpuesta a toda la ventana (clic en la mini carátula de la barra)
+        self.cover_popup = CoverPopup()
+        root_overlay = Gtk.Overlay()
+        root_overlay.set_child(self.toast_overlay)
+        root_overlay.add_overlay(self.cover_popup)
+        self.set_content(root_overlay)
+        self._setup_browser_split()
+
+    # -------------------------------------------------------------------------
+    # Altura de los paneles Artista/Álbum: fija por defecto; si el usuario mueve el divisor,
+    # su posición se guarda como preferencia
+    # -------------------------------------------------------------------------
+    def _setup_browser_split(self):
+        self._split_moved_by_user = False
+        v_paned = self.browser.v_paned
+        v_paned.set_position(int(self.cfg.get("browser_split_position", DEFAULT_BROWSER_SPLIT)))
+        drag = Gtk.GestureDrag()
+        drag.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
+        drag.connect("drag-begin", self._on_split_drag_begin)
+        v_paned.add_controller(drag)
+
+    def _on_split_drag_begin(self, _gesture, _x, y):
+        # Solo cuenta si el arrastre empieza sobre el divisor (no en las listas)
+        if abs(y - self.browser.v_paned.get_position()) <= 8:
+            self._split_moved_by_user = True
 
     def _on_window_mapped(self):
         self._adjust_paned_position()
@@ -362,6 +403,7 @@ class MainWindow(Adw.ApplicationWindow):
         """Construye el menú de la aplicación con los textos traducidos."""
         menu = Gio.Menu()
         menu.append(i18n.t("menu.preferences"), "app.preferences")
+        menu.append(i18n.t("menu.shortcuts"), "app.shortcuts")
         menu.append(i18n.t("menu.view_log"), "app.open_log")
         menu.append(i18n.t("menu.about"), "app.about")
         self.menu_btn.set_menu_model(menu)
@@ -392,12 +434,11 @@ class MainWindow(Adw.ApplicationWindow):
             log.debug("Atajo teclado: F11 -> super player a pantalla completa")
             self._open_super_player()
             return True
-        if keyval == Gdk.KEY_space:
-            focus = self.get_focus()
-            if not isinstance(focus, (Gtk.Entry, Gtk.SearchEntry, Gtk.Editable)):
-                log.debug("Atajo teclado: Espacio -> toggle play/pause")
-                self._toggle_play_pause()
-                return True
+        if keyval == Gdk.KEY_Escape and self.cover_popup.is_open:
+            self.cover_popup.close()
+            return True
+        if handle_playback_key(self, self, keyval, state):
+            return True
         if keyval in (Gdk.KEY_r, Gdk.KEY_R) and (state & Gdk.ModifierType.CONTROL_MASK):
             log.debug("Atajo teclado: Ctrl+R -> escanear biblioteca")
             self._trigger_library_scan(quick=True, silent=False)
@@ -409,6 +450,69 @@ class MainWindow(Adw.ApplicationWindow):
                 self.search_entry.grab_focus()
             return True
         return False
+
+    # -------------------------------------------------------------------------
+    # Acciones de los atajos de teclado (ver ui/shortcuts.py)
+    # -------------------------------------------------------------------------
+    def shortcut_handlers(self) -> dict:
+        return {
+            "view-main": self.show_main_view,
+            "view-mini": self.show_mini_view,
+            "view-super": self._open_super_player,
+            "toggle-cover-mode": self.inspector.cycle_visualizer_mode,
+            "show-cover": self._shortcut_show_cover,
+            "shuffle": lambda: self.player_bar.shuffle_btn.set_active(not self.player_bar.shuffle_btn.get_active()),
+            "repeat": self._cycle_repeat_mode,
+            "mute": self.toggle_mute,
+            "exclusive": lambda: self._on_exclusive_toggled(not self.engine.exclusive),
+            "shortcuts": self.show_shortcuts,
+        }
+
+    def show_main_view(self):
+        if self.mini_player and self.mini_player.get_visible():
+            self.mini_player.restore_main_window()
+        else:
+            self.present()
+
+    def show_mini_view(self):
+        if self.mini_player and self.mini_player.get_visible():
+            self.mini_player.present_mini_player()
+        else:
+            self._open_mini_player()
+
+    def _shortcut_show_cover(self):
+        # La portada a gran tamaño se superpone a la ventana principal
+        if self.get_visible():
+            self._toggle_cover_popup()
+
+    def show_shortcuts(self):
+        parent = self.mini_player if self.mini_player and self.mini_player.get_visible() else self
+        build_shortcuts_dialog().present(parent)
+
+    def seek_relative(self, delta: float):
+        if self.engine.current_track:
+            duration = self.engine.get_duration()
+            target = max(0.0, self.engine.position + delta)
+            self.engine.seek(min(target, duration - 0.5) if duration > 0 else target)
+
+    def set_volume(self, value: float):
+        """Ajusta el volumen desde un atajo, sincronizando los controles de todas las vistas."""
+        if self.engine.exclusive_active:
+            return  # En exclusivo el volumen está fijo a 0 dB
+        value = max(0.0, min(1.0, value))
+        self.player_bar.vol_scale.set_value(value)
+        if self.mini_player:
+            self.mini_player.super_vol_scale.set_value(value)
+
+    def change_volume(self, delta: float):
+        self.set_volume(self.engine.volume + delta)
+
+    def toggle_mute(self):
+        if self.engine.volume > 0.0:
+            self._volume_before_mute = self.engine.volume
+            self.set_volume(0.0)
+        else:
+            self.set_volume(getattr(self, "_volume_before_mute", 0.8) or 0.8)
 
     def _toggle_fullscreen(self):
         """Alterna el modo de pantalla completa de la ventana principal."""
@@ -457,10 +561,21 @@ class MainWindow(Adw.ApplicationWindow):
         self.browser.set_current_playing_track(track, is_paused=is_paused)
         self.inspector.set_track(track)
         self.player_bar.set_track(track)
+        self.library_backdrop.set_artist(track.artist)
+        # Precargar la portada en alta resolución para que el zoom de portada sea inmediato
+        HiResCoverService.get_default().prefetch(track)
+        # Las fichas (Wikipedia y Discogs) se precargan si la pista sigue sonando unos segundos:
+        # así no se gastan peticiones al saltar de canción en canción
+        GLib.timeout_add_seconds(INFO_PREFETCH_DELAY, self._prefetch_info, track)
         if self.mini_player:
             self.mini_player.set_track(track)
         self._prepare_gapless_next()
         self._update_output_status()
+
+    def _prefetch_info(self, track: AudioTrack) -> bool:
+        if self.engine.current_track is track:
+            MusicInfoService.get_default().prefetch(track, i18n.get_language())
+        return False
 
     def _on_play_next_queue(self, track: AudioTrack):
         """Inserta la pista al principio de la cola para ser la siguiente en reproducir."""
@@ -631,6 +746,11 @@ class MainWindow(Adw.ApplicationWindow):
         self.engine.set_device(dev.id)
         self._update_output_status()
 
+    def apply_backdrop_settings(self):
+        """Aplica al instante los ajustes del fondo del artista desde Preferencias."""
+        self.library_backdrop.set_enabled(self.cfg.get("backdrop_enabled", True))
+        self.library_backdrop.set_intensity(self.cfg.get("backdrop_intensity", DEFAULT_INTENSITY))
+
     def _on_exclusive_toggled(self, enabled: bool):
         log.info("Usuario cambió el modo exclusivo a: %s", enabled)
         self.cfg["exclusive_mode"] = enabled
@@ -648,6 +768,12 @@ class MainWindow(Adw.ApplicationWindow):
         self.cfg["visualizer_mode"] = mode
         if self.mini_player:
             self.mini_player.set_visualizer_mode(mode, save=False)
+
+    def _toggle_cover_popup(self):
+        if self.cover_popup.is_open:
+            self.cover_popup.close()
+        elif not self.cover_popup.open_for_track(self.engine.current_track):
+            log.info("La pista actual no tiene portada que mostrar a gran tamaño")
 
     def _open_mini_player(self):
         """Activa el modo Mini-Reproductor (500x500) y oculta la ventana principal."""
@@ -672,7 +798,19 @@ class MainWindow(Adw.ApplicationWindow):
         self.set_visible(False)
 
     def _on_close_request(self, _window) -> bool:
+        app = self.get_application()
+        if app and not app.quitting and app.can_run_in_background():
+            # Como Spotify: cerrar la ventana la oculta y la música sigue; se sale con "Salir"
+            log.info("Ventana principal oculta; MyFlac sigue en la barra superior")
+            if self.mini_player and self.mini_player.get_visible():
+                self.mini_player.set_visible(False)
+            self.set_visible(False)
+            return True
         log.info("Cerrando aplicación...")
+        # El icono de la barra superior y su ventanita no deben mantener viva la aplicación
+        tray = getattr(self.get_application(), "tray", None)
+        if tray is not None:
+            tray.shutdown()
         if self.mini_player:
             try:
                 self.mini_player.destroy_window()
@@ -700,6 +838,8 @@ class MainWindow(Adw.ApplicationWindow):
         self.cfg["window_width"] = w
         self.cfg["window_height"] = h
         self.cfg["window_maximized"] = self.is_maximized()
+        if self._split_moved_by_user:
+            self.cfg["browser_split_position"] = self.browser.v_paned.get_position()
         self.cfg["software_volume"] = self.engine.volume
         save_config(self.cfg)
         log.info("Configuración final guardada. Adiós.")

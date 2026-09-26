@@ -6,6 +6,9 @@ mayor prioridad, WirePlumber cierra el dispositivo y lo deja libre para acceso e
 """
 from __future__ import annotations
 
+import glob
+import time
+
 import gi
 
 gi.require_version("Gio", "2.0")
@@ -39,6 +42,31 @@ _ALREADY_OWNER = 4
 
 # WirePlumber reserva con prioridad -20; cualquier valor mayor le obliga a liberar
 RESERVE_PRIORITY = 10
+
+
+def wait_until_pcm_closed(card: int, device: int, timeout: float = 2.0) -> bool:
+    """
+    Espera a que nadie tenga abierto el PCM de reproducción hw:card,device. Al ceder la reserva,
+    WirePlumber cierra la tarjeta de forma asíncrona: abrirla antes da "Device or resource busy".
+    """
+    paths = glob.glob(f"/proc/asound/card{card}/pcm{device}p/sub*/status")
+    if not paths:
+        return True  # Sin /proc/asound no se puede comprobar; se intentará abrir igualmente
+    deadline = time.monotonic() + timeout
+    while True:
+        busy = False
+        for path in paths:
+            try:
+                with open(path, encoding="utf-8") as f:
+                    busy = busy or f.readline().strip() != "closed"
+            except OSError:
+                pass
+        if not busy:
+            return True
+        if time.monotonic() >= deadline:
+            log.warning("hw:%d,%d sigue abierto por otro proceso tras %.1fs", card, device, timeout)
+            return False
+        time.sleep(0.02)
 
 
 class AudioDeviceReservation:

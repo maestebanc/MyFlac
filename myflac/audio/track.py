@@ -11,6 +11,11 @@ from ..logger import get_logger
 
 log = get_logger("audio.track")
 
+# Versión del lector de metadatos. Se incrementa cuando load_track cambia lo que extrae de los
+# archivos: el escáner relee entonces toda la biblioteca una vez, aunque los archivos no cambien.
+# 2: etiquetas ID3 en MP3/WAV y FLAC con etiquetas incompletas (antes quedaban sin artista/álbum)
+METADATA_VERSION = 2
+
 
 @dataclass
 class AudioTrack:

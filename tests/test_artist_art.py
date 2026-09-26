@@ -97,3 +97,79 @@ def test_wikipedia_follows_normalization_to_bare_title():
         ],
     }
     assert _pick_wikipedia_thumbnail(["björk"], query) == "https://img/bjork.jpg"
+
+
+def test_backdrop_blur_and_tint(tmp_path):
+    from PIL import Image
+
+    from myflac.ui.backdrop import blur_artist_image, scrim_color, scrim_opacity
+
+    path = tmp_path / "artist.jpg"
+    Image.new("RGB", (1000, 1000), (200, 40, 40)).save(path)
+    png, average = blur_artist_image(str(path))
+    assert png.startswith(b"\x89PNG")
+    assert average[0] > 150 and average[1] < 80
+
+    dark = scrim_color(average, dark=True, intensity=42)
+    assert dark.startswith("rgba(") and dark.endswith("0.58)")
+    # El tinte rojo se nota, pero la capa sigue siendo oscura
+    r, g, b = (int(v) for v in dark[5:].split(",")[:3])
+    assert r > g and max(r, g, b) < 60
+    assert scrim_color(None, dark=False, intensity=42) == "rgba(250, 250, 251, 0.62)"
+    # Por defecto, intensidad 10 %: capa del 90 % (94 % en tema claro)
+    assert scrim_color(None, dark=True).endswith("0.9)") and scrim_color(None, dark=False).endswith("0.94)")
+
+
+def test_backdrop_intensity_maps_to_scrim_opacity():
+    from myflac.ui.backdrop import scrim_opacity
+
+    assert scrim_opacity(42, dark=True) == 0.58
+    assert scrim_opacity(80, dark=True) == 0.2
+    # Fuera de rango se limita a 10-80 %
+    assert scrim_opacity(0, dark=True) == 0.9
+    assert scrim_opacity(100, dark=True) == 0.2
+    assert scrim_opacity(10, dark=False) == 0.94
+
+
+def test_hires_same_image_detection():
+    from PIL import Image, ImageDraw, ImageEnhance, ImageOps
+
+    from myflac.hires_cover import is_same_image
+
+    def cover(color, text_pos, frame=0):
+        img = Image.new("RGB", (500, 500), color)
+        draw = ImageDraw.Draw(img)
+        draw.rectangle((60, 60, 300, 200), fill=(250, 250, 250))
+        draw.ellipse((text_pos, 250, text_pos + 180, 430), fill=(10, 10, 10))
+        return ImageOps.expand(img.resize((500 - 2 * frame,) * 2), frame, (0, 0, 0)) if frame else img
+
+    original = cover((180, 30, 40), 100)
+    big = original.resize((1400, 1400), Image.Resampling.LANCZOS)
+    # La misma imagen más grande, con otra corrección de brillo o un marco fino, se acepta
+    assert is_same_image(original, big)
+    assert is_same_image(original, ImageEnhance.Brightness(big).enhance(1.25))
+    assert is_same_image(original, cover((180, 30, 40), 100, frame=12))
+    # Otra composición, una edición recoloreada o la misma recortada a otro formato, se rechaza
+    other = Image.new("RGB", (500, 500), (180, 30, 40))
+    draw = ImageDraw.Draw(other)
+    draw.rectangle((200, 300, 440, 440), fill=(250, 250, 250))
+    draw.ellipse((40, 40, 220, 220), fill=(10, 10, 10))
+    assert not is_same_image(original, other)
+    assert not is_same_image(original, cover((250, 240, 60), 100))
+    assert not is_same_image(original, big.crop((0, 0, 1400, 1000)))
+
+
+def test_hires_rejects_relayout_of_mostly_white_cover():
+    from PIL import Image, ImageDraw
+
+    from myflac.hires_cover import is_same_image
+
+    # Caso real ("Please" de Pet Shop Boys): portada casi blanca y su reedición con la foto más
+    # grande. Casi todos los píxeles coinciden, pero no es la misma imagen
+    def white_cover(box):
+        img = Image.new("RGB", (500, 500), (250, 250, 250))
+        ImageDraw.Draw(img).rectangle(box, fill=(190, 150, 130))
+        return img
+
+    assert not is_same_image(white_cover((225, 225, 275, 270)), white_cover((190, 180, 330, 310)))
+    assert is_same_image(white_cover((225, 225, 275, 270)), white_cover((225, 225, 275, 270)).resize((1400, 1400)))

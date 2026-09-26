@@ -15,6 +15,8 @@ finish-args:
   # frente a PipeWire mediante org.freedesktop.ReserveDevice1 (own incluye talk)
   - --device=all
   - --own-name=org.freedesktop.ReserveDevice1.*
+  # Icono en la barra superior (StatusNotifierItem, extensión AppIndicator de GNOME)
+  - --talk-name=org.kde.StatusNotifierWatcher
   # Conexión de red para letras online (LRCLIB) y fotos de artista (Deezer / Wikipedia)
   - --share=network
   # Acceso de lectura a la carpeta de música y directorio de usuario
@@ -50,6 +52,7 @@ modules:
       - install -Dm644 data/com.maestebanc.MyFlac.metainfo.xml /app/share/metainfo/com.maestebanc.MyFlac.metainfo.xml
       - for size in 16 22 24 32 48 64 128 256 512; do install -Dm644 data/icons/hicolor/${size}x${size}/apps/com.maestebanc.MyFlac.png /app/share/icons/hicolor/${size}x${size}/apps/com.maestebanc.MyFlac.png; done
       - install -Dm644 data/icons/hicolor/scalable/apps/com.maestebanc.MyFlac.svg /app/share/icons/hicolor/scalable/apps/com.maestebanc.MyFlac.svg
+      - install -Dm644 data/icons/hicolor/symbolic/apps/com.maestebanc.MyFlac-symbolic.svg /app/share/icons/hicolor/symbolic/apps/com.maestebanc.MyFlac-symbolic.svg
     sources:
       - type: dir
         path: .

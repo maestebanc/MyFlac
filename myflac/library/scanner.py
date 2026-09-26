@@ -9,7 +9,7 @@ import gi
 gi.require_version("GLib", "2.0")
 from gi.repository import GLib
 
-from ..audio.track import AudioTrack, load_track
+from ..audio.track import METADATA_VERSION, AudioTrack, load_track
 from ..constants import SUPPORTED_EXTENSIONS
 from ..logger import get_logger
 from .db import LibraryDB
@@ -86,10 +86,20 @@ class LibraryScanner:
         quick: bool,
         on_progress: Callable[[int, int], None] | None,
     ) -> dict:
+        # Si la biblioteca se leyó con un lector de metadatos anterior, releer todo una vez:
+        # el escaneo rápido se saltaría los archivos sin cambios y conservaría sus datos incompletos
+        upgrading = quick and self.db.get_metadata_version() < METADATA_VERSION
+        if upgrading:
+            log.info(
+                "Biblioteca escaneada con el lector de metadatos v%d (actual v%d): releyendo todos los archivos",
+                self.db.get_metadata_version(), METADATA_VERSION,
+            )
+            quick = False
         log.info("Iniciando escaneo de biblioteca (quick=%s) en: %s", quick, folders)
 
         # 1. Obtener caché de archivos existentes en la base de datos
-        cache = self.db.get_file_cache() if quick else {}
+        # Se carga siempre para detectar archivos borrados; solo el modo rápido la usa para saltar archivos
+        cache = self.db.get_file_cache()
         log.debug("Caché de base de datos cargada con %d archivos", len(cache))
 
         seen_paths: set[str] = set()
@@ -181,6 +191,9 @@ class LibraryScanner:
             batch.clear()
             if on_progress:
                 GLib.idle_add(on_progress, processed, total_to_parse)
+
+        if upgrading and not self._stop_event.is_set():
+            self.db.set_metadata_version(METADATA_VERSION)
 
         return {
             "added_or_updated": processed,

@@ -17,6 +17,7 @@ from ..logger import get_logger
 from ..lyrics import LyricsService
 from ..artist_art import ArtistArtService
 from .. import i18n
+from .shortcuts import handle_playback_key
 from .super_player import SuperPlayerMixin
 from .visualizers import OscilloscopeWidget
 
@@ -44,7 +45,7 @@ class MiniPlayerWindow(SuperPlayerMixin, Adw.Window):
         super().__init__()
         self.main_window = main_window
         self.engine = engine
-        self.lyrics_service = LyricsService()
+        self.lyrics_service = LyricsService.get_default()
         self.artist_art_service = ArtistArtService.get_default()
         self._current_artist_image: str | None = None
         self._last_artist_searched: str | None = None
@@ -145,6 +146,8 @@ class MiniPlayerWindow(SuperPlayerMixin, Adw.Window):
         ph_icon.set_opacity(0.35)
         placeholder.append(ph_icon)
         self.mini_cover_stack.add_named(placeholder, "placeholder")
+        self.mini_artist_picture = self._make_artist_picture(500)
+        self.mini_cover_stack.add_named(self.mini_artist_picture, "artist")
         self.mini_cover_stack.set_visible_child_name("placeholder")
 
         root_overlay.set_child(self.mini_cover_stack)
@@ -333,7 +336,10 @@ class MiniPlayerWindow(SuperPlayerMixin, Adw.Window):
         self.toggle_oscilloscope_mode()
 
     def set_visualizer_mode(self, mode: int, save: bool = True):
-        """Establece el modo del osciloscopio (0: activo, 1: limpio) y sincroniza con todos los reproductores."""
+        """
+        Establece el modo de la portada y lo sincroniza con el inspector:
+        0: portada con osciloscopio (portada limpia en pausa); 1: foto del artista.
+        """
         self._oscilloscope_mode = mode % 2
         is_active = (self._oscilloscope_mode == 0)
         is_playing = (self.engine.state == PlaybackState.PLAYING)
@@ -345,6 +351,7 @@ class MiniPlayerWindow(SuperPlayerMixin, Adw.Window):
         self.super_scope.set_active(is_active)
         self.super_scope.set_playing(is_playing)
         self.super_scope.set_visible(is_active and is_playing)
+        self._refresh_player_cover_views()
 
         # Sincronizar con el panel inspector de la ventana principal
         if hasattr(self.main_window, "inspector") and self.main_window.inspector:
@@ -362,11 +369,11 @@ class MiniPlayerWindow(SuperPlayerMixin, Adw.Window):
                 log.warning("No se pudo guardar visualizer_mode desde MiniPlayer: %s", e)
 
     def toggle_oscilloscope_mode(self):
-        """Conmuta entre Modo 0 (Osciloscopio superpuesto) y Modo 1 (Portada limpia) y persiste."""
+        """Conmuta entre Modo 0 (portada con osciloscopio) y Modo 1 (foto del artista) y persiste."""
         new_mode = 1 if self._oscilloscope_mode == 0 else 0
         log.info(
             "Conmutando visualizador: %s",
-            "Osciloscopio activo" if new_mode == 0 else "Portada Limpia HD",
+            "Portada con osciloscopio" if new_mode == 0 else "Foto del artista",
         )
         self.set_visualizer_mode(new_mode, save=True)
 
@@ -502,7 +509,7 @@ class MiniPlayerWindow(SuperPlayerMixin, Adw.Window):
         self.show_hud()
         self.reset_hud_timeout(3.0)
 
-    def _on_key_pressed(self, _ctrl, keyval, _keycode, _state) -> bool:
+    def _on_key_pressed(self, _ctrl, keyval, _keycode, state) -> bool:
         if keyval == Gdk.KEY_F11:
             if self.is_fullscreen():
                 self._on_super_restore_clicked()
@@ -515,10 +522,7 @@ class MiniPlayerWindow(SuperPlayerMixin, Adw.Window):
             else:
                 self.restore_main_window()
             return True
-        elif keyval == Gdk.KEY_space:
-            self.main_window._toggle_play_pause()
-            return True
-        return False
+        return handle_playback_key(self.main_window, self, keyval, state)
 
     def _on_shuffle_toggle(self, btn: Gtk.ToggleButton):
         active = btn.get_active()
@@ -556,13 +560,12 @@ class MiniPlayerWindow(SuperPlayerMixin, Adw.Window):
         if not track:
             self.mini_title_label.set_text(i18n.t("inspector.no_playback"))
             self.mini_sub_label.set_text("")
-            self.mini_cover_stack.set_visible_child_name("placeholder")
+            self._set_player_cover_child("placeholder")
 
             self.super_title_label.set_text(i18n.t("inspector.no_playback"))
             self.super_artist_label.set_text("")
             self.super_album_label.set_text("")
             self.super_badge_label.set_text("")
-            self.super_cover_stack.set_visible_child_name("placeholder")
             self.lyrics_stack.set_visible_child_name("not_found")
             self._update_ambient_background(None)
             self._on_artist_image_loaded(None)
@@ -603,15 +606,13 @@ class MiniPlayerWindow(SuperPlayerMixin, Adw.Window):
             gbytes = GLib.Bytes.new(data)
             texture = Gdk.Texture.new_from_bytes(gbytes)
             self.mini_cover_picture.set_paintable(texture)
-            self.mini_cover_stack.set_visible_child_name("picture")
             self.super_cover_picture.set_paintable(texture)
-            self.super_cover_stack.set_visible_child_name("picture")
+            self._set_player_cover_child("picture")
             self._update_ambient_background(data)
         else:
             self.mini_cover_picture.set_paintable(None)
-            self.mini_cover_stack.set_visible_child_name("placeholder")
             self.super_cover_picture.set_paintable(None)
-            self.super_cover_stack.set_visible_child_name("placeholder")
+            self._set_player_cover_child("placeholder")
             self._update_ambient_background(None)
 
         # Cargar letra
@@ -653,7 +654,7 @@ class MiniPlayerWindow(SuperPlayerMixin, Adw.Window):
         if not self.get_visible():
             return
         self._current_position = pos
-        self._update_synced_lyrics(pos)
+        self.super_lyrics_view.update_position(pos)
         if not self._is_seeking and self._current_duration > 0.0:
             self.mini_scale.set_value(pos)
             self.super_scale.set_value(pos)
@@ -695,7 +696,6 @@ class MiniPlayerWindow(SuperPlayerMixin, Adw.Window):
     def restore_main_window(self):
         """Cierra el mini/super-reproductor y vuelve a mostrar la ventana principal."""
         log.info("Restaurando ventana principal desde Reproductor")
-        self.lyrics_service.cancel_current()
         if self._hud_timeout_id is not None:
             GLib.source_remove(self._hud_timeout_id)
             self._hud_timeout_id = None
@@ -710,7 +710,6 @@ class MiniPlayerWindow(SuperPlayerMixin, Adw.Window):
 
     def destroy_window(self):
         """Desconecta listeners del motor y destruye la ventana."""
-        self.lyrics_service.cancel_current()
         if self._hud_timeout_id is not None:
             GLib.source_remove(self._hud_timeout_id)
             self._hud_timeout_id = None

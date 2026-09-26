@@ -92,6 +92,15 @@ class LibraryDB:
     # -------------------------------------------------------------------------
     # Gestión de carpetas de biblioteca
     # -------------------------------------------------------------------------
+    def get_metadata_version(self) -> int:
+        """Versión del lector de metadatos con la que se escaneó la biblioteca (0 si nunca)."""
+        with self._lock, self._get_connection() as conn:
+            return conn.execute("PRAGMA user_version;").fetchone()[0]
+
+    def set_metadata_version(self, version: int) -> None:
+        with self._lock, self._get_connection() as conn:
+            conn.execute(f"PRAGMA user_version = {int(version)};")
+
     def get_library_folders(self) -> list[str]:
         with self._lock, self._get_connection() as conn:
             cur = conn.execute("SELECT path FROM library_folders ORDER BY path ASC;")

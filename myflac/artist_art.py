@@ -113,35 +113,28 @@ class ArtistArtService:
             os.makedirs(self._cache_dir, exist_ok=True)
         except OSError as e:
             log.warning("No se pudo crear la caché de artistas %s: %s", self._cache_dir, e)
-        self._current_request_id = 0
-        self._lock = threading.Lock()
+        # Búsquedas en curso por artista: varios consumidores (Super-Reproductor, fondo de la
+        # biblioteca) comparten una sola descarga y cada uno descarta lo que ya no le interesa
+        self._pending: dict[str, list[Callable[[str | None], None]]] = {}
 
     def _get_cache_key(self, artist: str) -> str:
         norm = artist.strip().lower()
         return hashlib.sha256(norm.encode("utf-8")).hexdigest()
 
-    def _is_current(self, req_id: int) -> bool:
-        with self._lock:
-            return req_id == self._current_request_id
-
     def fetch_artist_image(
         self,
         artist: str,
         callback: Callable[[str | None], None],
-    ) -> int:
+    ) -> None:
         """
         Inicia la búsqueda asíncrona de la imagen del artista.
-        callback(image_path_or_none) se invocará en el hilo principal de GLib.
-        Retorna el request_id actual para control de cancelaciones.
+        callback(image_path_or_none) se invocará en el hilo principal de GLib. Debe llamarse
+        desde el hilo principal; el consumidor comprueba si el resultado sigue siendo relevante.
         """
         clean_name = _clean_artist_name(artist)
         if not clean_name:
             GLib.idle_add(callback, None)
-            return 0
-
-        with self._lock:
-            self._current_request_id += 1
-            req_id = self._current_request_id
+            return
 
         cache_key = self._get_cache_key(clean_name)
         cached_file = os.path.join(self._cache_dir, f"{cache_key}.jpg")
@@ -150,41 +143,42 @@ class ArtistArtService:
         # 1. Comprobar caché en disco (positiva y negativa)
         if os.path.isfile(cached_file) and os.path.getsize(cached_file) > 1024:
             log.debug("Foto de artista cargada desde caché para: %s (%s)", clean_name, cached_file)
-            GLib.idle_add(self._deliver, req_id, callback, cached_file)
-            return req_id
+            GLib.idle_add(callback, cached_file)
+            return
         if self._is_recent_not_found(not_found_marker):
             log.debug("Artista sin foto pública (caché negativa): %s", clean_name)
-            GLib.idle_add(self._deliver, req_id, callback, None)
-            return req_id
+            GLib.idle_add(callback, None)
+            return
 
-        # 2. Descarga asíncrona en hilo de trabajo
+        # 2. Si ya se está buscando este artista, esperar al mismo resultado
+        if cache_key in self._pending:
+            self._pending[cache_key].append(callback)
+            return
+        self._pending[cache_key] = [callback]
+
+        # 3. Descarga asíncrona en hilo de trabajo
         def _worker():
             image_url, definitive = self._resolve_artist_url(clean_name)
-            if not self._is_current(req_id):
-                log.debug("Búsqueda de foto descartada para %s (req #%d superado)", clean_name, req_id)
-                return
-
+            downloaded_path = None
             if not image_url:
                 log.info("No se encontró imagen pública para el artista: %s", clean_name)
                 # Solo se recuerda si ambos servicios respondieron; un fallo de red se reintenta
                 if definitive:
                     self._write_not_found(not_found_marker)
-                GLib.idle_add(self._deliver, req_id, callback, None)
-                return
+            else:
+                downloaded_path = self._download_image(image_url, cached_file)
+                if downloaded_path:
+                    log.info("Foto descargada con éxito para %s (%s)", clean_name, downloaded_path)
+            GLib.idle_add(self._deliver, cache_key, downloaded_path)
 
-            downloaded_path = self._download_image(image_url, cached_file)
-            if downloaded_path:
-                log.info("Foto descargada con éxito para %s (%s)", clean_name, downloaded_path)
-            GLib.idle_add(self._deliver, req_id, callback, downloaded_path)
+        threading.Thread(target=_worker, name=f"artist-art-{clean_name}", daemon=True).start()
 
-        t = threading.Thread(target=_worker, name=f"artist-art-{req_id}", daemon=True)
-        t.start()
-        return req_id
-
-    def _deliver(self, req_id: int, callback: Callable[[str | None], None], path: str | None) -> bool:
-        # Comprobado en el hilo principal: una petición superada nunca pisa el fondo del artista actual
-        if self._is_current(req_id):
-            callback(path)
+    def _deliver(self, cache_key: str, path: str | None) -> bool:
+        for callback in self._pending.pop(cache_key, []):
+            try:
+                callback(path)
+            except Exception as e:
+                log.exception("Error en callback de foto de artista: %s", e)
         return False
 
     def _is_recent_not_found(self, marker: str) -> bool:

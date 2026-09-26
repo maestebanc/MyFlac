@@ -53,3 +53,43 @@ def test_delete_tracks_by_paths(db, tmp_path):
     db.upsert_tracks([_track(p, p, "X", "Y", i) for i, p in enumerate(paths)])
     assert db.delete_tracks_by_paths(paths[:2]) == 2
     assert [t.filepath for t in db.get_tracks()] == [paths[2]]
+
+
+def test_metadata_version_upgrade_rereads_unchanged_files(db, tmp_path, make_flac):
+    import os
+
+    from myflac.audio.track import METADATA_VERSION
+    from myflac.library.scanner import LibraryScanner
+
+    folder = tmp_path / "lib"
+    path = make_flac(name="song.flac", subdir="lib", tags={"title": "Real", "artist": "Artista"})
+    db.add_library_folder(str(folder))
+    # Fila guardada por un lector antiguo: mismo mtime y tamaño, pero sin artista
+    db.upsert_tracks([AudioTrack(filepath=path, title="song", artist="", album="", file_size_bytes=os.path.getsize(path))])
+    assert db.get_metadata_version() == 0
+
+    scanner = LibraryScanner(db)
+    scanner._run_scan([str(folder)], quick=True, on_progress=None)
+    track = db.get_tracks()[0]
+    assert (track.title, track.artist) == ("Real", "Artista")
+    assert db.get_metadata_version() == METADATA_VERSION
+
+    # Ya actualizada, un escaneo rápido vuelve a saltarse los archivos sin cambios
+    db.upsert_tracks([AudioTrack(filepath=path, title="song", artist="", album="", file_size_bytes=os.path.getsize(path))])
+    scanner._run_scan([str(folder)], quick=True, on_progress=None)
+    assert db.get_tracks()[0].artist == ""
+
+
+def test_full_scan_purges_deleted_files(db, tmp_path, make_flac):
+    import os
+
+    from myflac.library.scanner import LibraryScanner
+
+    folder = tmp_path / "lib"
+    keep = make_flac(name="keep.flac", subdir="lib")
+    gone = make_flac(name="gone.flac", subdir="lib")
+    scanner = LibraryScanner(db)
+    scanner._run_scan([str(folder)], quick=False, on_progress=None)
+    os.remove(gone)
+    scanner._run_scan([str(folder)], quick=False, on_progress=None)
+    assert [t.filepath for t in db.get_tracks()] == [keep]

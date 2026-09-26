@@ -274,6 +274,37 @@ EXTRA_CSS = """
 }
 
 /* Navegador Multicolumnas estilo iTunes */
+/* Portada a gran tamaño superpuesta a la ventana principal */
+.cover-popup-scrim {
+    background-color: rgba(0, 0, 0, 0.72);
+}
+
+.cover-popup-art {
+    border-radius: 14px;
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.60);
+}
+
+/* Fondo ambiental desenfocado detrás de la biblioteca */
+.artist-backdrop-picture {
+    opacity: 0;
+    transition: opacity 900ms ease;
+}
+
+.artist-backdrop-picture.visible {
+    opacity: 1;
+}
+
+.has-backdrop-dark .track-table label,
+.has-backdrop-dark .column-list label {
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.75);
+}
+
+.track-table,
+.track-table > listview,
+.track-table > header {
+    background: transparent;
+}
+
 .column-browser-pane {
     background-color: alpha(@window_bg_color, 0.4);
     border-bottom: 1px solid alpha(@window_fg_color, 0.10);
@@ -710,30 +741,99 @@ paned > separator:hover {
     text-shadow: 0 2px 16px rgba(0, 0, 0, 0.80);
 }
 
-/* Letra sincronizada: la línea cantada se resalta y el resto queda en segundo plano */
-.super-player-lyrics-text.lyrics-line {
-    line-height: 1.35;
-    padding: 9px 0;
+/* Letra sincronizada (Super-Reproductor e inspector): la línea cantada se resalta en color,
+   las cantadas se atenúan y las siguientes quedan en segundo plano */
+.lyrics-view,
+.lyrics-view viewport {
+    background: transparent;
+}
+
+.lyrics-line {
     transition: color 350ms ease, opacity 350ms ease;
 }
 
-.super-player-lyrics-text.lyrics-line-upcoming {
+.lyrics-line-upcoming {
     opacity: 0.55;
 }
 
-.super-player-lyrics-text.lyrics-line-past {
+.lyrics-line-past {
     opacity: 0.30;
 }
 
-.super-player-lyrics-text.lyrics-line-active {
+.lyrics-line-active {
     opacity: 1.0;
     color: #38bdf8;
+}
+
+.lyrics-line-past:hover,
+.lyrics-line-upcoming:hover {
+    opacity: 0.90;
+}
+
+.super-player-lyrics-text.lyrics-line {
+    line-height: 1.35;
+    padding: 9px 0;
+}
+
+.super-player-lyrics-text.lyrics-line-active {
     text-shadow: 0 0 22px rgba(56, 189, 248, 0.55), 0 2px 16px rgba(0, 0, 0, 0.80);
 }
 
-.super-player-lyrics-text.lyrics-line-past:hover,
-.super-player-lyrics-text.lyrics-line-upcoming:hover {
-    opacity: 0.90;
+.inspector-lyrics-text {
+    font-size: 1.02em;
+    font-weight: 600;
+    line-height: 1.3;
+}
+
+.inspector-lyrics-text.lyrics-line {
+    padding: 4px 0;
+}
+
+.inspector-info-tabs {
+    font-size: 0.86em;
+    margin-bottom: 2px;
+}
+
+.inspector-notes-text {
+    font-size: 0.98em;
+    line-height: 1.45;
+}
+
+.tray-player-cover {
+    border-radius: 12px;
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
+}
+
+.tray-player-play {
+    min-width: 52px;
+    min-height: 52px;
+}
+
+.notes-image {
+    border-radius: 10px;
+}
+
+.notes-title {
+    font-weight: 800;
+    font-size: 1.15em;
+}
+
+.notes-description {
+    font-style: italic;
+    opacity: 0.65;
+    margin-top: -4px;
+}
+
+.notes-notice {
+    font-size: 0.85em;
+    padding: 6px 9px;
+    border-radius: 8px;
+    color: @warning_fg_color;
+    background-color: alpha(@warning_bg_color, 0.85);
+}
+
+.inspector-lyrics-card {
+    padding-right: 4px;
 }
 
 .super-player-play-btn {

@@ -15,6 +15,8 @@ from .constants import APP_ID, APP_NAME
 from .logger import get_log_path, get_logger, setup_logging
 from .ui.about_dialog import build_about_dialog
 from .ui.main_window import MainWindow
+from .ui.shortcuts import register_app_shortcuts
+from .ui.tray import TrayIcon
 from .ui.preferences_dialog import PreferencesDialog
 from .ui.style import apply_theme, apply_ui_scale, load_extra_css, register_icon_theme
 
@@ -37,7 +39,7 @@ class MyFlacApplication(Adw.Application):
 
     def _setup_actions(self):
         quit_action = Gio.SimpleAction.new("quit", None)
-        quit_action.connect("activate", lambda *_: self.quit())
+        quit_action.connect("activate", lambda *_: self._quit())
         self.add_action(quit_action)
 
         prefs_action = Gio.SimpleAction.new("preferences", None)
@@ -52,6 +54,25 @@ class MyFlacApplication(Adw.Application):
         about_action.connect("activate", lambda *_: self._open_about())
         self.add_action(about_action)
 
+    quitting = False
+
+    def can_run_in_background(self) -> bool:
+        """Si hay icono en la barra superior, cerrar la ventana no detiene la música."""
+        tray = getattr(self, "tray", None)
+        return bool(tray and tray.visible_in_panel)
+
+    def _quit(self):
+        """Cerrar la ventana principal hace el cierre ordenado (guardar configuración, liberar el DAC)."""
+        if not self.window:
+            self.quit()
+            return
+        self.quitting = True
+        # Con un diálogo abierto (p. ej. los atajos), Libadwaita cerraría solo el diálogo
+        dialog = self.window.get_visible_dialog()
+        if dialog:
+            dialog.force_close()
+        self.window.close()
+
     def _on_activate(self, _app: Adw.Application) -> None:
         log.info("Evento activate de Adw.Application recibido")
         if self.window is None:
@@ -64,6 +85,10 @@ class MyFlacApplication(Adw.Application):
             apply_theme(cfg.get("theme", "system"))
 
             self.window = MainWindow(self, cfg)
+            register_app_shortcuts(self, self.window.shortcut_handlers())
+            # Icono en la barra superior: bandeja estándar (extensión AppIndicator en GNOME, KDE, XFCE...)
+            self.tray = TrayIcon(self)
+            self.tray.start()
             log.info("Ventana principal MainWindow instanciada exitosamente")
 
         self.window.present()
@@ -93,6 +118,7 @@ class MyFlacApplication(Adw.Application):
             target_device = cfg.get("audio_device_id", "default")
             self.window.engine.set_device(target_device)
             self.window._update_output_status()
+            self.window.apply_backdrop_settings()
 
     def _open_log_file(self):
         log_path = get_log_path()

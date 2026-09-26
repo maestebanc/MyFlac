@@ -48,6 +48,12 @@ class ColumnBrowserView(Gtk.Box):
         self._updating_artists_ui = False
         self._updating_albums_ui = False
 
+        # Pista en reproducción: se vuelve a marcar cada vez que se reconstruye la lista de temas
+        # (al navegar entre álbumes o al terminar un escaneo de la biblioteca)
+        self._playing_track: AudioTrack | None = None
+        self._playing_active = False
+        self._playing_paused = False
+
         self._build_ui()
         i18n.add_language_listener(lambda *_: self.refresh_i18n())
 
@@ -58,7 +64,7 @@ class ColumnBrowserView(Gtk.Box):
         self.v_paned.set_resize_end_child(True)
         self.v_paned.set_shrink_start_child(False)
         self.v_paned.set_shrink_end_child(False)
-        self.v_paned.set_position(210)  # Altura cómoda inicial para artistas y álbumes
+        self.v_paned.set_position(430)  # Altura inicial de artistas y álbumes (la ventana aplica la guardada)
 
         # 2. Paned horizontal para las dos columnas superiores (Artista | Álbum)
         self.h_browser_paned = Gtk.Paned(orientation=Gtk.Orientation.HORIZONTAL)
@@ -225,6 +231,10 @@ class ColumnBrowserView(Gtk.Box):
             search_query=self.search_query,
         )
         self.track_list.add_tracks(tracks, clear=True)
+        if self._playing_track is not None:
+            self.track_list.set_current_playing_track(self._playing_track, is_paused=self._playing_paused)
+            if not self._playing_active:
+                self.track_list.update_playback_state(is_playing=False, is_paused=False)
 
     def _create_browser_row(self, title: str, count: int, is_all: bool = False) -> Gtk.ListBoxRow:
         row = Gtk.ListBoxRow()
@@ -337,7 +347,12 @@ class ColumnBrowserView(Gtk.Box):
         return self.track_list.get_previous_track()
 
     def set_current_playing_track(self, track: AudioTrack | None, is_paused: bool = False):
+        self._playing_track = track
+        self._playing_active = track is not None
+        self._playing_paused = is_paused
         self.track_list.set_current_playing_track(track, is_paused=is_paused)
 
     def update_playback_state(self, is_playing: bool, is_paused: bool = False):
+        self._playing_active = is_playing
+        self._playing_paused = is_paused
         self.track_list.update_playback_state(is_playing=is_playing, is_paused=is_paused)

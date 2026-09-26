@@ -171,6 +171,301 @@ STRINGS: dict[str, dict[str, str]] = {
         "en": "Audiophile Library",
         "ca": "Biblioteca Audiòfila",
     },
+    "menu.shortcuts": {
+        "es": "Atajos de teclado",
+        "en": "Keyboard Shortcuts",
+        "ca": "Dreceres de teclat",
+    },
+    "shortcuts.section_playback": {
+        "es": "Reproducción",
+        "en": "Playback",
+        "ca": "Reproducció",
+    },
+    "shortcuts.section_views": {
+        "es": "Vistas",
+        "en": "Views",
+        "ca": "Vistes",
+    },
+    "shortcuts.section_general": {
+        "es": "General",
+        "en": "General",
+        "ca": "General",
+    },
+    "shortcuts.play_pause": {
+        "es": "Reproducir / pausar",
+        "en": "Play / pause",
+        "ca": "Reprodueix / pausa",
+    },
+    "shortcuts.next": {
+        "es": "Pista siguiente",
+        "en": "Next track",
+        "ca": "Pista següent",
+    },
+    "shortcuts.previous": {
+        "es": "Pista anterior",
+        "en": "Previous track",
+        "ca": "Pista anterior",
+    },
+    "shortcuts.seek_forward": {
+        "es": "Avanzar 10 segundos",
+        "en": "Forward 10 seconds",
+        "ca": "Avança 10 segons",
+    },
+    "shortcuts.seek_backward": {
+        "es": "Retroceder 10 segundos",
+        "en": "Back 10 seconds",
+        "ca": "Retrocedeix 10 segons",
+    },
+    "shortcuts.volume_up": {
+        "es": "Subir el volumen",
+        "en": "Volume up",
+        "ca": "Apuja el volum",
+    },
+    "shortcuts.volume_down": {
+        "es": "Bajar el volumen",
+        "en": "Volume down",
+        "ca": "Abaixa el volum",
+    },
+    "shortcuts.mute": {
+        "es": "Silenciar / restaurar volumen",
+        "en": "Mute / restore volume",
+        "ca": "Silencia / restaura el volum",
+    },
+    "shortcuts.shuffle": {
+        "es": "Activar / desactivar aleatorio",
+        "en": "Toggle shuffle",
+        "ca": "Activa / desactiva l'aleatori",
+    },
+    "shortcuts.repeat": {
+        "es": "Cambiar modo de repetición",
+        "en": "Cycle repeat mode",
+        "ca": "Canvia el mode de repetició",
+    },
+    "shortcuts.exclusive": {
+        "es": "Activar / desactivar modo exclusivo Bit-Perfect",
+        "en": "Toggle Bit-Perfect exclusive mode",
+        "ca": "Activa / desactiva el mode exclusiu Bit-Perfect",
+    },
+    "shortcuts.view_main": {
+        "es": "Ventana principal",
+        "en": "Main window",
+        "ca": "Finestra principal",
+    },
+    "shortcuts.view_mini": {
+        "es": "Mini-reproductor",
+        "en": "Mini player",
+        "ca": "Mini-reproductor",
+    },
+    "shortcuts.view_super": {
+        "es": "Super-reproductor a pantalla completa",
+        "en": "Full-screen super player",
+        "ca": "Super-reproductor a pantalla completa",
+    },
+    "shortcuts.back": {
+        "es": "Salir del super-reproductor o mini-reproductor / cerrar la portada",
+        "en": "Leave the super or mini player / close the cover",
+        "ca": "Surt del super o mini-reproductor / tanca la portada",
+    },
+    "shortcuts.cover_mode": {
+        "es": "Portada: osciloscopio / foto del artista",
+        "en": "Cover: oscilloscope / artist photo",
+        "ca": "Portada: oscil·loscopi / foto de l'artista",
+    },
+    "shortcuts.show_cover": {
+        "es": "Ver la portada a gran tamaño",
+        "en": "Show the cover art full size",
+        "ca": "Mostra la portada a mida gran",
+    },
+    "shortcuts.search": {
+        "es": "Buscar en la biblioteca",
+        "en": "Search the library",
+        "ca": "Cerca a la biblioteca",
+    },
+    "shortcuts.rescan": {
+        "es": "Buscar temas nuevos",
+        "en": "Scan for new tracks",
+        "ca": "Cerca temes nous",
+    },
+    "shortcuts.preferences": {
+        "es": "Preferencias",
+        "en": "Preferences",
+        "ca": "Preferències",
+    },
+    "shortcuts.help": {
+        "es": "Atajos de teclado",
+        "en": "Keyboard shortcuts",
+        "ca": "Dreceres de teclat",
+    },
+    "shortcuts.quit": {
+        "es": "Salir",
+        "en": "Quit",
+        "ca": "Surt",
+    },
+    "tabs.lyrics": {
+        "es": 'Letra',
+        "en": 'Lyrics',
+        "ca": 'Lletra',
+    },
+    "tabs.track": {
+        "es": 'Tema',
+        "en": 'Track',
+        "ca": 'Tema',
+    },
+    "tabs.album": {
+        "es": 'Disco',
+        "en": 'Album',
+        "ca": 'Disc',
+    },
+    "tabs.artist": {
+        "es": 'Artista',
+        "en": 'Artist',
+        "ca": 'Artista',
+    },
+    "info.loading": {
+        "es": 'Buscando información…',
+        "en": 'Looking up information…',
+        "ca": 'Cercant informació…',
+    },
+    "info.no_track": {
+        "es": 'No hay ninguna pista seleccionada',
+        "en": 'No track selected',
+        "ca": 'No hi ha cap pista seleccionada',
+    },
+    "info.empty": {
+        "es": 'No hay información sobre esto en Wikipedia ni en Discogs',
+        "en": 'Nothing about this on Wikipedia or Discogs',
+        "ca": 'No hi ha informació sobre això a la Viquipèdia ni a Discogs',
+    },
+    "info.error": {
+        "es": 'No se pudo obtener la información ({error}). Vuelve a esta pestaña para reintentarlo.',
+        "en": 'The information could not be retrieved ({error}). Come back to this tab to retry.',
+        "ca": "No s'ha pogut obtenir la informació ({error}). Torna a aquesta pestanya per reintentar-ho.",
+    },
+    "info.err_busy": {
+        "es": 'Wikipedia y Discogs no responden ahora',
+        "en": 'Wikipedia and Discogs are not responding right now',
+        "ca": 'La Viquipèdia i Discogs no responen ara',
+    },
+    "info.sources": {
+        "es": 'Fuentes',
+        "en": 'Sources',
+        "ca": 'Fonts',
+    },
+    "info.year": {
+        "es": 'Año',
+        "en": 'Year',
+        "ca": 'Any',
+    },
+    "info.label": {
+        "es": 'Sello',
+        "en": 'Label',
+        "ca": 'Segell',
+    },
+    "info.country": {
+        "es": 'País',
+        "en": 'Country',
+        "ca": 'País',
+    },
+    "info.format": {
+        "es": 'Formato',
+        "en": 'Format',
+        "ca": 'Format',
+    },
+    "info.genres": {
+        "es": 'Géneros',
+        "en": 'Genres',
+        "ca": 'Gèneres',
+    },
+    "info.styles": {
+        "es": 'Estilos',
+        "en": 'Styles',
+        "ca": 'Estils',
+    },
+    "info.credits": {
+        "es": 'Créditos',
+        "en": 'Credits',
+        "ca": 'Crèdits',
+    },
+    "info.release_notes": {
+        "es": 'Notas de la edición',
+        "en": 'Release notes',
+        "ca": "Notes de l'edició",
+    },
+    "info.album": {
+        "es": 'Disco',
+        "en": 'Album',
+        "ca": 'Disc',
+    },
+    "info.position": {
+        "es": 'Posición',
+        "en": 'Position',
+        "ca": 'Posició',
+    },
+    "info.duration": {
+        "es": 'Duración',
+        "en": 'Duration',
+        "ca": 'Durada',
+    },
+    "info.real_name": {
+        "es": 'Nombre real',
+        "en": 'Real name',
+        "ca": 'Nom real',
+    },
+    "info.members": {
+        "es": 'Miembros',
+        "en": 'Members',
+        "ca": 'Membres',
+    },
+    "info.groups": {
+        "es": 'Miembro de',
+        "en": 'Member of',
+        "ca": 'Membre de',
+    },
+    "info.aliases": {
+        "es": 'Alias',
+        "en": 'Aliases',
+        "ca": 'Àlies',
+    },
+    "info.discogs_profile": {
+        "es": 'Perfil en Discogs',
+        "en": 'Discogs profile',
+        "ca": 'Perfil a Discogs',
+    },
+    "info.translated": {
+        "es": 'Traducción automática ({service})',
+        "en": 'Machine translation ({service})',
+        "ca": 'Traducció automàtica ({service})',
+    },
+    "tray.play": {
+        "es": 'Reproducir',
+        "en": 'Play',
+        "ca": 'Reprodueix',
+    },
+    "tray.pause": {
+        "es": 'Pausar',
+        "en": 'Pause',
+        "ca": 'Pausa',
+    },
+    "tray.previous": {
+        "es": 'Anterior',
+        "en": 'Previous',
+        "ca": 'Anterior',
+    },
+    "tray.next": {
+        "es": 'Siguiente',
+        "en": 'Next',
+        "ca": 'Següent',
+    },
+    "tray.show": {
+        "es": 'Mostrar MyFlac',
+        "en": 'Show MyFlac',
+        "ca": 'Mostra MyFlac',
+    },
+    "tray.quit": {
+        "es": 'Salir',
+        "en": 'Quit',
+        "ca": 'Surt',
+    },
     "menu.preferences": {
         "es": "Preferencias",
         "en": "Preferences",
@@ -333,9 +628,14 @@ STRINGS: dict[str, dict[str, str]] = {
         "ca": "Mode Portada (Clica per alternar a oscil·loscopi o vúmetre)",
     },
     "inspector.mode_scope": {
-        "es": "Modo Osciloscopio en tiempo real (Clic para alternar a vúmetro)",
-        "en": "Real-time Oscilloscope Mode (Click to toggle VU meter)",
-        "ca": "Mode Oscil·loscopi en temps real (Clica per alternar a vúmetre)",
+        "es": "Portada con osciloscopio en tiempo real (clic para ver la foto del artista)",
+        "en": "Cover with real-time oscilloscope (click to show the artist photo)",
+        "ca": "Portada amb oscil·loscopi en temps real (clica per veure la foto de l'artista)",
+    },
+    "inspector.mode_artist": {
+        "es": "Foto del artista (clic para volver a la portada con osciloscopio)",
+        "en": "Artist photo (click to go back to the cover with oscilloscope)",
+        "ca": "Foto de l'artista (clica per tornar a la portada amb oscil·loscopi)",
     },
     "inspector.mode_vu": {
         "es": "Modo Vúmetro Analógico Vintage (Clic para alternar a carátula)",
@@ -537,14 +837,24 @@ STRINGS: dict[str, dict[str, str]] = {
         "ca": "No disponible per a aquesta sortida (no és un dispositiu ALSA)",
     },
     "devices.exclusive_failed": {
-        "es": "No se pudo usar el modo exclusivo ({reason}). Se usa el mezclador del sistema.",
-        "en": "Exclusive mode could not be used ({reason}). Using the system mixer.",
-        "ca": "No s'ha pogut usar el mode exclusiu ({reason}). S'usa el mesclador del sistema.",
+        "es": "No se pudo usar el modo exclusivo ({reason}). Esta pista se reproduce por el mezclador.",
+        "en": "Exclusive mode could not be used ({reason}). This track plays through the mixer.",
+        "ca": "No s'ha pogut usar el mode exclusiu ({reason}). Aquesta pista es reprodueix pel mesclador.",
+    },
+    "devices.exclusive_busy": {
+        "es": "el DAC está ocupado",
+        "en": "the DAC is busy",
+        "ca": "el DAC està ocupat",
     },
     "devices.exclusive_format_unsupported": {
         "es": "El DAC no admite {format} en modo exclusivo. Esta pista se reproduce por el mezclador.",
         "en": "The DAC does not support {format} in exclusive mode. This track plays through the mixer.",
         "ca": "El DAC no admet {format} en mode exclusiu. Aquesta pista es reprodueix pel mesclador.",
+    },
+    "player.cover_tooltip": {
+        "es": "Ver la portada a gran tamaño",
+        "en": "Show the cover art full size",
+        "ca": "Mostra la portada a mida gran",
     },
     "player.volume_locked": {
         "es": "Volumen fijo a 0 dB en modo exclusivo (ajústalo en el DAC o amplificador)",
@@ -612,6 +922,31 @@ STRINGS: dict[str, dict[str, str]] = {
         "es": "Escala de la Interfaz (%)",
         "en": "Interface Scaling (%)",
         "ca": "Escala de la Interfície (%)",
+    },
+    "prefs.backdrop_group": {
+        "es": "Fondo del artista",
+        "en": "Artist backdrop",
+        "ca": "Fons de l'artista",
+    },
+    "prefs.backdrop_desc": {
+        "es": "Foto desenfocada del artista en reproducción detrás de la biblioteca",
+        "en": "Blurred photo of the playing artist behind the library",
+        "ca": "Foto desenfocada de l'artista en reproducció darrere de la biblioteca",
+    },
+    "prefs.backdrop_enabled": {
+        "es": "Mostrar fondo del artista",
+        "en": "Show artist backdrop",
+        "ca": "Mostra el fons de l'artista",
+    },
+    "prefs.backdrop_intensity": {
+        "es": "Intensidad de la foto",
+        "en": "Photo intensity",
+        "ca": "Intensitat de la foto",
+    },
+    "prefs.backdrop_intensity_desc": {
+        "es": "Más alta, la foto se ve más; más baja, más legibilidad",
+        "en": "Higher shows more of the photo; lower improves readability",
+        "ca": "Més alta, la foto es veu més; més baixa, més llegibilitat",
     },
     "prefs.scale_desc": {
         "es": "Ajusta el tamaño visual de textos e iconos",

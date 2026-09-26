@@ -62,7 +62,7 @@ class PlayerBar(Gtk.Box):
         self.on_clear_queue_clicked: Callable[[], None] | None = None
         self.on_device_selected: Callable[[AudioDevice], None] | None = None
         self.on_exclusive_toggled: Callable[[bool], None] | None = None
-        self.on_mini_player_requested: Callable[[], None] | None = None
+        self.on_cover_clicked: Callable[[], None] | None = None
 
         self._queue: list[AudioTrack] = []
 
@@ -93,11 +93,11 @@ class PlayerBar(Gtk.Box):
         self.cover_frame.set_valign(Gtk.Align.FILL)
         self.cover_frame.set_overflow(Gtk.Overflow.HIDDEN)
         self.cover_frame.set_cursor_from_name("pointer")
-        self.cover_frame.set_tooltip_text("Abrir modo Mini-Reproductor (500×500)")
+        self.cover_frame.set_tooltip_text(i18n.t("player.cover_tooltip"))
 
-        # Clic en la miniportada para abrir el Mini-Reproductor
+        # Clic en la miniportada para verla a gran tamaño sobre la ventana principal
         cover_gesture = Gtk.GestureClick()
-        cover_gesture.connect("released", lambda *_: self.on_mini_player_requested and self.on_mini_player_requested())
+        cover_gesture.connect("released", lambda *_: self.on_cover_clicked and self.on_cover_clicked())
         self.cover_frame.add_controller(cover_gesture)
 
         self.cover_stack = Gtk.Stack()
@@ -670,6 +670,7 @@ class PlayerBar(Gtk.Box):
 
     def refresh_i18n(self):
         """Actualiza tooltips y textos traducidos."""
+        self.cover_frame.set_tooltip_text(i18n.t("player.cover_tooltip"))
         self.shuffle_btn.set_tooltip_text(i18n.t("player.shuffle"))
         self.prev_btn.set_tooltip_text(i18n.t("player.prev"))
         self.play_btn.set_tooltip_text(i18n.t("player.play_pause"))

@@ -14,7 +14,15 @@ from ..audio.engine import PlaybackState
 from ..audio.track import AudioTrack
 from ..config import load_config, save_config
 from ..logger import get_logger
+from ..artist_art import ArtistArtService
+from ..music_info import KINDS, MusicInfoService
+from ..lyrics import LyricsService, SyncedLyrics
 from ..ui.visualizers import OscilloscopeWidget
+from .lyrics_view import SyncedLyricsView
+from .info_view import InfoView
+
+# Pestañas de la tarjeta inferior del inspector: (nombre, clave de texto)
+INFO_TABS = [("lyrics", "tabs.lyrics"), ("track", "tabs.track"), ("album", "tabs.album"), ("artist", "tabs.artist")]
 from .. import i18n
 
 if TYPE_CHECKING:
@@ -61,7 +69,8 @@ class InspectorPanel(Gtk.Box):
 
         content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
         content.set_hexpand(True)
-        content.set_valign(Gtk.Align.START)
+        # FILL: la tarjeta de letra ocupa el espacio que sobra bajo la ficha técnica
+        content.set_valign(Gtk.Align.FILL)
 
         # 1. Carátula del álbum / Visualizador interactivo 1:1
         self.aspect_frame = Gtk.AspectFrame(xalign=0.5, yalign=0.0, ratio=1.0, obey_child=False)
@@ -107,7 +116,18 @@ class InspectorPanel(Gtk.Box):
         self.placeholder_picture.set_vexpand(False)
         self._load_placeholder_image()
         self.cover_stack.add_named(self.placeholder_picture, "placeholder")
+
+        # Picture para la foto del artista (modo 1 del visualizador)
+        self.artist_picture = Gtk.Picture()
+        self.artist_picture.set_can_shrink(True)
+        self.artist_picture.set_content_fit(Gtk.ContentFit.COVER)
+        self.artist_picture.set_hexpand(True)
+        self.artist_picture.set_vexpand(False)
+        self.cover_stack.add_named(self.artist_picture, "artist")
         self.cover_stack.set_visible_child_name("placeholder")
+        self._cover_child = "placeholder"  # 'picture' o 'placeholder' según tenga carátula la pista
+        self._artist_image_for: str | None = None  # artista cuya foto está cargada
+        self._artist_requested: str | None = None
 
         self.art_overlay.set_child(self.cover_stack)
 
@@ -210,13 +230,176 @@ class InspectorPanel(Gtk.Box):
         self.audiophile_card.append(self.grid)
         content.append(self.audiophile_card)
 
-        # Spacer vertical para evitar que los elementos se estiren cuando la ventana se maximiza
-        spacer = Gtk.Box()
-        spacer.set_vexpand(True)
-        content.append(spacer)
+        # 4. Letra de la pista (sincronizada con la reproducción cuando es la pista que suena)
+        content.append(self._build_lyrics_card())
 
         scrolled.set_child(content)
         self.append(scrolled)
+
+    def _build_lyrics_card(self) -> Gtk.Widget:
+        card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        card.add_css_class("audiophile-card")
+        card.add_css_class("inspector-lyrics-card")
+        card.set_vexpand(True)
+        card.set_size_request(-1, 180)
+
+        # Pestañas: letra y fichas del tema, el disco y el artista (Wikipedia y Discogs)
+        self.info_tabs = Adw.ToggleGroup()
+        self.info_tabs.add_css_class("inspector-info-tabs")
+        self.info_tabs.set_homogeneous(True)
+        self.info_tabs.set_hexpand(True)
+        self._tab_toggles: dict[str, Adw.Toggle] = {}
+        for name, key in INFO_TABS:
+            toggle = Adw.Toggle(label=i18n.t(key), name=name)
+            self._tab_toggles[name] = toggle
+            self.info_tabs.add(toggle)
+        card.append(self.info_tabs)
+
+        # Estado de la letra ("Letra sincronizada"), solo en la pestaña de letra
+        self.lyrics_status_label = Gtk.Label(label="", xalign=1.0)
+        self.lyrics_status_label.add_css_class("dim-label")
+        self.lyrics_status_label.add_css_class("caption")
+
+        self.info_stack = Gtk.Stack()
+        self.info_stack.set_transition_type(Gtk.StackTransitionType.CROSSFADE)
+        self.info_stack.set_vexpand(True)
+
+        lyrics_page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        lyrics_page.append(self.lyrics_status_label)
+
+        self.lyrics_stack = Gtk.Stack()
+        self.lyrics_stack.set_transition_type(Gtk.StackTransitionType.CROSSFADE)
+        self.lyrics_stack.set_vexpand(True)
+
+        self.lyrics_view = SyncedLyricsView("inspector-lyrics-text", width_chars=12, bottom_padding=140)
+        self.lyrics_view.on_seek = self._on_lyrics_seek
+        self.lyrics_view.position_provider = lambda: self._engine.position if self._engine else 0.0
+        self.lyrics_stack.add_named(self.lyrics_view, "lyrics")
+
+        self.lyrics_message = Gtk.Label(label="", xalign=0.5)
+        self.lyrics_message.add_css_class("dim-label")
+        self.lyrics_message.set_wrap(True)
+        self.lyrics_message.set_valign(Gtk.Align.CENTER)
+        self.lyrics_stack.add_named(self.lyrics_message, "message")
+        self._show_lyrics_message("")
+
+        lyrics_page.append(self.lyrics_stack)
+        self.info_stack.add_named(lyrics_page, "lyrics")
+
+        self.notes_views: dict[str, InfoView] = {}
+        for kind in KINDS:
+            view = InfoView()
+            self.notes_views[kind] = view
+            self.info_stack.add_named(view, kind)
+        self._notes_loaded: dict[str, str] = {}  # pestaña -> ficha mostrada (para no repetir)
+
+        card.append(self.info_stack)
+        self._lyrics_track_key: str | None = None
+
+        saved_tab = load_config().get("inspector_tab", "lyrics")
+        self.info_tabs.set_active_name(saved_tab if saved_tab in self._tab_toggles else "lyrics")
+        self.info_stack.set_visible_child_name(self.info_tabs.get_active_name())
+        self.info_tabs.connect("notify::active-name", self._on_info_tab_changed)
+        return card
+
+    def _on_info_tab_changed(self, *_args):
+        name = self.info_tabs.get_active_name()
+        if not name:
+            return
+        self.info_stack.set_visible_child_name(name)
+        try:
+            cfg = load_config()
+            cfg["inspector_tab"] = name
+            save_config(cfg)
+        except Exception as e:
+            log.warning("No se pudo guardar la pestaña del inspector: %s", e)
+        self._load_notes(name)
+
+    def _load_notes(self, kind: str | None):
+        """Carga la ficha de la pestaña visible; las demás se precargan al sonar la pista."""
+        if kind not in KINDS:
+            return
+        view = self.notes_views[kind]
+        track = self.current_track
+        if track is None or not (track.artist or track.album_artist):
+            self._notes_loaded.pop(kind, None)
+            view.show_message(i18n.t("info.no_track"))
+            return
+        subject = MusicInfoService.subject_key(kind, track)
+        if self._notes_loaded.get(kind) == subject:
+            return
+        self._notes_loaded[kind] = subject
+        view.show_loading(i18n.t("info.loading"))
+        MusicInfoService.get_default().fetch(
+            kind, track, i18n.get_language(),
+            # Si mientras tanto se mostró otra pista, el resultado ya no aplica
+            lambda info, k=kind, sub=subject: self._on_info(k, info) if self._notes_loaded.get(k) == sub else None,
+        )
+
+    def _on_info(self, kind: str, info):
+        view = self.notes_views[kind]
+        if info.status == "ok":
+            view.show_info(info)
+            if info.temporary:
+                # Incompleta por un fallo temporal: al volver a la pestaña se intentará completar
+                self._notes_loaded.pop(kind, None)
+            return
+        if info.status == "empty":
+            view.show_message(i18n.t("info.empty"))
+            return
+        self._notes_loaded.pop(kind, None)
+        view.show_message(i18n.t("info.error", error=info.error))
+
+    def _show_lyrics_message(self, text: str, status: str = ""):
+        self.lyrics_message.set_text(text)
+        self.lyrics_status_label.set_text(status)
+        self.lyrics_stack.set_visible_child_name("message")
+
+    def _is_playing_track(self) -> bool:
+        playing = self._engine.current_track if self._engine else None
+        return bool(self.current_track and playing and playing.filepath == self.current_track.filepath)
+
+    def _load_lyrics(self, track: AudioTrack | None):
+        if track is None:
+            self._lyrics_track_key = None
+            self.lyrics_view.clear()
+            self._show_lyrics_message("")
+            return
+        key = LyricsService.track_key(track)
+        if key == self._lyrics_track_key:
+            return
+        self._lyrics_track_key = key
+        self.lyrics_view.clear()
+        self._show_lyrics_message(i18n.t("lyrics.loading"))
+        LyricsService.get_default().fetch_lyrics(
+            track,
+            # Si mientras tanto se mostró otra pista, el resultado ya no aplica
+            lambda lyrics, status, synced, k=key: (
+                self._on_lyrics_loaded(lyrics, status, synced) if self._lyrics_track_key == k else None
+            ),
+        )
+
+    def _on_lyrics_loaded(self, lyrics: str | None, status: str, synced: SyncedLyrics | None):
+        if status == "ready" and lyrics:
+            # Sin sincronizar con otra pista: solo se sigue la letra de la que está sonando
+            position = self._engine.position if self._engine and self._is_playing_track() else -1.0
+            self.lyrics_view.set_content(lyrics, synced, position)
+            self.lyrics_status_label.set_text(
+                i18n.t("lyrics.source_synced") if synced else i18n.t("lyrics.source_online")
+            )
+            self.lyrics_stack.set_visible_child_name("lyrics")
+        elif status == "instrumental":
+            self._show_lyrics_message(i18n.t("lyrics.instrumental"))
+        else:
+            self._show_lyrics_message(i18n.t("lyrics.not_found"))
+
+    def _on_position_updated(self, pos: float, _dur: float):
+        if self._is_playing_track() and self.lyrics_view.get_mapped():
+            self.lyrics_view.update_position(pos)
+
+    def _on_lyrics_seek(self, position: float):
+        if self._engine and self._is_playing_track():
+            self._engine.seek(position)
 
     def _on_album_label_clicked(self, _gesture: Gtk.GestureClick, n_press: int, _x: float, _y: float):
         if n_press == 2 and self.on_album_activate and self.current_track:
@@ -256,22 +439,56 @@ class InspectorPanel(Gtk.Box):
 
         # Configurar visibilidad y estado de cada modo
         if mode == 0:
-            # Modo 0: Portada + Osciloscopio en tiempo real superpuesto (sólo visible mientras reproduce)
+            # Modo 0: Portada + Osciloscopio superpuesto (en pausa o parado, portada limpia)
             self.scope_widget.set_active(True)
             self.scope_widget.set_playing(self._is_playing)
             self.scope_widget.set_visible(self._is_playing)
         else:
-            # Modo 1: Portada limpia HD
+            # Modo 1: Foto del artista (sin osciloscopio); sin foto disponible, la portada
             self.scope_widget.set_active(False)
             self.scope_widget.set_playing(False)
             self.scope_widget.set_visible(False)
+        self._refresh_cover_view()
 
         self._update_mode_tooltip()
+
+    def _set_cover_child(self, name: str):
+        self._cover_child = name
+        self._refresh_cover_view()
+
+    def _refresh_cover_view(self):
+        """Muestra la foto del artista en el modo 1 si está disponible; si no, la portada."""
+        has_artist = self.artist_picture.get_paintable() is not None
+        if self.visualizer_mode == 1 and has_artist:
+            self.cover_stack.set_visible_child_name("artist")
+        else:
+            self.cover_stack.set_visible_child_name(self._cover_child)
+
+    def _load_artist_image(self, artist: str | None):
+        artist = (artist or "").strip()
+        if artist == self._artist_requested:
+            return
+        self._artist_requested = artist
+        if not artist:
+            self._on_artist_image(None, "")
+            return
+        ArtistArtService.get_default().fetch_artist_image(
+            # Si mientras tanto cambió la pista, el resultado ya no aplica
+            artist, lambda path, a=artist: self._on_artist_image(path, a) if a == self._artist_requested else None
+        )
+
+    def _on_artist_image(self, path: str | None, artist: str):
+        self._artist_image_for = artist if path else None
+        if path:
+            self.artist_picture.set_filename(path)
+        else:
+            self.artist_picture.set_paintable(None)
+        self._refresh_cover_view()
 
     def _update_mode_tooltip(self):
         tooltips = [
             i18n.t("inspector.mode_scope"),
-            i18n.t("inspector.mode_cover"),
+            i18n.t("inspector.mode_artist"),
         ]
         if 0 <= self.visualizer_mode < len(tooltips):
             self.cover_frame.set_tooltip_text(tooltips[self.visualizer_mode])
@@ -281,10 +498,12 @@ class InspectorPanel(Gtk.Box):
         if self._engine:
             self._engine.remove_level_listener(self._on_audio_level)
             self._engine.remove_state_listener(self._on_playback_state_changed)
+            self._engine.remove_position_listener(self._on_position_updated)
         self._engine = engine
         if self._engine:
             self._engine.add_level_listener(self._on_audio_level)
             self._engine.add_state_listener(self._on_playback_state_changed)
+            self._engine.add_position_listener(self._on_position_updated)
             is_playing = (self._engine.state == PlaybackState.PLAYING)
             self._is_playing = is_playing
             self.scope_widget.set_playing(is_playing)
@@ -325,6 +544,10 @@ class InspectorPanel(Gtk.Box):
         self.lbl_channels.set_text(i18n.t("inspector.channels"))
         self.lbl_bitrate.set_text(i18n.t("inspector.bitrate"))
         self.lbl_size.set_text(i18n.t("inspector.size"))
+        for name, key in INFO_TABS:
+            self._tab_toggles[name].set_label(i18n.t(key))
+        self._notes_loaded.clear()
+        self._lyrics_track_key = None  # recargar mensajes de estado en el nuevo idioma
         self._update_mode_tooltip()
 
         if not self.current_track:
@@ -346,7 +569,10 @@ class InspectorPanel(Gtk.Box):
             self.val_bitrate.set_text("—")
             self.val_size.set_text("—")
             self.cover_picture.set_paintable(None)
-            self.cover_stack.set_visible_child_name("placeholder")
+            self._set_cover_child("placeholder")
+            self._load_artist_image(None)
+            self._load_lyrics(None)
+            self._load_notes(self.info_tabs.get_active_name())
             return
 
         self.title_label.set_text(track.title)
@@ -364,6 +590,8 @@ class InspectorPanel(Gtk.Box):
         self.val_channels.set_text(channels_str)
         self.val_bitrate.set_text(track.formatted_bitrate)
         self.val_size.set_text(track.formatted_file_size)
+        self._load_lyrics(track)
+        self._load_notes(self.info_tabs.get_active_name())
 
         # Carátula escalada con Gtk.Picture
         cover_info = track.get_cover_image_bytes()
@@ -373,14 +601,15 @@ class InspectorPanel(Gtk.Box):
                 bytes_glib = GLib.Bytes.new(data)
                 texture = Gdk.Texture.new_from_bytes(bytes_glib)
                 self.cover_picture.set_paintable(texture)
-                self.cover_stack.set_visible_child_name("picture")
+                self._set_cover_child("picture")
             except Exception as e:
                 log.warning(f"Error cargando carátula de pista: {e}")
                 self.cover_picture.set_paintable(None)
-                self.cover_stack.set_visible_child_name("placeholder")
+                self._set_cover_child("placeholder")
         else:
             self.cover_picture.set_paintable(None)
-            self.cover_stack.set_visible_child_name("placeholder")
+            self._set_cover_child("placeholder")
+        self._load_artist_image(track.artist)
 
     def update_dac_status(self, info: dict):
         """Mantiene compatibilidad con llamadas de estado del reproductor."""

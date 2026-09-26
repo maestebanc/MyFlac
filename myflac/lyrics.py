@@ -86,14 +86,28 @@ class LyricsService:
     5. Guarda el resultado en caché y notifica mediante callback en el hilo principal de GLib.
     """
 
+    _instance: LyricsService | None = None
+
+    @classmethod
+    def get_default(cls) -> LyricsService:
+        """Servicio compartido: el Super-Reproductor y el inspector reciben la misma descarga."""
+        if cls._instance is None:
+            cls._instance = cls()
+        return cls._instance
+
     def __init__(self):
         self._cache_dir = _cache_dir()
         try:
             os.makedirs(self._cache_dir, exist_ok=True)
         except OSError as e:
             log.warning("No se pudo crear la caché de letras %s: %s", self._cache_dir, e)
-        self._current_request_id = 0
-        self._lock = threading.Lock()
+        # Descargas en curso por pista y consumidores que esperan su resultado
+        self._pending: dict[str, list[Callable]] = {}
+
+    @staticmethod
+    def track_key(track: AudioTrack) -> str:
+        """Identificador de pista con el que los consumidores descartan resultados obsoletos."""
+        return f"{track.artist}___{track.title}"
 
     def fetch_lyrics(
         self,
@@ -107,13 +121,9 @@ class LyricsService:
         - 'ready': Letra encontrada y lista para mostrar.
         - 'instrumental': Pista identificada como instrumental.
         - 'not_found': No se encontró letra.
-        - 'error': Error de red o consulta.
-        Retorna el request_id actual para control de cancelaciones.
+        Debe llamarse desde el hilo principal. Varias peticiones de la misma pista comparten una
+        descarga; cada consumidor comprueba (con track_key) si el resultado sigue siendo el suyo.
         """
-        with self._lock:
-            self._current_request_id += 1
-            req_id = self._current_request_id
-
         # 1. Comprobar letras embebidas en el archivo de audio
         embedded = self._get_embedded_lyrics(track)
         if embedded:
@@ -121,7 +131,7 @@ class LyricsService:
             synced = parse_lrc(embedded)
             plain = self._strip_lrc_timestamps(embedded) if synced else embedded
             GLib.idle_add(callback, plain, "ready", synced)
-            return req_id
+            return
 
         # 2. Comprobar caché en disco
         cache_key = self._get_cache_key(track.artist, track.title)
@@ -137,16 +147,17 @@ class LyricsService:
                 GLib.idle_add(callback, cached_data["lyrics"], "ready", parse_lrc(cached_data.get("synced")))
             else:
                 GLib.idle_add(callback, None, "not_found", None)
-            return req_id
+            return
 
-        # 3. Consulta asíncrona en hilo secundario
+        # 3. Si ya se está descargando esta letra, esperar al mismo resultado
+        if cache_key in self._pending:
+            self._pending[cache_key].append(callback)
+            return
+        self._pending[cache_key] = [callback]
+
+        # 4. Consulta asíncrona en hilo secundario
         def _worker():
             lyrics, status, synced_raw = self._fetch_online(track)
-            with self._lock:
-                if req_id != self._current_request_id:
-                    # La petición fue reemplazada por otra pista mientras descargaba
-                    log.debug("Petición de letra #%d descartada por cambio de pista", req_id)
-                    return
 
             # Guardar en caché (un fallo de red no se guarda, para reintentarlo la próxima vez)
             if status != "error":
@@ -164,16 +175,19 @@ class LyricsService:
                 )
 
             # Notificar al hilo de interfaz de usuario
-            GLib.idle_add(callback, lyrics, "not_found" if status == "error" else status, parse_lrc(synced_raw))
+            GLib.idle_add(
+                self._deliver, cache_key, lyrics, "not_found" if status == "error" else status, parse_lrc(synced_raw)
+            )
 
-        t = threading.Thread(target=_worker, name=f"lyrics-{req_id}", daemon=True)
-        t.start()
-        return req_id
+        threading.Thread(target=_worker, name=f"lyrics-{cache_key[:8]}", daemon=True).start()
 
-    def cancel_current(self):
-        """Invalida cualquier petición pendiente activa."""
-        with self._lock:
-            self._current_request_id += 1
+    def _deliver(self, cache_key: str, lyrics: str | None, status: str, synced: SyncedLyrics | None) -> bool:
+        for callback in self._pending.pop(cache_key, []):
+            try:
+                callback(lyrics, status, synced)
+            except Exception as e:
+                log.exception("Error en callback de letra: %s", e)
+        return False
 
     def _get_cache_key(self, artist: str | None, title: str | None) -> str:
         raw = f"{artist or ''}___{title or ''}".lower().strip()
