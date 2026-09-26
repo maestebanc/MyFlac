@@ -150,8 +150,8 @@ class MainWindow(Adw.ApplicationWindow):
         self.browser = ColumnBrowserView(db=self.db, on_track_activate=self._on_track_activated)
         self.paned.set_start_child(self.browser)
 
-        # Panel Inspector de audio
-        self.inspector = InspectorPanel()
+        # Panel Inspector de audio con visualizadores en tiempo real
+        self.inspector = InspectorPanel(engine=self.engine)
         self.paned.set_end_child(self.inspector)
 
         # Barra inferior del reproductor (altura acotada a 64px)

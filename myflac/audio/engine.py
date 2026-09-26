@@ -39,6 +39,7 @@ class AudioEngine:
 
         self._playbin: Gst.Element | None = None
         self._sink: Gst.Element | None = None
+        self._level_filter: Gst.Element | None = None
         self._bus: Gst.Bus | None = None
         self._timer_id: int | None = None
 
@@ -47,6 +48,7 @@ class AudioEngine:
         self._state_listeners: list[Callable[[PlaybackState], None]] = []
         self.on_track_changed: Callable[[AudioTrack], None] | None = None
         self._track_listeners: list[Callable[[AudioTrack], None]] = []
+        self._level_listeners: list[Callable[[list[float], list[float]], None]] = []
         self.on_position_updated: Callable[[float, float], None] | None = None
         self.on_track_finished: Callable[[], None] | None = None
         self.on_error: Callable[[str], None] | None = None
@@ -73,6 +75,24 @@ class AudioEngine:
         """Elimina un listener de cambio de pista previamente registrado."""
         if callback in self._track_listeners:
             self._track_listeners.remove(callback)
+
+    def add_level_listener(self, callback: Callable[[list[float], list[float]], None]):
+        """Registra un listener para recibir niveles de audio en tiempo real (RMS, Peak en dB)."""
+        if callback not in self._level_listeners:
+            self._level_listeners.append(callback)
+
+    def remove_level_listener(self, callback: Callable[[list[float], list[float]], None]):
+        """Elimina un listener de niveles de audio previamente registrado."""
+        if callback in self._level_listeners:
+            self._level_listeners.remove(callback)
+
+    def _notify_level(self, rms: list[float], peak: list[float]):
+        """Notifica los niveles de audio en dB a los listeners registrados."""
+        for listener in list(self._level_listeners):
+            try:
+                listener(rms, peak)
+            except Exception as e:
+                log.exception("Error en listener de nivel de audio: %s", e)
 
     def _notify_track_changed(self, track: AudioTrack):
         """Notifica cambio de pista a todos los listeners registrados."""
@@ -109,6 +129,16 @@ class AudioEngine:
         if self._playbin is None:
             log.critical("No se pudo instanciar playbin3 en GStreamer")
             raise RuntimeError("No se pudo instanciar playbin3 en GStreamer")
+
+        # Filtro de nivel en tiempo real para osciloscopio y vúmetro
+        self._level_filter = Gst.ElementFactory.make("level", "myflac_audio_level")
+        if self._level_filter:
+            self._level_filter.set_property("post-messages", True)
+            self._level_filter.set_property("interval", 33000000)  # ~33 ms (~30 fps)
+            try:
+                self._playbin.set_property("audio-filter", self._level_filter)
+            except Exception as e:
+                log.warning("No se pudo asignar audio-filter en playbin3: %s", e)
 
         self._apply_audio_sink()
 
@@ -232,6 +262,7 @@ class AudioEngine:
         self.state = PlaybackState.PAUSED
         self._stop_timer()
         self._notify_state_changed()
+        self._notify_level([-100.0, -100.0], [-100.0, -100.0])
 
     def toggle_play_pause(self):
         if self.state == PlaybackState.PLAYING:
@@ -246,6 +277,7 @@ class AudioEngine:
         self.state = PlaybackState.STOPPED
         self._stop_timer()
         self._notify_state_changed()
+        self._notify_level([-100.0, -100.0], [-100.0, -100.0])
         if self.on_position_updated:
             self.on_position_updated(0.0, self.get_duration())
 
@@ -301,6 +333,13 @@ class AudioEngine:
             self.stop()
             if self.on_track_finished:
                 self.on_track_finished()
+        elif m_type == Gst.MessageType.ELEMENT:
+            s = message.get_structure()
+            if s and s.get_name() == "level":
+                rms = s.get_value("rms")
+                peak = s.get_value("peak")
+                if rms is not None and peak is not None and self._level_listeners:
+                    self._notify_level(rms, peak)
         elif m_type == Gst.MessageType.STATE_CHANGED:
             if message.src == self._playbin:
                 old_state, new_state, _pending = message.parse_state_changed()
@@ -328,3 +367,4 @@ class AudioEngine:
             self._playbin.set_state(Gst.State.NULL)
             self._playbin = None
         self._sink = None
+        self._level_filter = None

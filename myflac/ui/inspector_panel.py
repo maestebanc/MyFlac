@@ -1,7 +1,8 @@
-"""Panel lateral derecho: inspector de metadatos audiófilos y carátula HD en MyFlac."""
+"""Panel lateral derecho: inspector de metadatos audiófilos, carátula HD y visualizadores en tiempo real."""
 from __future__ import annotations
 
 import os
+from typing import TYPE_CHECKING
 
 import gi
 
@@ -9,15 +10,21 @@ gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
 from gi.repository import Adw, Gdk, Gio, GLib, Gtk, Pango
 
+from ..audio.engine import PlaybackState
 from ..audio.track import AudioTrack
+from ..config import load_config, save_config
 from ..logger import get_logger
+from ..ui.visualizers import OscilloscopeWidget, VUMeterWidget
 from .. import i18n
+
+if TYPE_CHECKING:
+    from ..audio.engine import AudioEngine
 
 log = get_logger(__name__)
 
 
 class InspectorPanel(Gtk.Box):
-    def __init__(self):
+    def __init__(self, engine: AudioEngine | None = None):
         super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=8)
         self.add_css_class("inspector-panel")
         self.set_size_request(280, -1)
@@ -26,9 +33,20 @@ class InspectorPanel(Gtk.Box):
         self.set_margin_start(10)
         self.set_margin_end(10)
 
+        self._engine: AudioEngine | None = None
+        self._is_playing: bool = False
         self.current_track: AudioTrack | None = None
         self._last_output_info: dict = {}
+
+        # Cargar modo visualizador persistente (0: Portada, 1: Portada+Osciloscopio, 2: Vúmetro)
+        cfg = load_config()
+        self.visualizer_mode: int = cfg.get("visualizer_mode", 0)
+
         self._build_ui()
+        self._apply_visualizer_mode(self.visualizer_mode)
+
+        if engine:
+            self.set_engine(engine)
 
         # Registrar listener para cambios dinámicos de idioma
         i18n.add_language_listener(self._on_language_changed)
@@ -43,7 +61,7 @@ class InspectorPanel(Gtk.Box):
         content.set_hexpand(True)
         content.set_valign(Gtk.Align.START)
 
-        # 1. Carátula del álbum en HD adaptada al ancho completo de la columna (AspectFrame 1:1)
+        # 1. Carátula del álbum / Visualizador interactivo 1:1
         self.aspect_frame = Gtk.AspectFrame(xalign=0.5, yalign=0.0, ratio=1.0, obey_child=False)
         self.aspect_frame.set_hexpand(True)
         self.aspect_frame.set_vexpand(False)
@@ -53,8 +71,26 @@ class InspectorPanel(Gtk.Box):
         self.cover_frame.set_hexpand(True)
         self.cover_frame.set_vexpand(False)
         self.cover_frame.set_overflow(Gtk.Overflow.HIDDEN)
+        self.cover_frame.set_cursor_from_name("pointer")
 
-        # Stack para alternar entre imagen real del álbum y placeholder estético
+        # Superposición principal del marco para contener stack y badge de estado
+        self.frame_overlay = Gtk.Overlay()
+        self.frame_overlay.set_hexpand(True)
+        self.frame_overlay.set_vexpand(False)
+
+        # Stack de capas principales (art_layer vs vu_layer) con crossfade suave
+        self.main_stack = Gtk.Stack()
+        self.main_stack.set_transition_type(Gtk.StackTransitionType.CROSSFADE)
+        self.main_stack.set_transition_duration(250)
+        self.main_stack.set_hexpand(True)
+        self.main_stack.set_vexpand(False)
+
+        # Capa de arte (con soporte para osciloscopio superpuesto)
+        self.art_overlay = Gtk.Overlay()
+        self.art_overlay.set_hexpand(True)
+        self.art_overlay.set_vexpand(False)
+
+        # Sub-stack para alternar entre imagen real del álbum y placeholder estético
         self.cover_stack = Gtk.Stack()
         self.cover_stack.set_transition_type(Gtk.StackTransitionType.CROSSFADE)
         self.cover_stack.set_hexpand(True)
@@ -76,9 +112,48 @@ class InspectorPanel(Gtk.Box):
         self.placeholder_picture.set_vexpand(False)
         self._load_placeholder_image()
         self.cover_stack.add_named(self.placeholder_picture, "placeholder")
-
         self.cover_stack.set_visible_child_name("placeholder")
-        self.cover_frame.append(self.cover_stack)
+
+        self.art_overlay.set_child(self.cover_stack)
+
+        # Osciloscopio en tiempo real superpuesto a la carátula
+        self.scope_widget = OscilloscopeWidget()
+        self.scope_widget.set_can_target(False)
+        self.scope_widget.set_visible(False)
+        self.art_overlay.add_overlay(self.scope_widget)
+
+        self.main_stack.add_named(self.art_overlay, "art_layer")
+
+        # Vúmetro analógico vintage (doble aguja L/R, retroiluminado ámbar)
+        self.vu_widget = VUMeterWidget()
+        self.vu_widget.set_can_target(False)
+        self.main_stack.add_named(self.vu_widget, "vu_layer")
+
+        self.frame_overlay.set_child(self.main_stack)
+
+        # Indicador de modo elegante en la base de la carátula (cápsula con 3 puntos)
+        self.badge_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=3)
+        self.badge_box.add_css_class("visualizer-pill")
+        self.badge_box.set_halign(Gtk.Align.CENTER)
+        self.badge_box.set_valign(Gtk.Align.END)
+        self.badge_box.set_margin_bottom(8)
+        self.badge_box.set_can_target(False)
+
+        self.mode_dots = []
+        for i in range(3):
+            dot = Gtk.Box()
+            dot.add_css_class("visualizer-dot")
+            self.mode_dots.append(dot)
+            self.badge_box.append(dot)
+
+        self.frame_overlay.add_overlay(self.badge_box)
+
+        # Gesto de clic sobre la carátula para ciclar modos interactivamente
+        click_gesture = Gtk.GestureClick()
+        click_gesture.connect("released", lambda *_: self.cycle_visualizer_mode())
+        self.cover_frame.add_controller(click_gesture)
+
+        self.cover_frame.append(self.frame_overlay)
         self.aspect_frame.set_child(self.cover_frame)
         content.append(self.aspect_frame)
 
@@ -148,6 +223,86 @@ class InspectorPanel(Gtk.Box):
         scrolled.set_child(content)
         self.append(scrolled)
 
+    def cycle_visualizer_mode(self):
+        """Alterna cíclicamente entre los 3 modos: Portada -> Portada+Osciloscopio -> Vúmetro."""
+        self.visualizer_mode = (self.visualizer_mode + 1) % 3
+        self._apply_visualizer_mode(self.visualizer_mode)
+        try:
+            cfg = load_config()
+            cfg["visualizer_mode"] = self.visualizer_mode
+            save_config(cfg)
+        except Exception as e:
+            log.warning("No se pudo guardar visualizer_mode en configuración: %s", e)
+
+    def _apply_visualizer_mode(self, mode: int):
+        self.visualizer_mode = mode
+
+        # Actualizar estado de los puntos de la pastilla
+        for i, dot in enumerate(self.mode_dots):
+            if i == mode:
+                dot.add_css_class("active")
+            else:
+                dot.remove_css_class("active")
+
+        # Configurar visibilidad y estado de cada modo
+        if mode == 0:
+            # Modo 0: Portada limpia HD
+            self.main_stack.set_visible_child_name("art_layer")
+            self.scope_widget.set_visible(False)
+            self.scope_widget.set_active(False)
+            self.vu_widget.set_active(False)
+        elif mode == 1:
+            # Modo 1: Portada + Osciloscopio en tiempo real superpuesto
+            self.main_stack.set_visible_child_name("art_layer")
+            self.scope_widget.set_visible(True)
+            self.scope_widget.set_active(True)
+            self.scope_widget.set_playing(self._is_playing)
+            self.vu_widget.set_active(False)
+        elif mode == 2:
+            # Modo 2: Vúmetro analógico vintage
+            self.main_stack.set_visible_child_name("vu_layer")
+            self.scope_widget.set_visible(False)
+            self.scope_widget.set_active(False)
+            self.vu_widget.set_active(True)
+            self.vu_widget.set_playing(self._is_playing)
+
+        self._update_mode_tooltip()
+
+    def _update_mode_tooltip(self):
+        tooltips = [
+            i18n.t("inspector.mode_cover"),
+            i18n.t("inspector.mode_scope"),
+            i18n.t("inspector.mode_vu"),
+        ]
+        if 0 <= self.visualizer_mode < len(tooltips):
+            self.cover_frame.set_tooltip_text(tooltips[self.visualizer_mode])
+
+    def set_engine(self, engine: AudioEngine | None):
+        """Conecta el motor de audio para recibir métricas de nivel y estado."""
+        if self._engine:
+            self._engine.remove_level_listener(self._on_audio_level)
+            self._engine.remove_state_listener(self._on_playback_state_changed)
+        self._engine = engine
+        if self._engine:
+            self._engine.add_level_listener(self._on_audio_level)
+            self._engine.add_state_listener(self._on_playback_state_changed)
+            is_playing = (self._engine.state == PlaybackState.PLAYING)
+            self._is_playing = is_playing
+            self.scope_widget.set_playing(is_playing)
+            self.vu_widget.set_playing(is_playing)
+
+    def _on_audio_level(self, rms: list[float], peak: list[float]):
+        if self.visualizer_mode == 1:
+            self.scope_widget.update_levels(rms, peak)
+        elif self.visualizer_mode == 2:
+            self.vu_widget.update_levels(rms, peak)
+
+    def _on_playback_state_changed(self, state: PlaybackState):
+        is_playing = (state == PlaybackState.PLAYING)
+        self._is_playing = is_playing
+        self.scope_widget.set_playing(is_playing)
+        self.vu_widget.set_playing(is_playing)
+
     def _load_placeholder_image(self):
         """Carga el diseño estético de carátula MyFlac cuando no hay carátula activa."""
         base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -171,6 +326,7 @@ class InspectorPanel(Gtk.Box):
         self.lbl_channels.set_text(i18n.t("inspector.channels"))
         self.lbl_bitrate.set_text(i18n.t("inspector.bitrate"))
         self.lbl_size.set_text(i18n.t("inspector.size"))
+        self._update_mode_tooltip()
 
         if not self.current_track:
             self.title_label.set_text(i18n.t("inspector.select_track"))

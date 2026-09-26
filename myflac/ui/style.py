@@ -66,12 +66,41 @@ EXTRA_CSS = """
     font-size: 0.88em;
 }
 
-/* Marco de carátula en alta definición */
+/* Marco de carátula en alta definición e interactivo para alternar modos */
 .album-cover-frame {
     border-radius: 12px;
     border: 1px solid alpha(@window_fg_color, 0.12);
     box-shadow: 0 10px 24px alpha(black, 0.25), 0 3px 8px alpha(black, 0.12);
     background-color: alpha(@window_fg_color, 0.03);
+    transition: box-shadow 200ms ease;
+}
+
+.album-cover-frame:hover {
+    box-shadow: 0 14px 32px alpha(black, 0.35), 0 4px 12px alpha(black, 0.20);
+}
+
+/* Indicador de modo del visualizador en la carátula */
+.visualizer-pill {
+    background-color: alpha(black, 0.55);
+    border-radius: 9999px;
+    padding: 3px 8px;
+    margin-bottom: 8px;
+    box-shadow: 0 2px 6px alpha(black, 0.40);
+    border: 1px solid alpha(white, 0.15);
+}
+
+.visualizer-dot {
+    min-width: 6px;
+    min-height: 6px;
+    border-radius: 9999px;
+    background-color: alpha(white, 0.35);
+    margin: 2px 2px;
+}
+
+.visualizer-dot.active {
+    min-width: 16px;
+    background-color: #3584e4;
+    box-shadow: 0 0 6px alpha(#3584e4, 0.6);
 }
 
 .album-cover-placeholder {

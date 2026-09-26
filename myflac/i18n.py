@@ -272,6 +272,21 @@ STRINGS: dict[str, dict[str, str]] = {
         "en": "No cover art available",
         "ca": "Sense portada disponible",
     },
+    "inspector.mode_cover": {
+        "es": "Modo Carátula (Clic para alternar a osciloscopio o vúmetro)",
+        "en": "Cover Art Mode (Click to toggle oscilloscope or VU meter)",
+        "ca": "Mode Portada (Clica per alternar a oscil·loscopi o vúmetre)",
+    },
+    "inspector.mode_scope": {
+        "es": "Modo Osciloscopio en tiempo real (Clic para alternar a vúmetro)",
+        "en": "Real-time Oscilloscope Mode (Click to toggle VU meter)",
+        "ca": "Mode Oscil·loscopi en temps real (Clica per alternar a vúmetre)",
+    },
+    "inspector.mode_vu": {
+        "es": "Modo Vúmetro Analógico Vintage (Clic para alternar a carátula)",
+        "en": "Vintage Analog VU Meter Mode (Click to toggle cover art)",
+        "ca": "Mode Vúmetre Analògic Vintage (Clica per alternar a portada)",
+    },
 
     "inspector.device": {
         "es": "Dispositivo",

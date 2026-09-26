@@ -48,6 +48,7 @@ DEFAULTS = {
     "repeat_mode": "none",      # "none", "all", "one"
     "shuffle": False,
     "library_folders": [],      # Lista de rutas absolutas de carpetas de biblioteca
+    "visualizer_mode": 0,       # 0: Portada, 1: Portada + Osciloscopio, 2: Vúmetro analógico
 }
 
 
