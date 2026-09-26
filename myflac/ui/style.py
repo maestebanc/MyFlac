@@ -543,6 +543,37 @@ paned > separator:hover {
     transition: background 600ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+.super-player-wallpaper-picture {
+    opacity: 0.70;
+    transition: opacity 800ms ease-in-out;
+}
+
+.super-player-wallpaper-scrim {
+    background:
+        radial-gradient(
+            circle at center,
+            rgba(5, 6, 10, 0.10) 0%,
+            rgba(5, 6, 10, 0.38) 70%,
+            rgba(5, 6, 10, 0.65) 100%
+        ),
+        linear-gradient(
+            to bottom,
+            rgba(5, 6, 10, 0.30) 0%,
+            rgba(5, 6, 10, 0.05) 30%,
+            rgba(5, 6, 10, 0.45) 100%
+        );
+}
+
+.super-player-lyrics-glass-panel {
+    background-color: rgba(10, 13, 20, 0.58);
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    border-radius: 22px;
+    padding: 22px 28px;
+    box-shadow:
+        0 20px 50px -10px rgba(0, 0, 0, 0.55),
+        0 0 0 1px rgba(255, 255, 255, 0.04);
+}
+
 .super-player-container {
     padding: 36px 64px;
 }

@@ -17,6 +17,7 @@ from ..audio.track import AudioTrack
 from ..config import load_config, save_config
 from ..logger import get_logger
 from ..lyrics import LyricsService
+from ..artist_art import ArtistArtService
 from .. import i18n
 from .visualizers import OscilloscopeWidget
 
@@ -97,6 +98,9 @@ class MiniPlayerWindow(Adw.Window):
         self.main_window = main_window
         self.engine = engine
         self.lyrics_service = LyricsService()
+        self.artist_art_service = ArtistArtService.get_default()
+        self._current_artist_image: str | None = None
+        self._last_artist_searched: str | None = None
 
         self._launched_from = "mini"  # 'mini' o 'main'
         self._is_seeking = False
@@ -348,13 +352,35 @@ class MiniPlayerWindow(Adw.Window):
         super_root_overlay.set_hexpand(True)
         super_root_overlay.set_vexpand(True)
 
+        # Capa de wallpaper del artista con foto HD y viñeta atenuada
+        self.super_wallpaper_picture = Gtk.Picture()
+        self.super_wallpaper_picture.set_content_fit(Gtk.ContentFit.COVER)
+        self.super_wallpaper_picture.set_can_shrink(True)
+        self.super_wallpaper_picture.set_hexpand(True)
+        self.super_wallpaper_picture.set_vexpand(True)
+        self.super_wallpaper_picture.add_css_class("super-player-wallpaper-picture")
+        self.super_wallpaper_picture.set_visible(False)
+
+        super_wallpaper_scrim = Gtk.Box()
+        super_wallpaper_scrim.set_hexpand(True)
+        super_wallpaper_scrim.set_vexpand(True)
+        super_wallpaper_scrim.add_css_class("super-player-wallpaper-scrim")
+
+        super_bg_overlay = Gtk.Overlay()
+        super_bg_overlay.set_hexpand(True)
+        super_bg_overlay.set_vexpand(True)
+        super_bg_overlay.set_child(self.super_wallpaper_picture)
+        super_bg_overlay.add_overlay(super_wallpaper_scrim)
+
+        super_root_overlay.set_child(super_bg_overlay)
+
         super_container = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=80)
         super_container.add_css_class("super-player-container")
         super_container.set_valign(Gtk.Align.CENTER)
         super_container.set_halign(Gtk.Align.CENTER)
         super_container.set_hexpand(True)
         super_container.set_vexpand(True)
-        super_root_overlay.set_child(super_container)
+        super_root_overlay.add_overlay(super_container)
 
         # Botón superior derecho de restauración como capa flotante independiente
         top_nav_bar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
@@ -585,6 +611,7 @@ class MiniPlayerWindow(Adw.Window):
         self.lyrics_stack.set_transition_type(Gtk.StackTransitionType.CROSSFADE)
         self.lyrics_stack.set_vexpand(True)
         self.lyrics_stack.set_hexpand(True)
+        self.lyrics_stack.add_css_class("super-player-lyrics-glass-panel")
 
         # Estado 1: Cargando letra
         loading_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
@@ -977,6 +1004,8 @@ class MiniPlayerWindow(Adw.Window):
             self.super_cover_stack.set_visible_child_name("placeholder")
             self.lyrics_stack.set_visible_child_name("not_found")
             self._update_ambient_background(None)
+            self._on_artist_image_loaded(None)
+            self._last_artist_searched = None
             return
 
         title = track.title or os.path.basename(track.filepath)
@@ -1026,6 +1055,30 @@ class MiniPlayerWindow(Adw.Window):
 
         # Cargar letra
         self._load_lyrics_for_track(track)
+
+        # Cargar fotografía del artista para el fondo del Super-Reproductor
+        self._load_artist_art_for_track(track)
+
+    def _load_artist_art_for_track(self, track: AudioTrack):
+        artist_name = (track.artist or "").strip()
+        if not artist_name:
+            self._on_artist_image_loaded(None)
+            return
+
+        if self._last_artist_searched == artist_name and self._current_artist_image:
+            return
+        self._last_artist_searched = artist_name
+
+        self.artist_art_service.fetch_artist_image(artist_name, self._on_artist_image_loaded)
+
+    def _on_artist_image_loaded(self, path: str | None):
+        self._current_artist_image = path
+        if path and os.path.isfile(path):
+            self.super_wallpaper_picture.set_filename(path)
+            self.super_wallpaper_picture.set_visible(True)
+        else:
+            self.super_wallpaper_picture.set_paintable(None)
+            self.super_wallpaper_picture.set_visible(False)
 
     def _load_lyrics_for_track(self, track: AudioTrack):
         track_id = f"{track.artist}___{track.title}"
