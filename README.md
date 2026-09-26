@@ -29,6 +29,10 @@ Desarrollado en Python con GTK4 y Libadwaita, diseñado con la filosofía y ergo
   - Búsqueda en vivo instantánea por título, artista o álbum.
   - Transición fluida entre canciones (*gapless playback*).
   - Atajos de teclado rápidos (`Espacio` para reproducir/pausar, `Ctrl+O` para abrir carpeta, `Ctrl+Shift+O` para pistas, `Ctrl+,` para preferencias).
+- **Visualizadores y Experiencia Visual**:
+  - **Osciloscopio en Tiempo Real**: Efecto fósforo a 60 FPS con sincronización de estado global persistente.
+  - **Mini-Reproductor Flotante (500×500 px)**: Modo compacto con controles auto-ocultables y carátula limpia/osciloscopio alternable con un clic.
+  - **Super-Reproductor a Pantalla Completa**: Interfaz inmersiva de doble panel con fondo ambiental reactivo a los colores de la carátula y letras sincronizadas online vía LRCLIB.
 
 ---
 
@@ -44,4 +48,28 @@ O bien directamente con Python:
 
 ```bash
 python3 -m myflac
+```
+
+---
+
+## Empaquetado e Instalación con Flatpak
+
+MyFlac incluye soporte oficial para empaquetado Flatpak bajo el runtime GNOME 50 (`org.gnome.Platform//50`).
+
+Para compilar, instalar localmente y generar el paquete portable `.flatpak`:
+
+```bash
+./build-flatpak.sh
+```
+
+O manualmente con `flatpak-builder`:
+
+```bash
+flatpak-builder --force-clean --user --install build-dir com.maestebanc.MyFlac.yaml
+```
+
+Para ejecutar la versión Flatpak instalada:
+
+```bash
+flatpak run com.maestebanc.MyFlac
 ```
