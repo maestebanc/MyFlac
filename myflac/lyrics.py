@@ -17,7 +17,9 @@ from .logger import get_logger
 
 log = get_logger("lyrics")
 
-CACHE_DIR = os.path.expanduser("~/.cache/myflac/lyrics")
+def _cache_dir() -> str:
+    # GLib respeta XDG_CACHE_HOME, que en Flatpak apunta a ~/.var/app/<id>/cache (escribible)
+    return os.path.join(GLib.get_user_cache_dir(), "myflac", "lyrics")
 
 
 class LyricsService:
@@ -31,7 +33,11 @@ class LyricsService:
     """
 
     def __init__(self):
-        os.makedirs(CACHE_DIR, exist_ok=True)
+        self._cache_dir = _cache_dir()
+        try:
+            os.makedirs(self._cache_dir, exist_ok=True)
+        except OSError as e:
+            log.warning("No se pudo crear la caché de letras %s: %s", self._cache_dir, e)
         self._current_request_id = 0
         self._lock = threading.Lock()
 
@@ -112,23 +118,23 @@ class LyricsService:
         return hashlib.md5(cleaned.encode("utf-8")).hexdigest()
 
     def _read_cache(self, cache_key: str) -> dict | None:
-        path = os.path.join(CACHE_DIR, f"{cache_key}.json")
+        path = os.path.join(self._cache_dir, f"{cache_key}.json")
         if not os.path.isfile(path):
             return None
         try:
             with open(path, "r", encoding="utf-8") as f:
                 return json.load(f)
         except Exception as e:
-            log.warning("Error leyendo caché de letra %s: %e", cache_key, e)
+            log.warning("Error leyendo caché de letra %s: %s", cache_key, e)
             return None
 
     def _write_cache(self, cache_key: str, data: dict):
-        path = os.path.join(CACHE_DIR, f"{cache_key}.json")
+        path = os.path.join(self._cache_dir, f"{cache_key}.json")
         try:
             with open(path, "w", encoding="utf-8") as f:
                 json.dump(data, f, ensure_ascii=False, indent=2)
         except Exception as e:
-            log.warning("Error escribiendo caché de letra %s: %e", cache_key, e)
+            log.warning("Error escribiendo caché de letra %s: %s", cache_key, e)
 
     def _get_embedded_lyrics(self, track: AudioTrack) -> str | None:
         """Intenta extraer letras guardadas dentro del propio archivo de audio."""

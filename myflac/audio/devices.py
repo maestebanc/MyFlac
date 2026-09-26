@@ -26,6 +26,16 @@ class AudioDevice:
     is_usb: bool = False
     is_default: bool = False
     icon_name: str = "audio-speakers-symbolic"
+    alsa_card: int | None = None  # Índice de tarjeta ALSA (para reservarla frente a PipeWire)
+    alsa_card_id: str = ""  # Identificador estable de la tarjeta (ej. 'Audio')
+    alsa_device: int | None = None
+
+    @property
+    def hw_path(self) -> str | None:
+        """Ruta ALSA directa (hw) para el modo exclusivo, o None si no es una salida ALSA."""
+        if not self.alsa_card_id or self.alsa_device is None:
+            return None
+        return f"hw:CARD={self.alsa_card_id},DEV={self.alsa_device}"
 
 
 def _clean_device_name(raw_name: str) -> str:
@@ -37,6 +47,18 @@ def _clean_device_name(raw_name: str) -> str:
     name = re.sub(r"^Radeon High Definition Audio Controller", "HDMI", name)
     name = re.sub(r"^Ryzen HD Audio Controller", "Audio Integrado", name)
     return name.strip() or raw_name
+
+
+def _parse_alsa_fields(fields: dict[str, str]) -> dict:
+    """Convierte las propiedades alsa.* de PipeWire en los campos ALSA de AudioDevice."""
+    try:
+        return {
+            "alsa_card": int(fields["alsa.card"]),
+            "alsa_card_id": fields["alsa.id"],
+            "alsa_device": int(fields["alsa.device"]),
+        }
+    except (KeyError, ValueError):
+        return {}
 
 
 import time
@@ -84,6 +106,7 @@ def get_available_devices(force_refresh: bool = False) -> list[AudioDevice]:
             node_name = ""
             device_bus = ""
             is_sys_default = False
+            alsa_fields: dict[str, str] = {}
 
             if props:
                 for i in range(props.n_fields()):
@@ -94,6 +117,8 @@ def get_available_devices(force_refresh: bool = False) -> list[AudioDevice]:
                         device_bus = str(props.get_value(field_name))
                     elif field_name == "is-default":
                         is_sys_default = bool(props.get_value(field_name))
+                    elif field_name in ("alsa.card", "alsa.id", "alsa.device"):
+                        alsa_fields[field_name] = str(props.get_value(field_name))
 
             if not node_name:
                 continue
@@ -117,6 +142,7 @@ def get_available_devices(force_refresh: bool = False) -> list[AudioDevice]:
                     is_usb=is_usb,
                     is_default=is_sys_default,
                     icon_name=icon,
+                    **_parse_alsa_fields(alsa_fields),
                 )
             )
 
@@ -139,14 +165,50 @@ def get_available_devices(force_refresh: bool = False) -> list[AudioDevice]:
     return devices
 
 
+def base_node_name(node_name: str) -> str:
+    """Quita el sufijo '.N' que WirePlumber añade al recrear un nodo ALSA (p.ej. tras el modo exclusivo)."""
+    if node_name.startswith("alsa_"):
+        return re.sub(r"\.\d+$", "", node_name)
+    return node_name
+
+
 def find_device_by_id(device_id: str) -> AudioDevice | None:
     """Busca un dispositivo por su ID (node.name o 'default')."""
     if not device_id or device_id in ("default", "auto", "pipewire"):
         return get_available_devices()[0]
+    base_id = base_node_name(device_id)
     for dev in get_available_devices():
-        if dev.id == device_id or (device_id and device_id in dev.id):
+        if dev.id == device_id or base_node_name(dev.id) == base_id or device_id in dev.id:
             return dev
     return None
+
+
+def resolve_hardware_device(device_id: str) -> AudioDevice | None:
+    """Devuelve el dispositivo ALSA real tras un id (resolviendo 'default' a la salida del sistema)."""
+    for force_refresh in (False, True):
+        devices = get_available_devices(force_refresh=force_refresh)
+        if not device_id or device_id in ("default", "auto", "pipewire"):
+            dev = next((d for d in devices if d.is_default and d.id != "default"), None)
+        else:
+            base_id = base_node_name(device_id)
+            dev = next((d for d in devices if base_node_name(d.id) == base_id or device_id in d.id), None)
+        if dev and dev.hw_path:
+            return dev
+    return None
+
+
+def wait_for_device(device_id: str, timeout: float = 3.0) -> AudioDevice | None:
+    """Espera a que PipeWire vuelva a publicar una salida (p.ej. tras liberar el modo exclusivo)."""
+    base_id = base_node_name(device_id)
+    deadline = time.monotonic() + timeout
+    while True:
+        for dev in get_available_devices(force_refresh=True):
+            if dev.id != "default" and base_node_name(dev.id) == base_id:
+                return dev
+        if time.monotonic() >= deadline:
+            log.warning("La salida '%s' no ha reaparecido en PipeWire tras %.1fs", device_id, timeout)
+            return None
+        time.sleep(0.15)
 
 
 def get_default_device(preferred_id: str | None = None) -> AudioDevice:

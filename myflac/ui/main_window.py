@@ -51,8 +51,11 @@ class MainWindow(Adw.ApplicationWindow):
 
         # 2. Inicializar motor de audio a través del mezclador del sistema
         dev_id = cfg.get("audio_device_id", "default")
-        self.engine = AudioEngine(device_id=dev_id)
-        self.engine.volume = cfg.get("software_volume", 1.0)
+        self.engine = AudioEngine(
+            device_id=dev_id,
+            volume=cfg.get("software_volume", 1.0),
+            exclusive=cfg.get("exclusive_mode", False),
+        )
 
         # 3. Servidor D-Bus MPRIS2 (control por teclas multimedia, auriculares y GNOME)
         self.mpris = MprisServer(window=self, engine=self.engine)
@@ -66,6 +69,7 @@ class MainWindow(Adw.ApplicationWindow):
         self.engine.on_error = self._on_playback_error
         self.engine.add_state_listener(self._on_engine_state_changed)
         self.engine.add_track_listener(self._on_engine_track_changed)
+        self.engine.add_output_listener(self._update_output_status)
 
         # Ajuste inteligente del panel inspector al redimensionar / maximizar
         self.connect("map", lambda *_: GLib.idle_add(self._on_window_mapped))
@@ -199,6 +203,7 @@ class MainWindow(Adw.ApplicationWindow):
         self.player_bar.on_clear_queue_clicked = self._on_clear_queue
         self.player_bar.on_queue_track_removed = self._on_remove_from_queue
         self.player_bar.on_device_selected = self._on_device_selected
+        self.player_bar.on_exclusive_toggled = self._on_exclusive_toggled
         self.player_bar.on_mini_player_requested = self._open_mini_player
 
         # Contenedor inferior: Barra de progreso azul no obstructiva + Barra del reproductor
@@ -215,7 +220,9 @@ class MainWindow(Adw.ApplicationWindow):
 
         self.toolbar_view.set_content(self.paned)
         self.toolbar_view.add_bottom_bar(self.bottom_box)
-        self.set_content(self.toolbar_view)
+        self.toast_overlay = Adw.ToastOverlay()
+        self.toast_overlay.set_child(self.toolbar_view)
+        self.set_content(self.toast_overlay)
 
     def _on_window_mapped(self):
         self._adjust_paned_position()
@@ -522,6 +529,9 @@ class MainWindow(Adw.ApplicationWindow):
 
     def _on_playback_error(self, err_msg: str):
         log.error("Aviso de error en reproducción: %s", err_msg)
+        toast = Adw.Toast.new(err_msg)
+        toast.set_timeout(6)
+        self.toast_overlay.add_toast(toast)
 
     def _on_engine_state_changed(self, state: PlaybackState):
         self._update_output_status()
@@ -554,7 +564,8 @@ class MainWindow(Adw.ApplicationWindow):
                 self._inhibit_cookie = 0
 
     def _update_output_status(self):
-        dev = find_device_by_id(self.engine.device_id) or get_default_device(self.engine.device_id)
+        dev = self.engine.hw_device or find_device_by_id(self.engine.device_id) \
+            or get_default_device(self.engine.device_id)
         info = {
             "device_name": dev.name,
             "is_playing": self.engine.state == PlaybackState.PLAYING,
@@ -620,6 +631,13 @@ class MainWindow(Adw.ApplicationWindow):
         self.engine.set_device(dev.id)
         self._update_output_status()
 
+    def _on_exclusive_toggled(self, enabled: bool):
+        log.info("Usuario cambió el modo exclusivo a: %s", enabled)
+        self.cfg["exclusive_mode"] = enabled
+        save_config(self.cfg)
+        self.engine.set_exclusive(enabled)
+        self._update_output_status()
+
     def _on_album_activate_from_inspector(self, album_name: str):
         """Disparado por doble clic en la etiqueta de álbum del inspector."""
         log.info("Activando álbum completo desde Inspector: '%s'", album_name)
@@ -677,7 +695,7 @@ class MainWindow(Adw.ApplicationWindow):
             self._inhibit_cookie = 0
         if hasattr(self, "mpris"):
             self.mpris.stop()
-        self.engine.stop()
+        self.engine.shutdown()
         w, h = self.get_default_size()
         self.cfg["window_width"] = w
         self.cfg["window_height"] = h

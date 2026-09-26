@@ -38,6 +38,7 @@ def _detect_system_language() -> str:
 DEFAULTS = {
     "language": "",             # Vacío para autodetectar
     "audio_device_id": "default",  # 'default' o nombre del sink de PipeWire/Pulse
+    "exclusive_mode": False,    # Modo exclusivo bit-perfect (ALSA hw directo); desactivado por defecto
     "software_volume": 1.0,
     "ui_scale": 100,
     "theme": "system",          # "system", "light", "dark"

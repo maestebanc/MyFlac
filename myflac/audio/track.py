@@ -283,9 +283,14 @@ def load_track(filepath: str) -> AudioTrack | None:
 
     def get_tag(*keys: str) -> str:
         for k in keys:
-            v = tags.get(k) or tags.get(k.upper()) or tags.get(k.lower())
-            if v:
-                return _clean_tag(v)
+            for variant in (k, k.upper(), k.lower()):
+                try:
+                    v = tags.get(variant)
+                except ValueError:
+                    # Las claves Vorbis solo admiten ASCII: mutagen rechaza claves MP4 como '©nam'
+                    continue
+                if v:
+                    return _clean_tag(v)
         return ""
 
     # 1. Título

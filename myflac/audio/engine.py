@@ -13,13 +13,26 @@ gi.require_version("GLib", "2.0")
 from gi.repository import GLib, Gst
 
 from ..logger import get_logger
-from .devices import AudioDevice, find_device_by_id, get_default_device
+from .. import i18n
+from .devices import (
+    AudioDevice,
+    find_device_by_id,
+    get_default_device,
+    resolve_hardware_device,
+    wait_for_device,
+)
+from .reserve import AudioDeviceReservation
 from .track import AudioTrack
 
 log = get_logger("audio.engine")
 
 if not Gst.is_initialized():
     Gst.init(None)
+
+
+# GstPlayFlags de playbin3
+_PLAY_FLAG_AUDIO = 0x02
+_PLAY_FLAG_NATIVE_AUDIO = 0x20
 
 
 class PlaybackState(Enum):
@@ -29,12 +42,23 @@ class PlaybackState(Enum):
 
 
 class AudioEngine:
-    def __init__(self, device_id: str = "default", volume: float = 1.0):
+    def __init__(self, device_id: str = "default", volume: float = 1.0, exclusive: bool = False):
         self.device_id = device_id
         self.volume = max(0.0, min(1.0, volume))
 
+        # Modo exclusivo: preferencia del usuario y estado real (puede caer al mezclador si falla)
+        self.exclusive = exclusive
+        self.exclusive_active = False
+        self.hw_device: AudioDevice | None = None
+        self._reservation: AudioDeviceReservation | None = None
+        self._released_node: str | None = None  # Salida devuelta a PipeWire que aún puede no estar lista
+        # Pista que el DAC no admite en exclusivo: se reproduce por el mezclador y luego se vuelve
+        self._exclusive_bypass_track: AudioTrack | None = None
+
         self.current_track: AudioTrack | None = None
         self.next_track: AudioTrack | None = None
+        self._gapless_pending: AudioTrack | None = None
+        self._want_playing = False  # Intención del usuario (sobrevive a errores transitorios)
         self.state = PlaybackState.STOPPED
 
         self._playbin: Gst.Element | None = None
@@ -55,6 +79,7 @@ class AudioEngine:
         self._position_listeners: list[Callable[[float, float], None]] = []
         self.on_track_finished: Callable[[], None] | None = None
         self.on_error: Callable[[str], None] | None = None
+        self._output_listeners: list[Callable[[], None]] = []
 
         log.info("Inicializando AudioEngine con mezclador del sistema (device_id='%s')", device_id)
         self._init_pipeline()
@@ -98,6 +123,23 @@ class AudioEngine:
         """Elimina un listener de posición previamente registrado."""
         if callback in self._position_listeners:
             self._position_listeners.remove(callback)
+
+    def add_output_listener(self, callback: Callable[[], None]):
+        """Registra un listener para cambios de salida (dispositivo o modo exclusivo)."""
+        if callback not in self._output_listeners:
+            self._output_listeners.append(callback)
+
+    def remove_output_listener(self, callback: Callable[[], None]):
+        """Elimina un listener de salida previamente registrado."""
+        if callback in self._output_listeners:
+            self._output_listeners.remove(callback)
+
+    def _notify_output_changed(self):
+        for listener in list(self._output_listeners):
+            try:
+                listener()
+            except Exception as e:
+                log.exception("Error en listener de salida: %s", e)
 
     @property
     def position(self) -> float:
@@ -148,17 +190,17 @@ class AudioEngine:
             log.critical("No se pudo instanciar playbin3 en GStreamer")
             raise RuntimeError("No se pudo instanciar playbin3 en GStreamer")
 
-        # Filtro de nivel en tiempo real para osciloscopio y vúmetro
-        self._level_filter = Gst.ElementFactory.make("level", "myflac_audio_level")
-        if self._level_filter:
-            self._level_filter.set_property("post-messages", True)
-            self._level_filter.set_property("interval", 33000000)  # ~33 ms (~30 fps)
-            try:
-                self._playbin.set_property("audio-filter", self._level_filter)
-            except Exception as e:
-                log.warning("No se pudo asignar audio-filter en playbin3: %s", e)
-
         self._apply_audio_sink()
+
+        # Filtro de nivel en tiempo real para osciloscopio y vúmetro. En modo exclusivo va en una
+        # rama aparte del sink (ver _build_exclusive_sink) para no alterar el formato de la muestra.
+        if not self.exclusive_active:
+            self._level_filter = self._make_level_element("myflac_audio_level")
+            if self._level_filter:
+                try:
+                    self._playbin.set_property("audio-filter", self._level_filter)
+                except Exception as e:
+                    log.warning("No se pudo asignar audio-filter en playbin3: %s", e)
 
         # Conectar al bus de mensajes
         self._bus = self._playbin.get_bus()
@@ -168,15 +210,45 @@ class AudioEngine:
         # Gapless: encadenar siguiente pista
         self._playbin.connect("about-to-finish", self._on_about_to_finish)
 
-        # Fijar volumen inicial
-        self._playbin.set_property("volume", self.volume)
+        # Fijar volumen inicial (en exclusivo, siempre 0 dB)
+        self._playbin.set_property("volume", 1.0 if self.exclusive_active else self.volume)
+
+    @staticmethod
+    def _make_level_element(name: str) -> Gst.Element | None:
+        level = Gst.ElementFactory.make("level", name)
+        if level:
+            level.set_property("post-messages", True)
+            level.set_property("interval", 33000000)  # ~33 ms (~30 fps)
+        return level
 
     def _apply_audio_sink(self):
-        """Crea el sink adecuado del mezclador del sistema (PipeWire / Pulse)."""
+        """Crea el sink: ALSA hw directo en modo exclusivo o el mezclador del sistema."""
         if not self._playbin:
             return
 
-        device = find_device_by_id(self.device_id) or get_default_device(self.device_id)
+        self._release_reservation()
+        self.exclusive_active = False
+        self.hw_device = None
+
+        if self.exclusive and self._exclusive_bypass_track is None:
+            sink = self._build_exclusive_sink()
+            if sink is not None:
+                self._sink = sink
+                self.exclusive_active = True
+                # Sin volumen software ni conversiones de playsink: la muestra llega intacta al DAC
+                self._playbin.set_property("flags", _PLAY_FLAG_AUDIO | _PLAY_FLAG_NATIVE_AUDIO)
+                self._playbin.set_property("audio-sink", self._sink)
+                return
+
+        device = find_device_by_id(self.device_id)
+        if self._released_node:
+            # WirePlumber recrea la salida unos instantes después de recuperar la tarjeta (con otro
+            # node.name): sin esperar, el audio acabaría en la salida por defecto del sistema
+            released, self._released_node = self._released_node, None
+            fresh = wait_for_device(released)
+            if device is None or device.id != "default":
+                device = fresh or device
+        device = device or get_default_device(self.device_id)
         sink = None
 
         # Priorizar pulsesink (conecta a PipeWire vía pipewire-pulse de forma robusta y sin bloqueos en PAUSED)
@@ -204,30 +276,94 @@ class AudioEngine:
         self._sink = sink
         self._playbin.set_property("audio-sink", self._sink)
 
-    def set_device(self, device_id: str):
-        """Cambia el dispositivo de salida del mezclador."""
-        if self.device_id == device_id:
-            return
-        log.info("Cambiando salida de audio a: '%s'", device_id)
-        self.device_id = device_id
-        was_playing = (self.state == PlaybackState.PLAYING)
-        current_pos = self.get_position()
-        curr_track = self.current_track
+    def _build_exclusive_sink(self) -> Gst.Element | None:
+        """Reserva la tarjeta frente a PipeWire y crea un bin alsasink hw:X,Y bit-perfect."""
+        hw_dev = resolve_hardware_device(self.device_id)
+        if hw_dev is None:
+            log.warning("Modo exclusivo no disponible para '%s' (no es una salida ALSA)", self.device_id)
+            return None
+        if not Gst.ElementFactory.find("alsasink"):
+            log.warning("Modo exclusivo no disponible: falta el elemento alsasink")
+            return None
+
+        reservation = AudioDeviceReservation(hw_dev.alsa_card, hw_dev.id)
+        if not reservation.acquire():
+            log.warning("No se pudo reservar la tarjeta %s; se usará el mezclador", hw_dev.hw_path)
+            return None
+
+        # tee ─┬─ queue ─ audioconvert (sin dither: solo reempaqueta, p.ej. S24_32 → S24_3) ─ alsasink
+        #      └─ queue ─ audioconvert ─ level ─ fakesink   (solo análisis para el osciloscopio)
+        desc = (
+            "tee name=t "
+            "t. ! queue ! audioconvert dithering=none noise-shaping=none ! "
+            f"alsasink name=hw_sink device={hw_dev.hw_path} "
+            "t. ! queue ! audioconvert ! "
+            "level name=myflac_audio_level post-messages=true interval=33000000 ! "
+            "fakesink sync=true async=false"
+        )
+        try:
+            sink_bin = Gst.parse_bin_from_description(desc, False)
+        except GLib.Error as e:
+            log.error("No se pudo crear el sink exclusivo: %s", e.message)
+            reservation.release()
+            return None
+
+        tee_pad = sink_bin.get_by_name("t").get_static_pad("sink")
+        sink_bin.add_pad(Gst.GhostPad.new("sink", tee_pad))
+
+        self._reservation = reservation
+        self.hw_device = hw_dev
+        log.info("Modo exclusivo: salida directa a %s (%s)", hw_dev.hw_path, hw_dev.name)
+        return sink_bin
+
+    def _release_reservation(self):
+        if self._reservation:
+            self._reservation.release()
+            self._reservation = None
+            if self.hw_device:
+                self._released_node = self.hw_device.id
+
+    def _rebuild_output(self, track: AudioTrack | None = None, position: float | None = None):
+        """Reconstruye el pipeline con la salida actual conservando pista y posición."""
+        was_playing = self._want_playing
+        current_pos = self.get_position() if position is None else position
+        curr_track = track or self.current_track
 
         self._init_pipeline()
+        self._notify_output_changed()
 
         if curr_track:
             self.load_track(curr_track, play_now=was_playing, initial_position=current_pos)
 
+    def set_device(self, device_id: str):
+        """Cambia el dispositivo de salida."""
+        if self.device_id == device_id:
+            return
+        log.info("Cambiando salida de audio a: '%s'", device_id)
+        self.device_id = device_id
+        self._rebuild_output()
+
+    def set_exclusive(self, enabled: bool):
+        """Activa o desactiva el modo exclusivo bit-perfect (ALSA hw directo)."""
+        if self.exclusive == enabled and self.exclusive_active == enabled:
+            return
+        log.info("Modo exclusivo %s", "activado" if enabled else "desactivado")
+        self.exclusive = enabled
+        self._exclusive_bypass_track = None
+        self._rebuild_output()
+
     def set_volume(self, vol: float):
-        """Ajusta el volumen software (0.0 a 1.0)."""
+        """Ajusta el volumen software (0.0 a 1.0). Se ignora en modo exclusivo."""
         self.volume = max(0.0, min(1.0, vol))
-        if self._playbin:
+        if self._playbin and not self.exclusive_active:
             self._playbin.set_property("volume", self.volume)
 
     def load_track(self, track: AudioTrack, play_now: bool = True, initial_position: float = 0.0):
         """Carga una pista para reproducción de forma segura y sin bloqueos."""
+        if self._exclusive_bypass_track is not None and track is not self._exclusive_bypass_track:
+            self._restore_exclusive()
         self.current_track = track
+        self._gapless_pending = None
         self._pending_seek = initial_position if initial_position > 0.0 else None
         self._is_prerolled = False
         uri = "file://" + urllib.parse.quote(os.path.abspath(track.filepath))
@@ -256,21 +392,27 @@ class AudioEngine:
         self.next_track = track
 
     def _on_about_to_finish(self, _playbin):
+        # Se ejecuta en un hilo de streaming de GStreamer: solo encadena la URI. El cambio de
+        # pista se notifica al llegar STREAM_START al bus, cuando la nueva pista empieza a sonar.
         if self.next_track:
             next_uri = "file://" + urllib.parse.quote(os.path.abspath(self.next_track.filepath))
             log.info("Encadenando siguiente pista gapless: '%s'", self.next_track.title)
             self._playbin.set_property("uri", next_uri)
-            self.current_track = self.next_track
+            self._gapless_pending = self.next_track
             self.next_track = None
-            self._notify_track_changed(self.current_track)
 
     def play(self):
         if not self._playbin or not self.current_track:
             return
         log.info("Iniciando reproducción: '%s'", self.current_track.title)
+        self._want_playing = True
         ret = self._playbin.set_state(Gst.State.PLAYING)
         if ret == Gst.StateChangeReturn.FAILURE:
             log.error("Fallo al reproducir en GStreamer")
+            if self.exclusive_active:
+                # El mensaje ERROR del bus gestiona la vuelta al mezclador y reanuda la reproducción
+                self.state = PlaybackState.PLAYING
+                return
             if self.on_error:
                 self.on_error("Error al iniciar reproducción en el mezclador de audio.")
             return
@@ -283,6 +425,7 @@ class AudioEngine:
         if not self._playbin:
             return
         log.info("Pausando reproducción")
+        self._want_playing = False
         self._playbin.set_state(Gst.State.PAUSED)
         self.state = PlaybackState.PAUSED
         self._stop_timer()
@@ -300,6 +443,7 @@ class AudioEngine:
             return
         self._pending_seek = None
         self._is_prerolled = False
+        self._want_playing = False
         self._playbin.set_state(Gst.State.READY)
         self.state = PlaybackState.STOPPED
         self._stop_timer()
@@ -394,6 +538,15 @@ class AudioEngine:
             self.stop()
             if self.on_track_finished:
                 self.on_track_finished()
+        elif m_type == Gst.MessageType.STREAM_START:
+            if self._gapless_pending is not None:
+                self.current_track = self._gapless_pending
+                self._gapless_pending = None
+                log.info("Pista gapless en reproducción: '%s'", self.current_track.title)
+                self._notify_track_changed(self.current_track)
+                if self._exclusive_bypass_track is not None:
+                    # Terminó la pista no admitida por el DAC: recuperar el modo exclusivo
+                    GLib.idle_add(self._restore_exclusive_and_reload)
         elif m_type == Gst.MessageType.ASYNC_DONE:
             self._is_prerolled = True
             if self._pending_seek is not None:
@@ -422,9 +575,49 @@ class AudioEngine:
         elif m_type == Gst.MessageType.ERROR:
             err, debug = message.parse_error()
             log.error("Error en GStreamer: %s (debug: %s)", err.message, debug)
+            if self.exclusive_active:
+                self._fallback_to_mixer(err, debug or "")
+                return
             self.stop()
             if self.on_error:
                 self.on_error(err.message)
+
+    def _fallback_to_mixer(self, err: GLib.Error, debug: str):
+        """El DAC rechazó el modo exclusivo (ocupado, frecuencia o formato no soportado)."""
+        # Si el fallo llega al encadenar una pista gapless, la afectada es la pendiente
+        track = self._gapless_pending or self.current_track
+        position = 0.0 if self._gapless_pending else None
+        self._gapless_pending = None
+
+        if "not-negotiated" in debug and track is not None:
+            # Frecuencia o formato no soportado por el DAC: solo esta pista va por el mezclador
+            log.warning("El DAC no admite '%s' (%s) en exclusivo; se usa el mezclador para esta pista",
+                        track.title, track.badge_full)
+            self._exclusive_bypass_track = track
+            message = i18n.t("devices.exclusive_format_unsupported", format=track.badge_full)
+        else:
+            log.warning("Fallo en modo exclusivo (%s); volviendo al mezclador del sistema", err.message)
+            self.exclusive = False
+            message = i18n.t("devices.exclusive_failed", reason=err.message)
+
+        self._rebuild_output(track, position)
+        if self.on_error:
+            self.on_error(message)
+
+    def _restore_exclusive(self):
+        self._exclusive_bypass_track = None
+        self._init_pipeline()
+        self._notify_output_changed()
+
+    def _restore_exclusive_and_reload(self) -> bool:
+        if self._exclusive_bypass_track is not None:
+            self._exclusive_bypass_track = None
+            self._rebuild_output()
+        return False
+
+    def shutdown(self):
+        """Detiene la reproducción y devuelve la tarjeta a PipeWire."""
+        self._cleanup_pipeline()
 
     def _cleanup_pipeline(self):
         self._stop_timer()
@@ -434,5 +627,6 @@ class AudioEngine:
         if self._playbin:
             self._playbin.set_state(Gst.State.NULL)
             self._playbin = None
+        self._release_reservation()
         self._sink = None
         self._level_filter = None

@@ -20,3 +20,9 @@ myflac = "myflac.app:main"
 
 [tool.setuptools.packages.find]
 include = ["myflac*"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

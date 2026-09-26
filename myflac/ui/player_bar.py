@@ -1,4 +1,5 @@
 import logging
+import os
 from typing import Callable
 
 import gi
@@ -7,7 +8,14 @@ gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
 from gi.repository import Adw, Gdk, GdkPixbuf, Gio, GLib, Gtk, Pango
 
-from ..audio.devices import AudioDevice, find_device_by_id, get_available_devices, get_default_device
+from ..audio.devices import (
+    AudioDevice,
+    base_node_name,
+    find_device_by_id,
+    get_available_devices,
+    get_default_device,
+    resolve_hardware_device,
+)
 from ..audio.engine import AudioEngine, PlaybackState
 from ..audio.track import AudioTrack
 from .. import i18n
@@ -53,6 +61,7 @@ class PlayerBar(Gtk.Box):
         self.on_queue_track_removed: Callable[[int], None] | None = None
         self.on_clear_queue_clicked: Callable[[], None] | None = None
         self.on_device_selected: Callable[[AudioDevice], None] | None = None
+        self.on_exclusive_toggled: Callable[[bool], None] | None = None
         self.on_mini_player_requested: Callable[[], None] | None = None
 
         self._queue: list[AudioTrack] = []
@@ -239,6 +248,13 @@ class PlayerBar(Gtk.Box):
         self.device_label.set_max_width_chars(22)
         btn_content.append(self.device_label)
 
+        # Píldora de transporte bit-perfect (visible solo con el modo exclusivo activo)
+        self.bitperfect_pill = Gtk.Label(label="⚡ BIT-PERFECT")
+        self.bitperfect_pill.add_css_class("bitperfect-pill")
+        self.bitperfect_pill.set_valign(Gtk.Align.CENTER)
+        self.bitperfect_pill.set_visible(False)
+        btn_content.append(self.bitperfect_pill)
+
         # Flecha indicadora de menú hacia arriba
         self.device_chevron = Gtk.Image.new_from_icon_name("pan-up-symbolic")
         self.device_chevron.set_pixel_size(12)
@@ -310,10 +326,21 @@ class PlayerBar(Gtk.Box):
 
     def update_active_device(self):
         """Actualiza el texto e icono del botón de dispositivo de audio en una sola línea."""
-        dev = find_device_by_id(self.engine.device_id) or get_default_device(self.engine.device_id)
+        dev = self.engine.hw_device or find_device_by_id(self.engine.device_id) \
+            or get_default_device(self.engine.device_id)
         self.device_label.set_text(dev.name)
         self.device_icon.set_from_icon_name(dev.icon_name or "audio-card-symbolic")
         self.device_btn.set_tooltip_text(i18n.t("player.active_device", name=dev.name))
+
+        # En modo exclusivo el volumen queda fijo a 0 dB: se controla en el DAC o amplificador
+        exclusive = self.engine.exclusive_active
+        self.bitperfect_pill.set_visible(exclusive)
+        self.vol_btn.set_sensitive(not exclusive)
+        self.vol_btn.set_tooltip_text(i18n.t("player.volume_locked") if exclusive else i18n.t("player.volume"))
+        if exclusive:
+            self.vol_btn.set_icon_name("audio-volume-high-symbolic")
+        else:
+            self._on_volume_changed(self.vol_scale)
 
     def _on_state_changed(self, state: PlaybackState):
         if state == PlaybackState.PLAYING:
@@ -436,9 +463,16 @@ class PlayerBar(Gtk.Box):
 
         devices = get_available_devices()
         current_id = self.engine.device_id if self.engine else "default"
+        # Mientras la tarjeta está reservada en exclusiva, PipeWire no la lista
+        hw_dev = self.engine.hw_device
+        if hw_dev and current_id not in ("default", "") and not any(
+            base_node_name(d.id) == base_node_name(hw_dev.id) for d in devices
+        ):
+            devices = devices + [hw_dev]
 
         for dev in devices:
-            is_active = (dev.id == current_id) or (current_id in ("default", "") and dev.id == "default")
+            is_active = (dev.id == current_id) or (current_id in ("default", "") and dev.id == "default") \
+                or (current_id not in ("default", "") and base_node_name(dev.id) == base_node_name(current_id))
             row = Adw.ActionRow()
             row.set_title(dev.name)
 
@@ -467,7 +501,29 @@ class PlayerBar(Gtk.Box):
 
         scrolled.set_child(list_box)
         box.append(scrolled)
+
+        # Interruptor del modo exclusivo bit-perfect (se recuerda entre sesiones)
+        exclusive_list = Gtk.ListBox()
+        exclusive_list.add_css_class("boxed-list")
+        exclusive_list.set_selection_mode(Gtk.SelectionMode.NONE)
+
+        exclusive_row = Adw.SwitchRow()
+        exclusive_row.set_title(i18n.t("devices.exclusive_title"))
+        supported = hw_dev is not None or resolve_hardware_device(current_id) is not None
+        exclusive_row.set_subtitle(
+            i18n.t("devices.exclusive_subtitle") if supported else i18n.t("devices.exclusive_unavailable")
+        )
+        exclusive_row.set_active(self.engine.exclusive)
+        exclusive_row.set_sensitive(supported or self.engine.exclusive)
+        exclusive_row.connect("notify::active", self._on_exclusive_row_toggled)
+        exclusive_list.append(exclusive_row)
+        box.append(exclusive_list)
+
         self.device_popover.set_child(box)
+
+    def _on_exclusive_row_toggled(self, row: Adw.SwitchRow, _param):
+        if self.on_exclusive_toggled and row.get_active() != self.engine.exclusive:
+            self.on_exclusive_toggled(row.get_active())
 
     def _select_device_from_popover(self, dev: AudioDevice):
         if self.on_device_selected:

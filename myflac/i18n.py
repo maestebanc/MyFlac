@@ -516,6 +516,36 @@ STRINGS: dict[str, dict[str, str]] = {
         "en": "Active",
         "ca": "Actiu",
     },
+    "devices.exclusive_title": {
+        "es": "Modo exclusivo Bit-Perfect",
+        "en": "Bit-Perfect exclusive mode",
+        "ca": "Mode exclusiu Bit-Perfect",
+    },
+    "devices.exclusive_subtitle": {
+        "es": "Acceso directo al DAC (ALSA hw) sin mezclador, remuestreo ni volumen digital",
+        "en": "Direct DAC access (ALSA hw) with no mixer, resampling or digital volume",
+        "ca": "Accés directe al DAC (ALSA hw) sense mesclador, remostreig ni volum digital",
+    },
+    "devices.exclusive_unavailable": {
+        "es": "No disponible para esta salida (no es un dispositivo ALSA)",
+        "en": "Not available for this output (not an ALSA device)",
+        "ca": "No disponible per a aquesta sortida (no és un dispositiu ALSA)",
+    },
+    "devices.exclusive_failed": {
+        "es": "No se pudo usar el modo exclusivo ({reason}). Se usa el mezclador del sistema.",
+        "en": "Exclusive mode could not be used ({reason}). Using the system mixer.",
+        "ca": "No s'ha pogut usar el mode exclusiu ({reason}). S'usa el mesclador del sistema.",
+    },
+    "devices.exclusive_format_unsupported": {
+        "es": "El DAC no admite {format} en modo exclusivo. Esta pista se reproduce por el mezclador.",
+        "en": "The DAC does not support {format} in exclusive mode. This track plays through the mixer.",
+        "ca": "El DAC no admet {format} en mode exclusiu. Aquesta pista es reprodueix pel mesclador.",
+    },
+    "player.volume_locked": {
+        "es": "Volumen fijo a 0 dB en modo exclusivo (ajústalo en el DAC o amplificador)",
+        "en": "Volume fixed at 0 dB in exclusive mode (adjust it on your DAC or amplifier)",
+        "ca": "Volum fix a 0 dB en mode exclusiu (ajusta'l al DAC o l'amplificador)",
+    },
 
     # --- Preferencias ---
     "prefs.title": {

@@ -11,7 +11,11 @@ finish-args:
   - --share=ipc
   # Salida de audio mediante PipeWire / PulseAudio
   - --socket=pulseaudio
-  # Conexión de red para búsqueda de letras online (LRCLIB)
+  # Modo exclusivo bit-perfect: acceso directo a /dev/snd (ALSA hw) y reserva de la tarjeta
+  # frente a PipeWire mediante org.freedesktop.ReserveDevice1 (own incluye talk)
+  - --device=all
+  - --own-name=org.freedesktop.ReserveDevice1.*
+  # Conexión de red para letras online (LRCLIB) y fotos de artista (Deezer / Wikipedia)
   - --share=network
   # Acceso de lectura a la carpeta de música y directorio de usuario
   - --filesystem=xdg-music:ro

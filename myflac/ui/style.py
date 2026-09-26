@@ -246,6 +246,17 @@ EXTRA_CSS = """
     color: #f59e0b;
 }
 
+.bitperfect-pill {
+    font-size: 0.66em;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    color: #10b981;
+    background-color: alpha(#10b981, 0.14);
+    border: 1px solid alpha(#10b981, 0.40);
+    border-radius: 9999px;
+    padding: 1px 7px;
+}
+
 .device-name-label {
     font-weight: 600;
     font-size: 0.84em;
