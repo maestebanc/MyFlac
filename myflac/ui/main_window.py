@@ -183,6 +183,7 @@ class MainWindow(Adw.ApplicationWindow):
         # Panel Inspector de audio con visualizadores en tiempo real
         self.inspector = InspectorPanel(engine=self.engine)
         self.inspector.on_album_activate = self._on_album_activate_from_inspector
+        self.inspector.on_visualizer_mode_changed = self._on_visualizer_mode_changed
         self.paned.set_end_child(self.inspector)
 
         # Barra inferior del reproductor (altura acotada a 64px)
@@ -624,11 +625,18 @@ class MainWindow(Adw.ApplicationWindow):
         log.info("Activando álbum completo desde Inspector: '%s'", album_name)
         self.browser.select_album_and_play(album_name)
 
+    def _on_visualizer_mode_changed(self, mode: int):
+        """Sincroniza el cambio de modo de osciloscopio del inspector con el mini-reproductor y configuración."""
+        self.cfg["visualizer_mode"] = mode
+        if self.mini_player:
+            self.mini_player.set_visualizer_mode(mode, save=False)
+
     def _open_mini_player(self):
         """Activa el modo Mini-Reproductor (500x500) y oculta la ventana principal."""
         log.info("Activando modo Mini-Reproductor y ocultando ventana principal")
         if self.mini_player is None:
             self.mini_player = MiniPlayerWindow(main_window=self, engine=self.engine)
+        self.mini_player.set_visualizer_mode(self.inspector.visualizer_mode, save=False)
         if self.engine.current_track:
             self.mini_player.set_track(self.engine.current_track)
         self.mini_player.present_mini_player()
@@ -639,6 +647,7 @@ class MainWindow(Adw.ApplicationWindow):
         log.info("Activando Super-Reproductor a pantalla completa y ocultando ventana principal")
         if self.mini_player is None:
             self.mini_player = MiniPlayerWindow(main_window=self, engine=self.engine)
+        self.mini_player.set_visualizer_mode(self.inspector.visualizer_mode, save=False)
         if self.engine.current_track:
             self.mini_player.set_track(self.engine.current_track)
         self.mini_player.present_super_player()
@@ -652,6 +661,8 @@ class MainWindow(Adw.ApplicationWindow):
             except Exception:
                 pass
             self.mini_player = None
+        if hasattr(self, "inspector") and self.inspector:
+            self.cfg["visualizer_mode"] = self.inspector.visualizer_mode
         if self.engine.current_track:
             self.cfg["last_track_path"] = self.engine.current_track.filepath
             self.cfg["last_position"] = self.engine.position

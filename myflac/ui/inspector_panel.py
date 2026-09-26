@@ -38,6 +38,7 @@ class InspectorPanel(Gtk.Box):
         self.current_track: AudioTrack | None = None
         self._last_output_info: dict = {}
         self.on_album_activate: Callable[[str], None] | None = None
+        self.on_visualizer_mode_changed: Callable[[int], None] | None = None
 
         # Cargar modo visualizador persistente (0: Portada+Osciloscopio [por defecto], 1: Portada limpia)
         cfg = load_config()
@@ -234,6 +235,14 @@ class InspectorPanel(Gtk.Box):
             save_config(cfg)
         except Exception as e:
             log.warning("No se pudo guardar visualizer_mode en configuración: %s", e)
+        if self.on_visualizer_mode_changed:
+            self.on_visualizer_mode_changed(self.visualizer_mode)
+
+    def set_visualizer_mode(self, mode: int):
+        """Aplica un modo visualizador externamente (ej. sincronizado desde MiniPlayerWindow)."""
+        mode = mode % 2
+        if self.visualizer_mode != mode:
+            self._apply_visualizer_mode(mode)
 
     def _apply_visualizer_mode(self, mode: int):
         self.visualizer_mode = mode

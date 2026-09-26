@@ -14,6 +14,7 @@ from gi.repository import Adw, Gdk, Gio, GLib, Gtk, Pango
 
 from ..audio.engine import AudioEngine, PlaybackState
 from ..audio.track import AudioTrack
+from ..config import load_config, save_config
 from ..logger import get_logger
 from ..lyrics import LyricsService
 from .. import i18n
@@ -101,7 +102,14 @@ class MiniPlayerWindow(Adw.Window):
         self._is_seeking = False
         self._current_duration = 0.0
         self._current_position = 0.0
-        self._oscilloscope_mode = 0  # 0: Portada + Osciloscopio (por defecto), 1: Portada limpia
+
+        # Cargar modo visualizador persistente (0: Portada+Osciloscopio, 1: Portada limpia)
+        cfg = load_config()
+        if hasattr(main_window, "inspector") and hasattr(main_window.inspector, "visualizer_mode"):
+            self._oscilloscope_mode = main_window.inspector.visualizer_mode % 2
+        else:
+            self._oscilloscope_mode = cfg.get("visualizer_mode", 0) % 2
+
         self._hud_timeout_id: int | None = None
         self._mouse_inside = False
 
@@ -132,6 +140,7 @@ class MiniPlayerWindow(Adw.Window):
         self._build_ui()
         self._connect_engine()
         self._setup_controllers()
+        self.set_visualizer_mode(self._oscilloscope_mode, save=False)
 
         self.connect("close-request", self._on_close_request)
 
@@ -681,15 +690,12 @@ class MiniPlayerWindow(Adw.Window):
         """Conmuta el osciloscopio al hacer clic directamente en la carátula en modo super."""
         self.toggle_oscilloscope_mode()
 
-    def toggle_oscilloscope_mode(self):
-        """Conmuta entre Modo 0 (Osciloscopio superpuesto) y Modo 1 (Portada limpia)."""
-        self._oscilloscope_mode = 1 if self._oscilloscope_mode == 0 else 0
+    def set_visualizer_mode(self, mode: int, save: bool = True):
+        """Establece el modo del osciloscopio (0: activo, 1: limpio) y sincroniza con todos los reproductores."""
+        self._oscilloscope_mode = mode % 2
         is_active = (self._oscilloscope_mode == 0)
         is_playing = (self.engine.state == PlaybackState.PLAYING)
-        log.info(
-            "Conmutando visualizador: %s",
-            "Osciloscopio activo" if is_active else "Portada Limpia HD",
-        )
+
         self.mini_scope.set_active(is_active)
         self.mini_scope.set_playing(is_playing)
         self.mini_scope.set_visible(is_active and is_playing)
@@ -697,6 +703,30 @@ class MiniPlayerWindow(Adw.Window):
         self.super_scope.set_active(is_active)
         self.super_scope.set_playing(is_playing)
         self.super_scope.set_visible(is_active and is_playing)
+
+        # Sincronizar con el panel inspector de la ventana principal
+        if hasattr(self.main_window, "inspector") and self.main_window.inspector:
+            self.main_window.inspector.set_visualizer_mode(self._oscilloscope_mode)
+
+        # Persistir en la configuración
+        if save:
+            try:
+                cfg = load_config()
+                cfg["visualizer_mode"] = self._oscilloscope_mode
+                save_config(cfg)
+                if hasattr(self.main_window, "cfg"):
+                    self.main_window.cfg["visualizer_mode"] = self._oscilloscope_mode
+            except Exception as e:
+                log.warning("No se pudo guardar visualizer_mode desde MiniPlayer: %s", e)
+
+    def toggle_oscilloscope_mode(self):
+        """Conmuta entre Modo 0 (Osciloscopio superpuesto) y Modo 1 (Portada limpia) y persiste."""
+        new_mode = 1 if self._oscilloscope_mode == 0 else 0
+        log.info(
+            "Conmutando visualizador: %s",
+            "Osciloscopio activo" if new_mode == 0 else "Portada Limpia HD",
+        )
+        self.set_visualizer_mode(new_mode, save=True)
 
     def _on_super_restore_clicked(self):
         """
@@ -817,6 +847,8 @@ class MiniPlayerWindow(Adw.Window):
     def present_mini_player(self):
         """Muestra el mini-reproductor compacto estrictamente en 500x500 px."""
         self._launched_from = "mini"
+        if hasattr(self.main_window, "inspector") and self.main_window.inspector:
+            self.set_visualizer_mode(self.main_window.inspector.visualizer_mode, save=False)
         if self.is_fullscreen():
             self.unfullscreen()
         self.set_resizable(False)
@@ -830,6 +862,8 @@ class MiniPlayerWindow(Adw.Window):
     def present_super_player(self):
         """Muestra directamente el Super-Reproductor a pantalla completa."""
         self._launched_from = "main"
+        if hasattr(self.main_window, "inspector") and self.main_window.inspector:
+            self.set_visualizer_mode(self.main_window.inspector.visualizer_mode, save=False)
         self._apply_player_mode(is_super=True)
         self.fullscreen()
         self.present()
@@ -1100,8 +1134,8 @@ class MiniPlayerWindow(Adw.Window):
         if self.is_fullscreen():
             self.unfullscreen()
         self._apply_player_mode(is_super=False)
-        self.mini_scope.set_active(False)
-        self.super_scope.set_active(False)
+        if hasattr(self.main_window, "inspector") and self.main_window.inspector:
+            self.main_window.inspector.set_visualizer_mode(self._oscilloscope_mode)
         self.hide()
         self.main_window.set_visible(True)
         self.main_window.present()
