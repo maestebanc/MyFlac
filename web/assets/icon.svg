@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <defs>
+    <linearGradient id="flacGradient" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#ffb74d"/>
+      <stop offset="100%" stop-color="#e65100"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Play polygon silhouette: smooth rounded corners, bold silhouette -->
+  <path
+    fill="url(#flacGradient)"
+    d="M 26 18 C 17 13 12 17 12 28 L 12 100 C 12 111 17 115 26 110 L 108 69 C 117 64 117 56 108 51 Z"
+  />
+
+  <!-- Bold beamed music notes: thick, balanced, readable at any size -->
+  <g fill="#ffffff">
+    <!-- Left notehead -->
+    <ellipse cx="40" cy="84" rx="11" ry="9.5" transform="rotate(-14 40 84)"/>
+    <!-- Right notehead -->
+    <ellipse cx="67" cy="74" rx="11" ry="9.5" transform="rotate(-14 67 74)"/>
+    <!-- Left stem -->
+    <rect x="47" y="41" width="8" height="43" rx="4"/>
+    <!-- Right stem -->
+    <rect x="74" y="31" width="8" height="43" rx="4"/>
+    <!-- Connecting beam bar -->
+    <polygon points="47,40 82,28 82,39 47,51"/>
+  </g>
+</svg>

@@ -14,3 +14,5 @@ dist/
 build-dir/
 repo/
 *.flatpak
+packaging/build/
+packaging/dist/

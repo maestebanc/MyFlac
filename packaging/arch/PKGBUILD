@@ -1,0 +1,61 @@
+# Maintainer: Miguel Angel Esteban <maestebanc@gmail.com>
+pkgname=myflac
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="Bit-perfect Hi-Res audio player for GNOME"
+arch=('any')
+url="https://maestebanc.github.io/MyFlac/"
+license=('GPL-3.0-or-later')
+depends=(
+    'python'
+    'python-gobject'
+    'python-mutagen'
+    'python-pillow'
+    'gtk4'
+    'libadwaita'
+    'gst-plugins-base'
+    'gst-plugins-good'
+)
+optdepends=(
+    'gst-plugins-bad: Additional audio format decoders'
+    'gst-plugins-ugly: Additional audio format decoders'
+    'gst-plugin-pipewire: Native PipeWire audio output'
+)
+source=()
+
+package() {
+    cd "$srcdir/../.."
+    python -m installer --destdir="$pkgdir" dist/*.whl 2>/dev/null || {
+        local sitelib=$(python -c "import site; print(site.getsitepackages()[0])")
+        mkdir -p "$pkgdir/$sitelib"
+        cp -r myflac "$pkgdir/$sitelib/"
+    }
+
+    mkdir -p "$pkgdir/usr/bin"
+    cat > "$pkgdir/usr/bin/myflac" <<'EOF'
+#!/usr/bin/python3
+import sys
+from myflac.app import main
+if __name__ == "__main__":
+    sys.exit(main())
+EOF
+    chmod 755 "$pkgdir/usr/bin/myflac"
+
+    mkdir -p "$pkgdir/usr/share/applications"
+    cp data/com.maestebanc.MyFlac.desktop "$pkgdir/usr/share/applications/"
+
+    mkdir -p "$pkgdir/usr/share/metainfo"
+    cp data/com.maestebanc.MyFlac.metainfo.xml "$pkgdir/usr/share/metainfo/"
+
+    for size in 16 22 24 32 48 64 128 256 512; do
+        mkdir -p "$pkgdir/usr/share/icons/hicolor/${size}x${size}/apps"
+        cp "data/icons/hicolor/${size}x${size}/apps/com.maestebanc.MyFlac.png" \
+           "$pkgdir/usr/share/icons/hicolor/${size}x${size}/apps/"
+    done
+    mkdir -p "$pkgdir/usr/share/icons/hicolor/scalable/apps"
+    cp data/icons/hicolor/scalable/apps/com.maestebanc.MyFlac.svg \
+       "$pkgdir/usr/share/icons/hicolor/scalable/apps/"
+    mkdir -p "$pkgdir/usr/share/icons/hicolor/symbolic/apps"
+    cp data/icons/hicolor/symbolic/apps/com.maestebanc.MyFlac-symbolic.svg \
+       "$pkgdir/usr/share/icons/hicolor/symbolic/apps/"
+}
