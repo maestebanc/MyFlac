@@ -89,12 +89,14 @@ class MyFlacApplication(Adw.Application):
 
             self.window = MainWindow(self, cfg)
             register_app_shortcuts(self, self.window.shortcut_handlers())
+            self.window.present()
+
             # Icono en la barra superior: bandeja estándar (extensión AppIndicator en GNOME, KDE, XFCE...)
             self.tray = TrayIcon(self)
-            self.tray.start()
+            GLib.idle_add(self.tray.start)
             log.info("Ventana principal MainWindow instanciada exitosamente")
-
-        self.window.present()
+        else:
+            self.window.present()
 
     def _open_preferences(self):
         if not self.window:

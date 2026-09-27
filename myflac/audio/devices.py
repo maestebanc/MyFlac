@@ -172,10 +172,24 @@ def base_node_name(node_name: str) -> str:
     return node_name
 
 
+def make_default_device() -> AudioDevice:
+    """Crea el objeto AudioDevice estándar para la salida por defecto del sistema."""
+    return AudioDevice(
+        id="default",
+        name=i18n.t("devices.default_name"),
+        description=i18n.t("devices.default_desc"),
+        is_usb=False,
+        is_default=True,
+        icon_name="audio-card-symbolic",
+    )
+
+
 def find_device_by_id(device_id: str) -> AudioDevice | None:
     """Busca un dispositivo por su ID (node.name o 'default')."""
     if not device_id or device_id in ("default", "auto", "pipewire"):
-        return get_available_devices()[0]
+        if _cached_devices:
+            return _cached_devices[0]
+        return make_default_device()
     base_id = base_node_name(device_id)
     for dev in get_available_devices():
         if dev.id == device_id or base_node_name(dev.id) == base_id or device_id in dev.id:
@@ -213,9 +227,10 @@ def wait_for_device(device_id: str, timeout: float = 3.0) -> AudioDevice | None:
 
 def get_default_device(preferred_id: str | None = None) -> AudioDevice:
     """Retorna el dispositivo configurado o la salida por defecto del sistema."""
-    if preferred_id:
+    if preferred_id and preferred_id not in ("default", "auto", "pipewire"):
         found = find_device_by_id(preferred_id)
         if found:
             return found
-    devices = get_available_devices()
-    return devices[0]
+    if _cached_devices:
+        return _cached_devices[0]
+    return make_default_device()

@@ -12,16 +12,19 @@ else
     exit 1
 fi
 
-# Sincronizar iconos y lanzador desktop para que GNOME Shell / Wayland muestre el icono en el Dock
-if [ -d "$DIR/data/icons/hicolor" ]; then
-    mkdir -p "$HOME/.local/share/icons/hicolor"
-    cp -ru "$DIR/data/icons/hicolor/"* "$HOME/.local/share/icons/hicolor/" 2>/dev/null || cp -r "$DIR/data/icons/hicolor/"* "$HOME/.local/share/icons/hicolor/" 2>/dev/null || true
-    mkdir -p "$HOME/.local/share/applications"
+# Sincronizar iconos y lanzador desktop solo si han cambiado para arranque instantáneo
+STAMP="$HOME/.local/share/myflac/.desktop_installed"
+if [ ! -f "$STAMP" ] || [ "$DIR/data/com.maestebanc.MyFlac.desktop" -nt "$STAMP" ]; then
+    mkdir -p "$HOME/.local/share/icons/hicolor" "$HOME/.local/share/applications" "$HOME/.local/share/myflac"
+    if [ -d "$DIR/data/icons/hicolor" ]; then
+        cp -ru "$DIR/data/icons/hicolor/"* "$HOME/.local/share/icons/hicolor/" 2>/dev/null || true
+    fi
     if [ -f "$DIR/data/com.maestebanc.MyFlac.desktop" ]; then
         sed "s|Exec=myflac|Exec=$DIR/run.sh %F|" "$DIR/data/com.maestebanc.MyFlac.desktop" > "$HOME/.local/share/applications/com.maestebanc.MyFlac.desktop"
     fi
     command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database "$HOME/.local/share/applications" 2>/dev/null || true
     command -v gtk4-update-icon-cache >/dev/null 2>&1 && gtk4-update-icon-cache -q -t "$HOME/.local/share/icons/hicolor" 2>/dev/null || true
+    touch "$STAMP"
 fi
 
 export PYTHONPATH="$DIR${PYTHONPATH:+:$PYTHONPATH}"

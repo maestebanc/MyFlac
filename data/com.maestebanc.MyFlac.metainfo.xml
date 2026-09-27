@@ -36,9 +36,13 @@
   <releases>
     <release version="0.1.1" date="2026-09-27">
       <description>
+        <p>Instant startup and complete session state restoration: MyFlac now remembers your selected artist, album, track, and playback position, launching immediately without initial delay.</p>
+        <p>System tray quick actions: direct launch options for the fullscreen Super Player and compact Mini Player.</p>
         <p>Added close behavior preference: choose between quitting completely or keeping playback running in the system tray.</p>
-        <p xml:lang="es">Añadida preferencia de comportamiento al cerrar: permite elegir entre cerrar la aplicación completamente o permanecer en la bandeja del sistema reproduciendo música.</p>
-        <p xml:lang="ca">Afegida preferència de comportament en tancar: permet triar entre tancar l'aplicació completament o romandre a la safata del sistema reproduint música.</p>
+        <p xml:lang="es">Inicio instantáneo y restauración completa de sesión: MyFlac recuerda el artista, álbum, pista y posición de reproducción, abriéndose al instante sin pausas.</p>
+        <p xml:lang="es">Acceso rápido desde la bandeja del sistema: opciones para abrir directamente el Super-Reproductor o el Mini-Reproductor.</p>
+        <p xml:lang="es">Preferencia de comportamiento al cerrar: permite elegir entre cerrar completamente o permanecer en segundo plano en la bandeja.</p>
+        <p xml:lang="ca">Inici instantani i restauració completa de sessió: MyFlac recorda l'artista, àlbum, pista i posició de reproducció, obrint-se a l'instant.</p>
       </description>
     </release>
     <release version="0.1.0" date="2026-09-26">

@@ -94,6 +94,9 @@ class MainWindow(Adw.ApplicationWindow):
         # Notificar estado inicial al inspector
         self._update_output_status()
 
+        # Restaurar inmediatamente el estado de la sesión guardada (artista, álbum, pista, posición)
+        self._restore_saved_session_state()
+
     def _build_ui(self):
         self.toolbar_view = Adw.ToolbarView()
 
@@ -269,10 +272,15 @@ class MainWindow(Adw.ApplicationWindow):
         self._adjust_paned_position()
         if not self._initial_startup_done:
             self._initial_startup_done = True
-            self._check_library_and_startup()
+            if getattr(self, "_needs_initial_setup", False):
+                self._show_library_setup_dialog()
+            else:
+                # Escaneo RÁPIDO y transparente en segundo plano (no bloquea el inicio ni la UI)
+                log.info("Iniciando escaneo rápido de inicio en segundo plano...")
+                GLib.idle_add(lambda: self._trigger_library_scan(quick=True, silent=True))
 
-    def _check_library_and_startup(self):
-        """Verifica si hay carpetas en la biblioteca al iniciar la aplicación."""
+    def _restore_saved_session_state(self):
+        """Restaura instantáneamente el estado guardado de la sesión anterior (artista, álbum, pista, posición)."""
         configured_folders = self.cfg.get("library_folders", [])
         db_folders = self.db.get_library_folders()
 
@@ -281,43 +289,54 @@ class MainWindow(Adw.ApplicationWindow):
         valid_folders = [f for f in all_folders if os.path.isdir(f)]
 
         if not valid_folders:
-            log.info("No hay carpetas de biblioteca configuradas. Mostrando diálogo de bienvenida...")
-            self._show_library_setup_dialog()
+            log.info("No hay carpetas de biblioteca configuradas.")
+            self._needs_initial_setup = True
+            return
+
+        self._needs_initial_setup = False
+        self.cfg["library_folders"] = valid_folders
+        save_config(self.cfg)
+        for f in valid_folders:
+            self.db.add_library_folder(f)
+
+        last_path = self.cfg.get("last_track_path", "")
+        last_artist = self.cfg.get("last_artist", "__ALL__")
+        last_album = self.cfg.get("last_album", "__ALL__")
+
+        # Si last_artist o last_album no están configurados pero hay una última pista, deducirlos
+        last_track = None
+        if last_path and os.path.exists(last_path):
+            try:
+                last_track = load_track(last_path)
+                if last_track:
+                    if (not last_artist or last_artist == "__ALL__") and last_track.artist:
+                        last_artist = last_track.artist
+                    if (not last_album or last_album == "__ALL__") and last_track.album:
+                        last_album = last_track.album
+            except Exception as e:
+                log.warning("No se pudo cargar la pista previa para restaurar estado: %s", e)
+
+        # Carga instantánea de los datos indexados en SQLite filtrados por el estado previo
+        self.browser.load_initial_data(initial_artist=last_artist, initial_album=last_album)
+
+        # Restauración de sesión previa si existe
+        if last_track:
+            try:
+                log.info("Restaurando pista de sesión anterior: '%s'", last_track.title)
+                self.inspector.set_track(last_track)
+                self.player_bar.set_track(last_track)
+                last_pos = float(self.cfg.get("last_position", 0.0))
+                self.engine.load_track(last_track, play_now=False, initial_position=last_pos)
+                self.browser.set_current_playing_track(last_track, is_paused=True)
+                self.player_bar._on_position_updated(last_pos, last_track.duration)
+                self.library_backdrop.set_artist(last_track.artist)
+            except Exception as e:
+                log.warning("No se pudo restaurar la reproducción de sesión previa: %s", e)
         else:
-            self.cfg["library_folders"] = valid_folders
-            save_config(self.cfg)
-            for f in valid_folders:
-                self.db.add_library_folder(f)
-
-            # Carga instantánea de los datos ya indexados en SQLite
-            self.browser.load_initial_data()
-
-            # Restauración de sesión previa si existe
-            last_path = self.cfg.get("last_track_path", "")
-            restored = False
-            if last_path and os.path.exists(last_path):
-                try:
-                    last_track = load_track(last_path)
-                    if last_track:
-                        log.info("Restaurando pista de sesión anterior: '%s'", last_track.title)
-                        self.inspector.set_track(last_track)
-                        self.player_bar.set_track(last_track)
-                        last_pos = float(self.cfg.get("last_position", 0.0))
-                        self.engine.load_track(last_track, play_now=False, initial_position=last_pos)
-                        self.browser.set_current_playing_track(last_track, is_paused=True)
-                        restored = True
-                except Exception as e:
-                    log.warning("No se pudo restaurar la sesión anterior: %s", e)
-
-            if not restored:
-                first_track = self.browser.get_selected_or_first_track()
-                if first_track and not self.inspector.current_track:
-                    self.inspector.set_track(first_track)
-                    self.player_bar.set_track(first_track)
-
-            # Escaneo RÁPIDO y transparente en segundo plano (no bloquea)
-            log.info("Iniciando escaneo rápido de inicio en segundo plano...")
-            self._trigger_library_scan(quick=True, silent=True)
+            first_track = self.browser.get_selected_or_first_track()
+            if first_track and not self.inspector.current_track:
+                self.inspector.set_track(first_track)
+                self.player_bar.set_track(first_track)
 
     def _show_library_setup_dialog(self):
         dlg = LibrarySetupDialog(parent=self, on_folder_chosen=self._on_initial_folder_chosen)
@@ -577,6 +596,11 @@ class MainWindow(Adw.ApplicationWindow):
             self.mini_player.set_track(track)
         self._prepare_gapless_next()
         self._update_output_status()
+        self.cfg["last_track_path"] = track.filepath
+        if hasattr(self, "browser") and self.browser:
+            self.cfg["last_artist"] = self.browser.current_artist
+            self.cfg["last_album"] = self.browser.current_album
+        save_config(self.cfg)
 
     def _prefetch_info(self, track: AudioTrack) -> bool:
         if self.engine.current_track is track:
@@ -804,8 +828,27 @@ class MainWindow(Adw.ApplicationWindow):
         self.set_visible(False)
 
     def _on_close_request(self, _window) -> bool:
+        # Guardar siempre el estado actual completo de la sesión
+        if hasattr(self, "browser") and self.browser:
+            self.cfg["last_artist"] = self.browser.current_artist
+            self.cfg["last_album"] = self.browser.current_album
+        if self.engine.current_track:
+            self.cfg["last_track_path"] = self.engine.current_track.filepath
+            self.cfg["last_position"] = self.engine.position
+        if hasattr(self, "inspector") and self.inspector:
+            self.cfg["visualizer_mode"] = self.inspector.visualizer_mode
+        w, h = self.get_default_size()
+        self.cfg["window_width"] = w
+        self.cfg["window_height"] = h
+        self.cfg["window_maximized"] = self.is_maximized()
+        if self._split_moved_by_user and hasattr(self, "browser") and self.browser:
+            self.cfg["browser_split_position"] = self.browser.v_paned.get_position()
+        self.cfg["software_volume"] = self.engine.volume
+        save_config(self.cfg)
+
         app = self.get_application()
-        if app and not app.quitting and app.can_run_in_background():
+        can_bg = getattr(app, "can_run_in_background", lambda: False)()
+        if app and not getattr(app, "quitting", False) and can_bg:
             # Como Spotify: cerrar la ventana la oculta y la música sigue; se sale con "Salir"
             log.info("Ventana principal oculta; MyFlac sigue en la barra superior")
             if self.mini_player and self.mini_player.get_visible():
@@ -823,11 +866,6 @@ class MainWindow(Adw.ApplicationWindow):
             except Exception:
                 pass
             self.mini_player = None
-        if hasattr(self, "inspector") and self.inspector:
-            self.cfg["visualizer_mode"] = self.inspector.visualizer_mode
-        if self.engine.current_track:
-            self.cfg["last_track_path"] = self.engine.current_track.filepath
-            self.cfg["last_position"] = self.engine.position
         self.scanner.stop()
         if self._inhibit_cookie != 0:
             app = self.get_application()
@@ -840,13 +878,5 @@ class MainWindow(Adw.ApplicationWindow):
         if hasattr(self, "mpris"):
             self.mpris.stop()
         self.engine.shutdown()
-        w, h = self.get_default_size()
-        self.cfg["window_width"] = w
-        self.cfg["window_height"] = h
-        self.cfg["window_maximized"] = self.is_maximized()
-        if self._split_moved_by_user:
-            self.cfg["browser_split_position"] = self.browser.v_paned.get_position()
-        self.cfg["software_volume"] = self.engine.volume
-        save_config(self.cfg)
         log.info("Configuración final guardada. Adiós.")
         return False

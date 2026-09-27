@@ -150,10 +150,10 @@ class ColumnBrowserView(Gtk.Box):
     # -------------------------------------------------------------------------
     # Carga de datos y filtrado
     # -------------------------------------------------------------------------
-    def load_initial_data(self):
+    def load_initial_data(self, initial_artist: str = "__ALL__", initial_album: str = "__ALL__"):
         """Carga la colección completa desde la base de datos de manera instantánea."""
-        self.current_artist = "__ALL__"
-        self.current_album = "__ALL__"
+        self.current_artist = initial_artist or "__ALL__"
+        self.current_album = initial_album or "__ALL__"
         self.refresh_artists()
         self.refresh_albums()
         self.refresh_tracks()
@@ -163,12 +163,9 @@ class ColumnBrowserView(Gtk.Box):
         try:
             self._artists_data = self.db.get_artists(search_query=self.search_query)
 
-            # Limpiar filas anteriores
-            while True:
-                row = self.artist_listbox.get_row_at_index(0)
-                if row is None:
-                    break
-                self.artist_listbox.remove(row)
+            # Limpiar filas anteriores rápidamente
+            while child := self.artist_listbox.get_first_child():
+                self.artist_listbox.remove(child)
 
             # Fila especial: (Todos)
             total_tracks = sum(count for _, count in self._artists_data)
@@ -178,11 +175,16 @@ class ColumnBrowserView(Gtk.Box):
 
             # Filas de artistas
             selected_row = row_all
+            found = False
             for idx, (artist_name, count) in enumerate(self._artists_data):
                 row = self._create_browser_row(artist_name, count)
                 self.artist_listbox.append(row)
                 if self.current_artist == artist_name:
                     selected_row = row
+                    found = True
+
+            if not found and self.current_artist != "__ALL__":
+                self.current_artist = "__ALL__"
 
             self.artist_count_label.set_text(f"{len(self._artists_data)}")
             self.artist_listbox.select_row(selected_row)
@@ -197,12 +199,9 @@ class ColumnBrowserView(Gtk.Box):
                 search_query=self.search_query,
             )
 
-            # Limpiar filas anteriores
-            while True:
-                row = self.album_listbox.get_row_at_index(0)
-                if row is None:
-                    break
-                self.album_listbox.remove(row)
+            # Limpiar filas anteriores rápidamente
+            while child := self.album_listbox.get_first_child():
+                self.album_listbox.remove(child)
 
             # Fila especial: (Todos)
             total_tracks = sum(count for _, _, count in self._albums_data)
@@ -212,12 +211,17 @@ class ColumnBrowserView(Gtk.Box):
 
             # Filas de álbumes
             selected_row = row_all
+            found = False
             for album_name, year, count in self._albums_data:
                 label_text = f"{album_name} ({year})" if year else album_name
                 row = self._create_browser_row(label_text, count)
                 self.album_listbox.append(row)
                 if self.current_album == album_name:
                     selected_row = row
+                    found = True
+
+            if not found and self.current_album != "__ALL__":
+                self.current_album = "__ALL__"
 
             self.album_count_label.set_text(f"{len(self._albums_data)}")
             self.album_listbox.select_row(selected_row)
@@ -264,10 +268,14 @@ class ColumnBrowserView(Gtk.Box):
 
         idx = row.get_index()
         if idx <= 0 or idx > len(self._artists_data):
-            self.current_artist = "__ALL__"
+            new_artist = "__ALL__"
         else:
-            self.current_artist = self._artists_data[idx - 1][0]
+            new_artist = self._artists_data[idx - 1][0]
 
+        if new_artist == self.current_artist:
+            return
+
+        self.current_artist = new_artist
         log.debug("Artista seleccionado en navegador: %s", self.current_artist)
         self.current_album = "__ALL__"
         self.refresh_albums()
@@ -279,10 +287,14 @@ class ColumnBrowserView(Gtk.Box):
 
         idx = row.get_index()
         if idx <= 0 or idx > len(self._albums_data):
-            self.current_album = "__ALL__"
+            new_album = "__ALL__"
         else:
-            self.current_album = self._albums_data[idx - 1][0]
+            new_album = self._albums_data[idx - 1][0]
 
+        if new_album == self.current_album:
+            return
+
+        self.current_album = new_album
         log.debug("Álbum seleccionado en navegador: %s", self.current_album)
         self.refresh_tracks()
 

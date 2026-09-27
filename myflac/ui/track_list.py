@@ -431,27 +431,37 @@ class TrackListView(Gtk.Box):
         self.filter.changed(Gtk.FilterChange.DIFFERENT)
 
     def add_tracks(self, tracks: list[AudioTrack], clear: bool = False):
-        if clear:
-            self.list_store.remove_all()
-            self.current_playing_index = None
-
         new_items = [FlacTrackItem(t) for t in tracks]
-        for item in new_items:
-            self.list_store.append(item)
+        if clear:
+            n_old = self.list_store.get_n_items()
+            self.list_store.splice(0, n_old, new_items)
+            self.current_playing_index = None
+        else:
+            self.list_store.splice(self.list_store.get_n_items(), 0, new_items)
 
         self._update_footer()
 
     def set_current_playing_track(self, track: AudioTrack | None, is_paused: bool = False):
+        # Desactivar únicamente el elemento anterior
+        if self.current_playing_index is not None and 0 <= self.current_playing_index < self.list_store.get_n_items():
+            old_item = self.list_store.get_item(self.current_playing_index)
+            if old_item:
+                old_item.is_playing = False
+                old_item.is_paused = False
+
+        if not track:
+            self.current_playing_index = None
+            return
+
         target_idx = None
         for i in range(self.list_store.get_n_items()):
             item = self.list_store.get_item(i)
-            if track and item.track.filepath == track.filepath:
+            if item.track.filepath == track.filepath:
                 item.is_playing = True
                 item.is_paused = is_paused
                 target_idx = i
-            else:
-                item.is_playing = False
-                item.is_paused = False
+                break
+
         self.current_playing_index = target_idx
 
     def update_playback_state(self, is_playing: bool, is_paused: bool):

@@ -170,11 +170,17 @@ class TrayIcon:
         self._watch_id = 0
         self._timer_id = 0
         self._revision = 1
-        self._pixmaps = _icon_pixmaps()
+        self._pixmaps: list[tuple[int, int, bytes]] | None = None
         self._props: dict[int, dict[str, GLib.Variant]] = {}
         self.popup = None  # Ventana de reproducción (doble clic), se crea al primer uso
         # Hay icono de MyFlac en la barra (extensión propia o bandeja): cerrar la ventana no detiene la música
         self.visible_in_panel = False
+
+    @property
+    def pixmaps(self) -> list[tuple[int, int, bytes]]:
+        if self._pixmaps is None:
+            self._pixmaps = _icon_pixmaps()
+        return self._pixmaps
 
     # ------------------------------------------------------------------ ciclo de vida
     def start(self):
@@ -304,7 +310,7 @@ class TrayIcon:
         if prop == "IconName":
             return GLib.Variant("s", ICON_NAME)
         if prop == "IconPixmap":
-            return GLib.Variant("a(iiay)", self._pixmaps)
+            return GLib.Variant("a(iiay)", self.pixmaps)
         if prop == "IconThemePath":
             return GLib.Variant("s", "")
         if prop in ("OverlayIconName", "AttentionIconName"):
