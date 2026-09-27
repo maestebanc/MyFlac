@@ -110,12 +110,67 @@
           </a>
         </div>
 
-        <!-- Showcase: Captura nativa real sin recorte y con zoom en alta definición -->
-        <div class="hero-showcase">
+        <!-- Showcase: Carrusel Interactivo de Capturas con auto-scroll y zoom -->
+        <div class="hero-showcase" id="screenshots">
           <div class="showcase-glow"></div>
-          <div class="hero-image-wrapper zoomable" data-caption="MyFlac: Biblioteca audiófila completa con navegador por columnas, fondo ambiental desenfocado del artista, letras sincronizadas y panel de especificaciones bit-perfect.">
-            <img src="assets/main-window.png" alt="MyFlac ventana principal" class="hero-img" id="heroScreenshot" loading="eager">
+
+          <div class="carousel-container" id="carouselContainer" aria-label="Galería de capturas de MyFlac">
+            <!-- Botón Anterior -->
+            <button class="carousel-nav-btn carousel-prev" id="carouselPrev" aria-label="Captura anterior" title="Anterior (Flecha izquierda)">
+              <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="15 18 9 12 15 6"></polyline>
+              </svg>
+            </button>
+
+            <!-- Botón Siguiente -->
+            <button class="carousel-nav-btn carousel-next" id="carouselNext" aria-label="Captura siguiente" title="Siguiente (Flecha derecha)">
+              <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="9 18 15 12 9 6"></polyline>
+              </svg>
+            </button>
+
+            <!-- Ventana del Carrusel -->
+            <div class="carousel-viewport">
+              <div class="carousel-track" id="carouselTrack">
+                <!-- Diapositiva 1: Ventana Principal -->
+                <div class="carousel-slide active" data-index="0" data-caption-key="cap_main">
+                  <div class="carousel-image-box zoomable" data-caption="Ventana principal: navegador por columnas (Artistas / Álbumes), fondo ambiental desenfocado, barra de transporte y panel inspector con fichas y especificaciones audiófilas.">
+                    <img src="assets/main-window.png" alt="MyFlac Ventana Principal" class="carousel-img" loading="eager">
+                    <div class="carousel-slide-badge" data-i18n="tab_main">Ventana Principal</div>
+                  </div>
+                </div>
+
+                <!-- Diapositiva 2: Super-Reproductor -->
+                <div class="carousel-slide" data-index="1" data-caption-key="cap_super">
+                  <div class="carousel-image-box zoomable" data-caption="Super-Reproductor a pantalla completa: fondo dinámico con fotografía en alta resolución del artista, tarjeta translúcida de letras sincronizadas y controles flotantes.">
+                    <img src="assets/super-player.png" alt="MyFlac Super-Reproductor a Pantalla Completa" class="carousel-img" loading="lazy">
+                    <div class="carousel-slide-badge" data-i18n="tab_super">Super-Reproductor</div>
+                  </div>
+                </div>
+
+                <!-- Diapositiva 3: Mini-Reproductor -->
+                <div class="carousel-slide" data-index="2" data-caption-key="cap_mini">
+                  <div class="carousel-image-box mini-box zoomable" data-caption="Mini-Reproductor flotante (500×500 px): portada limpia o con osciloscopio interactivo y controles HUD auto-ocultables que aparecen al pasar el ratón.">
+                    <img src="assets/mini-player.png" alt="MyFlac Mini-Reproductor" class="carousel-img mini-img" loading="lazy">
+                    <div class="carousel-slide-badge" data-i18n="tab_mini">Mini-Reproductor</div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
+
+          <!-- Indicadores del Carrusel -->
+          <div class="carousel-indicators" id="carouselIndicators">
+            <button class="indicator-dot active" data-slide="0" aria-label="Ir a Ventana Principal"></button>
+            <button class="indicator-dot" data-slide="1" aria-label="Ir a Super-Reproductor"></button>
+            <button class="indicator-dot" data-slide="2" aria-label="Ir a Mini-Reproductor"></button>
+          </div>
+
+          <!-- Pie de Foto Dinámico -->
+          <p class="carousel-caption" id="carouselCaption" data-i18n="cap_main">
+            Ventana principal: navegador por columnas (Artistas / Álbumes), fondo ambiental desenfocado, barra de transporte y panel inspector con fichas y especificaciones audiófilas.
+          </p>
+
           <div class="showcase-hint">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <circle cx="11" cy="11" r="8"></circle>
@@ -246,56 +301,6 @@
       </div>
     </section>
 
-    <!-- Screenshots Gallery -->
-    <section class="screenshots-section" id="screenshots">
-      <div class="container">
-        <div class="section-header">
-          <h2 class="section-title" data-i18n="gallery_title">Galería de Capturas</h2>
-          <p class="section-subtitle" data-i18n="gallery_subtitle">
-            Descubre las distintas interfaces y modos de visualización de MyFlac.
-          </p>
-
-          <!-- Tabs -->
-          <div class="screenshot-tabs" role="tablist">
-            <button class="tab-btn active" data-target="shot-main" data-i18n="tab_main">Ventana Principal</button>
-            <button class="tab-btn" data-target="shot-super" data-i18n="tab_super">Super-Reproductor</button>
-            <button class="tab-btn" data-target="shot-mini" data-i18n="tab_mini">Mini-Reproductor</button>
-          </div>
-        </div>
-
-        <div class="gallery-viewport">
-          <!-- Main Window Item -->
-          <div class="gallery-item active" id="shot-main">
-            <div class="gallery-frame zoomable" data-caption="Ventana principal: navegador por columnas (Artistas / Álbumes), fondo ambiental desenfocado, barra de transporte y panel inspector con fichas y especificaciones audiófilas.">
-              <img src="assets/main-window.png" alt="MyFlac Ventana Principal" loading="lazy">
-            </div>
-            <p class="gallery-caption" data-i18n="cap_main">
-              Ventana principal: navegador por columnas (Artistas / Álbumes), fondo ambiental desenfocado, barra de transporte y panel inspector con fichas y especificaciones audiófilas.
-            </p>
-          </div>
-
-          <!-- Super-Player Item -->
-          <div class="gallery-item" id="shot-super">
-            <div class="gallery-frame zoomable" data-caption="Super-Reproductor a pantalla completa: fondo dinámico con fotografía en alta resolución del artista, tarjeta translúcida de letras sincronizadas y controles flotantes.">
-              <img src="assets/super-player.png" alt="MyFlac Super-Reproductor a Pantalla Completa" loading="lazy">
-            </div>
-            <p class="gallery-caption" data-i18n="cap_super">
-              Super-Reproductor a pantalla completa: fondo dinámico con fotografía en alta resolución del artista, tarjeta translúcida de letras sincronizadas y controles flotantes.
-            </p>
-          </div>
-
-          <!-- Mini-Player Item -->
-          <div class="gallery-item" id="shot-mini">
-            <div class="gallery-frame mini-frame zoomable" data-caption="Mini-Reproductor flotante (500×500 px): portada limpia o con osciloscopio interactivo y controles HUD auto-ocultables que aparecen al pasar el ratón.">
-              <img src="assets/mini-player.png" alt="MyFlac Mini-Reproductor" loading="lazy">
-            </div>
-            <p class="gallery-caption" data-i18n="cap_mini">
-              Mini-Reproductor flotante (500×500 px): portada limpia o con osciloscopio interactivo y controles HUD auto-ocultables que aparecen al pasar el ratón.
-            </p>
-          </div>
-        </div>
-      </div>
-    </section>
 
     <!-- Formatos de Audio -->
     <section class="formats-section" id="formats">

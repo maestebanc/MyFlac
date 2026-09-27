@@ -286,24 +286,174 @@ function toggleTheme() {
 }
 
 // ==========================================
-// 4. Screenshots Tabs & Gallery
+// 4. Hero Interactive Carousel Engine
 // ==========================================
-function initGallery() {
-  const tabButtons = document.querySelectorAll(".screenshot-tabs .tab-btn");
-  const galleryItems = document.querySelectorAll(".gallery-item");
+let currentSlideIndex = 0;
+let carouselAutoplayTimer = null;
+let isLightboxActive = false;
 
-  tabButtons.forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const targetId = btn.getAttribute("data-target");
+const slideCaptions = ["cap_main", "cap_super", "cap_mini"];
 
-      tabButtons.forEach((b) => b.classList.remove("active"));
-      btn.classList.add("active");
+function initCarousel() {
+  const container = document.getElementById("carouselContainer");
+  const track = document.getElementById("carouselTrack");
+  const prevBtn = document.getElementById("carouselPrev");
+  const nextBtn = document.getElementById("carouselNext");
+  const dots = document.querySelectorAll("#carouselIndicators .indicator-dot");
+  const captionEl = document.getElementById("carouselCaption");
+  const slides = document.querySelectorAll(".carousel-slide");
+  const totalSlides = slides.length;
 
-      galleryItems.forEach((item) => {
-        item.classList.toggle("active", item.id === targetId);
-      });
+  if (!container || !track || totalSlides === 0) return;
+
+  function updateSlide(index, userInitiated = false) {
+    if (index < 0) {
+      currentSlideIndex = totalSlides - 1;
+    } else if (index >= totalSlides) {
+      currentSlideIndex = 0;
+    } else {
+      currentSlideIndex = index;
+    }
+
+    // Move track smoothly
+    track.style.transform = `translateX(-${currentSlideIndex * 100}%)`;
+
+    // Active state on slides
+    slides.forEach((slide, idx) => {
+      slide.classList.toggle("active", idx === currentSlideIndex);
+    });
+
+    // Active state on indicator dots
+    dots.forEach((dot, idx) => {
+      dot.classList.toggle("active", idx === currentSlideIndex);
+    });
+
+    // Update dynamic caption with smooth fade
+    if (captionEl) {
+      const capKey = slideCaptions[currentSlideIndex] || "cap_main";
+      captionEl.setAttribute("data-i18n", capKey);
+      captionEl.style.opacity = "0";
+      setTimeout(() => {
+        captionEl.textContent = (translations[currentLang] && translations[currentLang][capKey]) || "";
+        captionEl.style.opacity = "1";
+      }, 150);
+    }
+
+    // If user manually switched slides, restart the timer
+    if (userInitiated) {
+      resetAutoplay();
+    }
+  }
+
+  function startAutoplay() {
+    stopAutoplay();
+    if (!isLightboxActive) {
+      carouselAutoplayTimer = setInterval(() => {
+        updateSlide(currentSlideIndex + 1, false);
+      }, 5000);
+    }
+  }
+
+  function stopAutoplay() {
+    if (carouselAutoplayTimer) {
+      clearInterval(carouselAutoplayTimer);
+      carouselAutoplayTimer = null;
+    }
+  }
+
+  function resetAutoplay() {
+    stopAutoplay();
+    startAutoplay();
+  }
+
+  // Next & Prev button clicks
+  if (prevBtn) {
+    prevBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      updateSlide(currentSlideIndex - 1, true);
+    });
+  }
+
+  if (nextBtn) {
+    nextBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      updateSlide(currentSlideIndex + 1, true);
+    });
+  }
+
+  // Dots clicks
+  dots.forEach((dot) => {
+    dot.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const targetIndex = parseInt(dot.getAttribute("data-slide"), 10);
+      if (!isNaN(targetIndex)) {
+        updateSlide(targetIndex, true);
+      }
     });
   });
+
+  // Pause on hover
+  container.addEventListener("mouseenter", () => {
+    stopAutoplay();
+  });
+
+  container.addEventListener("mouseleave", () => {
+    if (!isLightboxActive) {
+      startAutoplay();
+    }
+  });
+
+  // Touch Swipe for Mobile / Tablets
+  let touchStartX = 0;
+  let touchStartY = 0;
+
+  container.addEventListener(
+    "touchstart",
+    (e) => {
+      touchStartX = e.changedTouches[0].screenX;
+      touchStartY = e.changedTouches[0].screenY;
+      stopAutoplay();
+    },
+    { passive: true }
+  );
+
+  container.addEventListener(
+    "touchend",
+    (e) => {
+      const diffX = e.changedTouches[0].screenX - touchStartX;
+      const diffY = e.changedTouches[0].screenY - touchStartY;
+      if (Math.abs(diffX) > Math.abs(diffY) && Math.abs(diffX) > 40) {
+        if (diffX < 0) {
+          updateSlide(currentSlideIndex + 1, true);
+        } else {
+          updateSlide(currentSlideIndex - 1, true);
+        }
+      }
+      if (!isLightboxActive) {
+        startAutoplay();
+      }
+    },
+    { passive: true }
+  );
+
+  // Keyboard navigation when not typing in inputs
+  window.addEventListener("keydown", (e) => {
+    if (isLightboxActive) return;
+    if (document.activeElement && (document.activeElement.tagName === "INPUT" || document.activeElement.tagName === "TEXTAREA")) return;
+    if (e.key === "ArrowLeft") {
+      updateSlide(currentSlideIndex - 1, true);
+    } else if (e.key === "ArrowRight") {
+      updateSlide(currentSlideIndex + 1, true);
+    }
+  });
+
+  // Expose pause/resume to Lightbox
+  window.pauseCarouselAutoplay = stopAutoplay;
+  window.resumeCarouselAutoplay = startAutoplay;
+
+  // Initial trigger
+  updateSlide(0, false);
+  startAutoplay();
 }
 
 // ==========================================
@@ -325,6 +475,8 @@ function initLightbox() {
     modal.classList.add("active");
     modal.setAttribute("aria-hidden", "false");
     document.body.style.overflow = "hidden";
+    isLightboxActive = true;
+    if (window.pauseCarouselAutoplay) window.pauseCarouselAutoplay();
   }
 
   function closeLightbox() {
@@ -332,13 +484,22 @@ function initLightbox() {
     modal.setAttribute("aria-hidden", "true");
     modalImg.src = "";
     document.body.style.overflow = "";
+    isLightboxActive = false;
+    if (window.resumeCarouselAutoplay) window.resumeCarouselAutoplay();
   }
 
   document.querySelectorAll(".zoomable").forEach((el) => {
     el.addEventListener("click", () => {
       const img = el.querySelector("img");
       if (img) {
-        const caption = el.getAttribute("data-caption") || img.alt || "";
+        const slide = el.closest(".carousel-slide");
+        let caption = "";
+        if (slide && slide.getAttribute("data-caption-key")) {
+          const key = slide.getAttribute("data-caption-key");
+          caption = (translations[currentLang] && translations[currentLang][key]) || el.getAttribute("data-caption") || "";
+        } else {
+          caption = el.getAttribute("data-caption") || img.alt || "";
+        }
         openLightbox(img.src, img.alt, caption);
       }
     });
@@ -419,7 +580,7 @@ document.addEventListener("DOMContentLoaded", () => {
     themeToggle.addEventListener("click", toggleTheme);
   }
 
-  initGallery();
+  initCarousel();
   initLightbox();
   initCopyButtons();
   initMobileMenu();
