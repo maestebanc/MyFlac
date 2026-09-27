@@ -103,6 +103,16 @@ class PreferencesDialog(Adw.PreferencesWindow):
         self.group_audio.add(self.device_row)
         self.page_general.add(self.group_audio)
 
+        # Grupo: Comportamiento al cerrar
+        self.group_behavior = Adw.PreferencesGroup(title=i18n.t("prefs.behavior_group"))
+        self.close_tray_row = Adw.SwitchRow()
+        self.close_tray_row.set_title(i18n.t("prefs.close_to_tray"))
+        self.close_tray_row.set_subtitle(i18n.t("prefs.close_to_tray_desc"))
+        self.close_tray_row.set_active(self.cfg.get("close_to_tray", True))
+        self.close_tray_row.connect("notify::active", self._on_close_to_tray_changed)
+        self.group_behavior.add(self.close_tray_row)
+        self.page_general.add(self.group_behavior)
+
         # Grupo: Apariencia e Interfaz
         self.group_ui = Adw.PreferencesGroup(title=i18n.t("prefs.ui_group"))
 
@@ -365,6 +375,10 @@ class PreferencesDialog(Adw.PreferencesWindow):
         self.group_audio.set_description(i18n.t("devices.group_desc"))
         self.device_row.set_title(i18n.t("prefs.audio_device"))
 
+        self.group_behavior.set_title(i18n.t("prefs.behavior_group"))
+        self.close_tray_row.set_title(i18n.t("prefs.close_to_tray"))
+        self.close_tray_row.set_subtitle(i18n.t("prefs.close_to_tray_desc"))
+
         self.group_ui.set_title(i18n.t("prefs.ui_group"))
         self.theme_row.set_title(i18n.t("prefs.theme"))
         self.scale_row.set_title(i18n.t("prefs.scale"))
@@ -402,6 +416,13 @@ class PreferencesDialog(Adw.PreferencesWindow):
             save_config(self.cfg)
             if self.on_config_changed:
                 self.on_config_changed(self.cfg)
+
+    def _on_close_to_tray_changed(self, row: Adw.SwitchRow, _param):
+        active = row.get_active()
+        self.cfg["close_to_tray"] = active
+        save_config(self.cfg)
+        if self.on_config_changed:
+            self.on_config_changed(self.cfg)
 
     def _on_theme_changed(self, row: Adw.ComboRow, _param):
         idx = row.get_selected()

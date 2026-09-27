@@ -49,19 +49,19 @@ Grab the pre-built packages from the [GitHub Releases page](https://github.com/m
 ### Flatpak (any Linux distribution)
 
 ```bash
-flatpak install myflac-0.1.0.flatpak
+flatpak install myflac-0.1.1.flatpak
 ```
 
 ### Fedora / RHEL (RPM)
 
 ```bash
-sudo dnf install ./myflac-0.1.0-1.noarch.rpm
+sudo dnf install ./myflac-0.1.1-1.noarch.rpm
 ```
 
 ### Debian / Ubuntu (24.04 LTS+, Debian 13+)
 
 ```bash
-sudo apt install ./myflac_0.1.0-1_all.deb
+sudo apt install ./myflac_0.1.1-1_all.deb
 ```
 
 ### Arch Linux
@@ -69,7 +69,7 @@ sudo apt install ./myflac_0.1.0-1_all.deb
 Install the pre-built package with `pacman`:
 
 ```bash
-sudo pacman -U myflac-0.1.0-1-any.pkg.tar.zst
+sudo pacman -U myflac-0.1.1-1-any.pkg.tar.zst
 ```
 
 Or build from source using the included `PKGBUILD`:

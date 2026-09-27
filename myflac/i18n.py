@@ -893,6 +893,21 @@ STRINGS: dict[str, dict[str, str]] = {
         "en": "Default audio output",
         "ca": "Sortida d'àudio predeterminada",
     },
+    "prefs.behavior_group": {
+        "es": "Comportamiento",
+        "en": "Behavior",
+        "ca": "Comportament",
+    },
+    "prefs.close_to_tray": {
+        "es": "Permanecer en la bandeja al cerrar",
+        "en": "Keep in system tray on close",
+        "ca": "Mantenir a la safata en tancar",
+    },
+    "prefs.close_to_tray_desc": {
+        "es": "Mantener MyFlac reproduciendo en segundo plano al cerrar la ventana. Si se desactiva, cerrar la ventana saldrá de la aplicación completamente.",
+        "en": "Keep MyFlac playing in the background when closing the window. If disabled, closing the window will exit completely.",
+        "ca": "Mantenir MyFlac reproduint en segon pla en tancar la finestra. Si es desactiva, tancar la finestra sortirà de l'aplicació completament.",
+    },
     "prefs.ui_group": {
         "es": "Apariencia de la Interfaz",
         "en": "Interface Appearance",

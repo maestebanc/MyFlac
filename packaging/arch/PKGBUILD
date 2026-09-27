@@ -1,6 +1,6 @@
 # Maintainer: Miguel Angel Esteban <maestebanc@gmail.com>
 pkgname=myflac
-pkgver=0.1.0
+pkgver=0.1.1
 pkgrel=1
 pkgdesc="Bit-perfect Hi-Res audio player for GNOME"
 arch=('any')

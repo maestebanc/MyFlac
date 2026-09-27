@@ -54,6 +54,7 @@ DEFAULTS = {
     "shuffle": False,
     "library_folders": [],      # Lista de rutas absolutas de carpetas de biblioteca
     "visualizer_mode": 0,       # 0: Portada + Osciloscopio (por defecto), 1: Portada limpia
+    "close_to_tray": True,      # True: permanecer en la bandeja del sistema al cerrar; False: salir completamente
     "last_track_path": "",      # Ruta del último archivo reproducido
     "last_position": 0.0,       # Última posición en segundos
 }

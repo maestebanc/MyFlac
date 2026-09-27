@@ -57,7 +57,10 @@ class MyFlacApplication(Adw.Application):
     quitting = False
 
     def can_run_in_background(self) -> bool:
-        """Si hay icono en la barra superior, cerrar la ventana no detiene la música."""
+        """Si hay icono en la barra superior y está activada la opción, cerrar la ventana no detiene la música."""
+        cfg = getattr(self.window, "cfg", {}) if self.window else {}
+        if not cfg.get("close_to_tray", True):
+            return False
         tray = getattr(self, "tray", None)
         return bool(tray and tray.visible_in_panel)
 
@@ -110,10 +113,11 @@ class MyFlacApplication(Adw.Application):
     def _on_preferences_changed(self, cfg: dict):
         if self.window:
             log.info(
-                "Preferencias modificadas: audio_device_id=%s, language=%s, theme=%s",
+                "Preferencias modificadas: audio_device_id=%s, language=%s, theme=%s, close_to_tray=%s",
                 cfg.get("audio_device_id"),
                 cfg.get("language"),
-                cfg.get("theme")
+                cfg.get("theme"),
+                cfg.get("close_to_tray"),
             )
             target_device = cfg.get("audio_device_id", "default")
             self.window.engine.set_device(target_device)

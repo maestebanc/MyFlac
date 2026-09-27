@@ -34,6 +34,13 @@
   </developer>
   <content_rating type="oars-1.1" />
   <releases>
+    <release version="0.1.1" date="2026-09-27">
+      <description>
+        <p>Added close behavior preference: choose between quitting completely or keeping playback running in the system tray.</p>
+        <p xml:lang="es">Añadida preferencia de comportamiento al cerrar: permite elegir entre cerrar la aplicación completamente o permanecer en la bandeja del sistema reproduciendo música.</p>
+        <p xml:lang="ca">Afegida preferència de comportament en tancar: permet triar entre tancar l'aplicació completament o romandre a la safata del sistema reproduint música.</p>
+      </description>
+    </release>
     <release version="0.1.0" date="2026-09-26">
       <description>
         <p>Initial release of MyFlac Hi-Res Audio Player featuring real-time oscilloscope, full-screen super-player with LRCLIB lyrics, and floating mini-player.</p>

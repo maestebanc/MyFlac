@@ -2,7 +2,7 @@
 %define pysitelib %(python3 -c "import sys; print(f'/usr/lib/python{sys.version_info.major}.{sys.version_info.minor}/site-packages')")
 
 Name:           myflac
-Version:        0.1.0
+Version:        0.1.1
 Release:        1%{?dist}
 Summary:        Bit-perfect Hi-Res audio player for GNOME
 License:        GPL-3.0-or-later
@@ -70,6 +70,9 @@ update-desktop-database -q /usr/share/applications &>/dev/null || :
 gtk-update-icon-cache -q /usr/share/icons/hicolor &>/dev/null || :
 
 %changelog
+* Sun Sep 27 2026 Miguel Angel Esteban <maestebanc@gmail.com> - 0.1.1-1
+- Added close behavior setting: quit completely or keep running in system tray.
+
 * Sun Sep 27 2026 Miguel Angel Esteban <maestebanc@gmail.com> - 0.1.0-1
 - Initial public release of MyFlac.
 - Hardware ALSA bit-perfect output with D-Bus device reservation.
