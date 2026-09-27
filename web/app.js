@@ -1,6 +1,6 @@
 /**
  * MyFlac — Official Landing Page Script
- * Multi-language engine (ES, EN, CA), theme handling, interactive gallery, and tabs.
+ * Multi-language engine (ES, EN, CA), theme handling, interactive gallery, lightbox, and clipboard copy.
  */
 
 // ==========================================
@@ -24,6 +24,7 @@ const translations = {
     hero_subtitle: "Un reproductor audiófilo moderno, rápido y elegante para Linux. Envía el audio directo a tu DAC sin alteraciones, muestra letras sincronizadas en tiempo real y enriquece tu colección con fichas de Wikipedia y Discogs.",
     btn_download: "Descargar para Linux",
     btn_github: "Código en GitHub",
+    zoom_hint: "Haz clic en la captura para ampliar en alta resolución",
 
     // Suite Cross-Reference
     suite_badge: "La Suite MyFlac & MyTag",
@@ -70,6 +71,8 @@ const translations = {
     // Download
     dl_title: "Descarga e Instalación",
     dl_subtitle: "Elige el paquete adecuado para tu distribución GNU/Linux.",
+    copied_text: "¡Copiado!",
+    copy_text: "Copiar"
   },
 
   en: {
@@ -89,6 +92,7 @@ const translations = {
     hero_subtitle: "A modern, fast, and elegant audiophile player for Linux. Sends audio straight to your DAC untouched, displays real-time synchronized lyrics, and enriches your library with Wikipedia and Discogs metadata.",
     btn_download: "Download for Linux",
     btn_github: "View on GitHub",
+    zoom_hint: "Click screenshot to expand in high resolution",
 
     // Suite Cross-Reference
     suite_badge: "The MyFlac & MyTag Suite",
@@ -135,6 +139,8 @@ const translations = {
     // Download
     dl_title: "Download & Installation",
     dl_subtitle: "Choose the package tailored to your GNU/Linux distribution.",
+    copied_text: "Copied!",
+    copy_text: "Copy"
   },
 
   ca: {
@@ -154,6 +160,7 @@ const translations = {
     hero_subtitle: "Un reproductor audiòfil modern, ràpid i elegant per a Linux. Envia l'àudio directe al teu DAC sense alteracions, mostra lletres sincronitzades en temps real i enriqueix la teva col·lecció amb fitxes de Wikipedia i Discogs.",
     btn_download: "Descarregar per a Linux",
     btn_github: "Codi a GitHub",
+    zoom_hint: "Fes clic a la captura per ampliar en alta resolució",
 
     // Suite Cross-Reference
     suite_badge: "La Suite MyFlac & MyTag",
@@ -200,6 +207,8 @@ const translations = {
     // Download
     dl_title: "Descàrrega i Instal·lació",
     dl_subtitle: "Tria el paquet adequat per a la teva distribució GNU/Linux.",
+    copied_text: "Copiat!",
+    copy_text: "Copiar"
   },
 };
 
@@ -244,31 +253,36 @@ function setLanguage(lang) {
 // ==========================================
 // 3. Theme Engine
 // ==========================================
+function getEffectiveTheme() {
+  const current = document.documentElement.getAttribute("data-theme");
+  if (current === "dark" || current === "light") return current;
+  return window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
+
 function initTheme() {
-  const saved = localStorage.getItem("myflac_theme") || "auto";
-  applyTheme(saved);
+  const saved = localStorage.getItem("myflac_theme");
+  if (saved === "dark" || saved === "light") {
+    applyTheme(saved);
+  } else {
+    applyTheme("auto");
+  }
 }
 
 function applyTheme(theme) {
   const root = document.documentElement;
-  if (theme === "auto") {
-    root.removeAttribute("data-theme");
-  } else {
+  if (theme === "dark" || theme === "light") {
     root.setAttribute("data-theme", theme);
+    localStorage.setItem("myflac_theme", theme);
+  } else {
+    root.removeAttribute("data-theme");
+    localStorage.removeItem("myflac_theme");
   }
-  localStorage.setItem("myflac_theme", theme);
 }
 
 function toggleTheme() {
-  const root = document.documentElement;
-  const current = root.getAttribute("data-theme");
-  if (!current) {
-    applyTheme("dark");
-  } else if (current === "dark") {
-    applyTheme("light");
-  } else {
-    applyTheme("auto");
-  }
+  const effective = getEffectiveTheme();
+  const next = effective === "dark" ? "light" : "dark";
+  applyTheme(next);
 }
 
 // ==========================================
@@ -293,7 +307,79 @@ function initGallery() {
 }
 
 // ==========================================
-// 5. Mobile Menu
+// 5. Lightbox Modal
+// ==========================================
+function initLightbox() {
+  const modal = document.getElementById("lightboxModal");
+  const backdrop = document.getElementById("lightboxBackdrop");
+  const closeBtn = document.getElementById("lightboxClose");
+  const modalImg = document.getElementById("lightboxImage");
+  const modalCap = document.getElementById("lightboxCaption");
+
+  if (!modal || !modalImg) return;
+
+  function openLightbox(src, alt, caption) {
+    modalImg.src = src;
+    modalImg.alt = alt || "Captura ampliada de MyFlac";
+    if (modalCap) modalCap.textContent = caption || "";
+    modal.classList.add("active");
+    modal.setAttribute("aria-hidden", "false");
+    document.body.style.overflow = "hidden";
+  }
+
+  function closeLightbox() {
+    modal.classList.remove("active");
+    modal.setAttribute("aria-hidden", "true");
+    modalImg.src = "";
+    document.body.style.overflow = "";
+  }
+
+  document.querySelectorAll(".zoomable").forEach((el) => {
+    el.addEventListener("click", () => {
+      const img = el.querySelector("img");
+      if (img) {
+        const caption = el.getAttribute("data-caption") || img.alt || "";
+        openLightbox(img.src, img.alt, caption);
+      }
+    });
+  });
+
+  if (closeBtn) closeBtn.addEventListener("click", closeLightbox);
+  if (backdrop) backdrop.addEventListener("click", closeLightbox);
+
+  window.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && modal.classList.contains("active")) {
+      closeLightbox();
+    }
+  });
+}
+
+// ==========================================
+// 6. Clipboard Copy Engine
+// ==========================================
+function initCopyButtons() {
+  document.querySelectorAll(".code-copy-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const textToCopy = btn.getAttribute("data-copy");
+      if (!textToCopy) return;
+
+      navigator.clipboard.writeText(textToCopy).then(() => {
+        const originalText = btn.textContent;
+        const successText = (translations[currentLang] && translations[currentLang].copied_text) || "¡Copiado!";
+        btn.textContent = successText;
+        btn.classList.add("copied");
+
+        setTimeout(() => {
+          btn.textContent = originalText;
+          btn.classList.remove("copied");
+        }, 2000);
+      });
+    });
+  });
+}
+
+// ==========================================
+// 7. Mobile Menu
 // ==========================================
 function initMobileMenu() {
   const toggle = document.getElementById("mobileToggle");
@@ -316,7 +402,7 @@ function initMobileMenu() {
 }
 
 // ==========================================
-// 6. DOM Content Loaded
+// 8. DOM Content Loaded
 // ==========================================
 document.addEventListener("DOMContentLoaded", () => {
   initTheme();
@@ -334,5 +420,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   initGallery();
+  initLightbox();
+  initCopyButtons();
   initMobileMenu();
 });
