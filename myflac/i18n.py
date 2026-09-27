@@ -461,6 +461,16 @@ STRINGS: dict[str, dict[str, str]] = {
         "en": 'Show MyFlac',
         "ca": 'Mostra MyFlac',
     },
+    "tray.super_player": {
+        "es": 'Super-Reproductor',
+        "en": 'Super Player',
+        "ca": 'Super-Reproductor',
+    },
+    "tray.mini_player": {
+        "es": 'Mini-Reproductor',
+        "en": 'Mini Player',
+        "ca": 'Mini-Reproductor',
+    },
     "tray.quit": {
         "es": 'Salir',
         "en": 'Quit',

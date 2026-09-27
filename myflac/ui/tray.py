@@ -121,9 +121,9 @@ MENU_XML = """
 """
 
 # Identificadores de los elementos del menú
-ID_TRACK, ID_TIME, ID_PLAY, ID_PREV, ID_NEXT, ID_SHOW, ID_QUIT = 1, 2, 4, 5, 6, 8, 10
-ID_SEP1, ID_SEP2, ID_SEP3 = 3, 7, 9
-MENU_ORDER = [ID_TRACK, ID_TIME, ID_SEP1, ID_PLAY, ID_PREV, ID_NEXT, ID_SEP2, ID_SHOW, ID_SEP3, ID_QUIT]
+ID_TRACK, ID_TIME, ID_PLAY, ID_PREV, ID_NEXT, ID_SHOW, ID_SUPER, ID_MINI, ID_QUIT = 1, 2, 4, 5, 6, 8, 9, 10, 12
+ID_SEP1, ID_SEP2, ID_SEP3 = 3, 7, 11
+MENU_ORDER = [ID_TRACK, ID_TIME, ID_SEP1, ID_PLAY, ID_PREV, ID_NEXT, ID_SEP2, ID_SHOW, ID_SUPER, ID_MINI, ID_SEP3, ID_QUIT]
 
 
 def _format_time(seconds: float) -> str:
@@ -247,6 +247,16 @@ class TrayIcon:
             self.popup.set_visible(False)
         self._window.show_main_view()
 
+    def _show_super(self):
+        if self.popup is not None:
+            self.popup.set_visible(False)
+        self._window.show_super_view()
+
+    def _show_mini(self):
+        if self.popup is not None:
+            self.popup.set_visible(False)
+        self._window.show_mini_view()
+
     def _activate(self, item_id: int):
         engine = self._window.engine
         if item_id == ID_PLAY:
@@ -257,6 +267,10 @@ class TrayIcon:
             self._window._play_next()
         elif item_id == ID_SHOW:
             self._show_main()
+        elif item_id == ID_SUPER:
+            self._show_super()
+        elif item_id == ID_MINI:
+            self._show_mini()
         elif item_id == ID_QUIT:
             self.app.activate_action("quit")
         elif item_id == ID_TRACK and engine.current_track:
@@ -319,6 +333,8 @@ class TrayIcon:
             ID_PREV: {"label": GLib.Variant("s", i18n.t("tray.previous")), "icon-name": GLib.Variant("s", "media-skip-backward-symbolic")},
             ID_NEXT: {"label": GLib.Variant("s", i18n.t("tray.next")), "icon-name": GLib.Variant("s", "media-skip-forward-symbolic")},
             ID_SHOW: {"label": GLib.Variant("s", i18n.t("tray.show"))},
+            ID_SUPER: {"label": GLib.Variant("s", i18n.t("tray.super_player")), "icon-name": GLib.Variant("s", "view-fullscreen-symbolic")},
+            ID_MINI: {"label": GLib.Variant("s", i18n.t("tray.mini_player")), "icon-name": GLib.Variant("s", "window-pop-out-symbolic")},
             ID_QUIT: {"label": GLib.Variant("s", i18n.t("tray.quit")), "icon-name": GLib.Variant("s", "application-exit-symbolic")},
         }
         cover = self._cover_png(track)

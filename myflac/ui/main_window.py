@@ -458,7 +458,7 @@ class MainWindow(Adw.ApplicationWindow):
         return {
             "view-main": self.show_main_view,
             "view-mini": self.show_mini_view,
-            "view-super": self._open_super_player,
+            "view-super": self.show_super_view,
             "toggle-cover-mode": self.inspector.cycle_visualizer_mode,
             "show-cover": self._shortcut_show_cover,
             "shuffle": lambda: self.player_bar.shuffle_btn.set_active(not self.player_bar.shuffle_btn.get_active()),
@@ -479,6 +479,12 @@ class MainWindow(Adw.ApplicationWindow):
             self.mini_player.present_mini_player()
         else:
             self._open_mini_player()
+
+    def show_super_view(self):
+        if self.mini_player and self.mini_player.get_visible():
+            self.mini_player.present_super_player()
+        else:
+            self._open_super_player()
 
     def _shortcut_show_cover(self):
         # La portada a gran tamaño se superpone a la ventana principal
