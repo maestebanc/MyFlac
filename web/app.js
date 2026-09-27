@@ -251,31 +251,31 @@ function setLanguage(lang) {
 }
 
 // ==========================================
-// 3. Theme Engine
+// 3. Theme Engine (Dark by default)
 // ==========================================
 function getEffectiveTheme() {
   const current = document.documentElement.getAttribute("data-theme");
   if (current === "dark" || current === "light") return current;
-  return window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  return "dark";
 }
 
 function initTheme() {
   const saved = localStorage.getItem("myflac_theme");
-  if (saved === "dark" || saved === "light") {
-    applyTheme(saved);
+  if (saved === "light") {
+    applyTheme("light");
   } else {
-    applyTheme("auto");
+    applyTheme("dark");
   }
 }
 
 function applyTheme(theme) {
   const root = document.documentElement;
-  if (theme === "dark" || theme === "light") {
-    root.setAttribute("data-theme", theme);
-    localStorage.setItem("myflac_theme", theme);
+  if (theme === "light") {
+    root.setAttribute("data-theme", "light");
+    localStorage.setItem("myflac_theme", "light");
   } else {
-    root.removeAttribute("data-theme");
-    localStorage.removeItem("myflac_theme");
+    root.setAttribute("data-theme", "dark");
+    localStorage.setItem("myflac_theme", "dark");
   }
 }
 

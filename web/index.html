@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="es" data-theme="auto">
+<html lang="es" data-theme="dark">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,6 +7,16 @@
   <meta name="description" content="MyFlac es un reproductor audiófilo nativo para GNOME y Linux con sonido bit-perfect, letras sincronizadas, fichas de Wikipedia y Discogs, y diseño GTK4 / Libadwaita.">
   <link rel="icon" type="image/svg+xml" href="assets/icon.svg">
   <link rel="alternate icon" type="image/png" href="assets/icon-512.png">
+  <script>
+    (function() {
+      var t = localStorage.getItem("myflac_theme");
+      if (t === "light") {
+        document.documentElement.setAttribute("data-theme", "light");
+      } else {
+        document.documentElement.setAttribute("data-theme", "dark");
+      }
+    })();
+  </script>
   <link rel="stylesheet" href="style.css">
   
   <!-- Open Graph -->
@@ -51,7 +61,7 @@
         </div>
 
         <!-- Selector de Tema -->
-        <button class="theme-toggle" id="themeToggle" title="Cambiar tema (Claro / Oscuro / Sistema)" aria-label="Cambiar tema">
+        <button class="theme-toggle" id="themeToggle" title="Cambiar tema (Claro / Oscuro)" aria-label="Cambiar tema">
           <svg class="sun-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="12" cy="12" r="5"></circle>
             <line x1="12" y1="1" x2="12" y2="3"></line>
