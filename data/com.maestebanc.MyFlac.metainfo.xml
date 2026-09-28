@@ -34,6 +34,20 @@
   </developer>
   <content_rating type="oars-1.1" />
   <releases>
+    <release version="0.1.2" date="2026-09-29">
+      <description>
+        <p>Header bar theme toggle: switch easily between dark mode and eye-friendly Soft Slate light mode right next to the search button.</p>
+        <p>Super Player expanded layout: right-side metadata and notes block now occupies 80% of the screen height dynamically.</p>
+        <p>Super Player tabbed inspector: integrated Lyrics, Track, Album, and Artist tabs powered by LRCLIB, Wikipedia, and Discogs with full parity to the main window.</p>
+        <p>Logging refinement: removed log management from preferences and limited log file size to 2 MB with automatic rotation.</p>
+        <p xml:lang="es">Conmutador de tema en cabecera: alterna fácilmente entre modo oscuro y el nuevo tema claro suave Soft Slate junto al botón de búsqueda.</p>
+        <p xml:lang="es">Super-Reproductor ampliado: el lateral derecho ahora ocupa dinámicamente el 80% de la altura de la pantalla.</p>
+        <p xml:lang="es">Pestañas editoriales en el Super-Reproductor: pestañas Letra, Tema, Disco y Artista con fichas completas de LRCLIB, Wikipedia y Discogs.</p>
+        <p xml:lang="es">Optimización de registros: tamaño de log acotado a 2 MB con rotación automática.</p>
+        <p xml:lang="ca">Commutador de tema a la capçalera: canvi fàcil entre mode fosc i clar suau Soft Slate al costat de la cerca.</p>
+        <p xml:lang="ca">Super-Reproductor ampliat: el lateral dret ocupa ara el 80% de l'alçada de la pantalla amb pestanyes de lletra, tema, disc i artista.</p>
+      </description>
+    </release>
     <release version="0.1.1" date="2026-09-27">
       <description>
         <p>Instant startup and complete session state restoration: MyFlac now remembers your selected artist, album, track, and playback position, launching immediately without initial delay.</p>

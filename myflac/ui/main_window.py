@@ -29,6 +29,7 @@ from .inspector_panel import InspectorPanel
 from .library_setup_dialog import LibrarySetupDialog
 from .mini_player import MiniPlayerWindow
 from .player_bar import PlayerBar
+from .style import apply_theme
 
 # Altura por defecto (px) de los paneles Artista/Álbum sobre la lista de temas
 DEFAULT_BROWSER_SPLIT = 430
@@ -85,8 +86,11 @@ class MainWindow(Adw.ApplicationWindow):
         self.connect("map", lambda *_: GLib.idle_add(self._on_window_mapped))
         self.connect("notify::maximized", lambda *_: GLib.idle_add(self._adjust_paned_position))
 
-        # Registrar listener para cambios dinámicos de idioma
+        # Registrar listener para cambios dinámicos de idioma y tema
         i18n.add_language_listener(self._on_language_changed)
+        style_mgr = Adw.StyleManager.get_default()
+        if style_mgr:
+            style_mgr.connect("notify::dark", lambda *_: self._update_theme_button_ui())
 
         # Guardar dimensiones al cerrar
         self.connect("close-request", self._on_close_request)
@@ -137,6 +141,11 @@ class MainWindow(Adw.ApplicationWindow):
         self.btn_search.set_icon_name("system-search-symbolic")
         self.btn_search.set_tooltip_text(i18n.t("header.search_tooltip"))
 
+        # Botón para cambiar entre modo claro y oscuro (junto a la lupa)
+        self.btn_theme = Gtk.Button()
+        self.btn_theme.connect("clicked", lambda *_: self._toggle_theme())
+        self._update_theme_button_ui()
+
         # Botón para activar Mini-Reproductor
         self.btn_mini_player = Gtk.Button()
         self.btn_mini_player.set_icon_name("window-pop-out-symbolic")
@@ -154,11 +163,12 @@ class MainWindow(Adw.ApplicationWindow):
         self.menu_btn.set_icon_name("open-menu-symbolic")
         self._rebuild_menu()
 
-        # Empaquetar en el extremo derecho (orden visual LTR: Buscar, Mini-Reproductor, Super-Reproductor, Menú)
+        # Empaquetar en el extremo derecho (orden visual LTR: Tema, Buscar, Mini-Reproductor, Super-Reproductor, Menú)
         self.header_bar.pack_end(self.menu_btn)
         self.header_bar.pack_end(self.btn_fullscreen)
         self.header_bar.pack_end(self.btn_mini_player)
         self.header_bar.pack_end(self.btn_search)
+        self.header_bar.pack_end(self.btn_theme)
 
         # Barra de búsqueda desplegable debajo de la cabecera (Gtk.SearchBar)
         self.search_bar = Gtk.SearchBar()
@@ -430,6 +440,7 @@ class MainWindow(Adw.ApplicationWindow):
         """Actualiza tooltips, búsqueda y menú al cambiar el idioma en caliente."""
         self.btn_scan.set_tooltip_text(i18n.t("header.scan_library"))
         self.btn_search.set_tooltip_text(i18n.t("header.search_tooltip"))
+        self._update_theme_button_ui()
         self.btn_mini_player.set_tooltip_text(i18n.t("header.mini_player"))
         self.btn_fullscreen.set_tooltip_text(i18n.t("header.super_player"))
         self.search_entry.set_placeholder_text(i18n.t("header.search_placeholder"))
@@ -437,6 +448,29 @@ class MainWindow(Adw.ApplicationWindow):
         self._rebuild_menu()
         self._update_output_status()
         self.browser.refresh_i18n()
+
+    def _toggle_theme(self):
+        """Alterna entre tema claro y oscuro al pulsar el botón de la cabecera."""
+        style_manager = Adw.StyleManager.get_default()
+        is_dark = style_manager.get_dark() if style_manager else True
+        new_theme = "light" if is_dark else "dark"
+        self.cfg["theme"] = new_theme
+        save_config(self.cfg)
+        apply_theme(new_theme)
+        self._update_theme_button_ui()
+
+    def _update_theme_button_ui(self):
+        """Actualiza el icono y tooltip del botón de tema según el modo activo."""
+        if not hasattr(self, "btn_theme"):
+            return
+        style_manager = Adw.StyleManager.get_default()
+        is_dark = style_manager.get_dark() if style_manager else True
+        if is_dark:
+            self.btn_theme.set_icon_name("weather-clear-symbolic")
+            self.btn_theme.set_tooltip_text(i18n.t("header.theme_to_light"))
+        else:
+            self.btn_theme.set_icon_name("weather-clear-night-symbolic")
+            self.btn_theme.set_tooltip_text(i18n.t("header.theme_to_dark"))
 
     def _setup_actions_and_shortcuts(self):
         action_dev = Gio.SimpleAction.new("select_device", None)

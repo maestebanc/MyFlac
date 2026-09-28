@@ -11,12 +11,16 @@ from PIL import Image
 import gi
 
 gi.require_version("Gtk", "4.0")
-from gi.repository import Gtk
+gi.require_version("Adw", "1")
+from gi.repository import Adw, Gdk, GLib, Gtk
 
 from ..audio.track import AudioTrack
+from ..config import load_config, save_config
 from ..logger import get_logger
 from ..lyrics import SyncedLyrics
+from ..music_info import KINDS, MusicInfoService
 from .. import i18n
+from .info_view import InfoView
 from .lyrics_view import SyncedLyricsView
 from .visualizers import OscilloscopeWidget
 
@@ -284,7 +288,9 @@ class SuperPlayerMixin:
         # ---------------------------------------------------------------------
         right_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=14)
         right_box.set_valign(Gtk.Align.CENTER)
-        right_box.set_size_request(820, 770)
+        target_h = int(self._get_screen_height() * 0.80)
+        right_box.set_size_request(820, target_h)
+        self.super_right_box = right_box
 
         # Metadatos del tema en gran formato editorial
         meta_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
@@ -325,28 +331,55 @@ class SuperPlayerMixin:
         sep.set_margin_bottom(8)
         right_box.append(sep)
 
-        # Sección de Letras Flotantes (sin marcos toscos)
-        lyrics_header_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
-        lbl_lyr_title = Gtk.Label(label=i18n.t("lyrics.title"))
-        lbl_lyr_title.add_css_class("super-player-lyrics-header")
-        lyrics_header_box.append(lbl_lyr_title)
+        INFO_TABS = [
+            ("lyrics", "tabs.lyrics"),
+            ("track", "tabs.track"),
+            ("album", "tabs.album"),
+            ("artist", "tabs.artist"),
+        ]
 
+        # Pestañas en el Super-Reproductor: Letra, Tema, Disco, Artista
+        self.super_info_tabs = Adw.ToggleGroup()
+        self.super_info_tabs.add_css_class("super-player-info-tabs")
+        self.super_info_tabs.set_homogeneous(True)
+        self.super_info_tabs.set_hexpand(True)
+
+        self._super_tab_toggles: dict[str, Adw.Toggle] = {}
+        for name, key in INFO_TABS:
+            toggle = Adw.Toggle(label=i18n.t(key), name=name)
+            self._super_tab_toggles[name] = toggle
+            self.super_info_tabs.add(toggle)
+        right_box.append(self.super_info_tabs)
+
+        # Stack de contenidos de las 4 pestañas
+        self.super_info_stack = Gtk.Stack()
+        self.super_info_stack.set_transition_type(Gtk.StackTransitionType.CROSSFADE)
+        self.super_info_stack.set_vexpand(True)
+        self.super_info_stack.set_hexpand(True)
+        self.super_info_stack.add_css_class("super-player-lyrics-glass-panel")
+
+        # Pestaña 1: Letras (con sincronización en tiempo real)
+        lyrics_page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        lyrics_page.set_vexpand(True)
+        lyrics_page.set_hexpand(True)
+
+        lyr_top_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
+        lyr_top_box.set_hexpand(True)
         lyr_spacer = Gtk.Box()
         lyr_spacer.set_hexpand(True)
-        lyrics_header_box.append(lyr_spacer)
+        lyr_top_box.append(lyr_spacer)
 
-        self.lyrics_status_label = Gtk.Label(label="")
+        self.lyrics_status_label = Gtk.Label(label="", xalign=1.0)
         self.lyrics_status_label.add_css_class("dim-label")
-        lyrics_header_box.append(self.lyrics_status_label)
-
-        right_box.append(lyrics_header_box)
+        self.lyrics_status_label.add_css_class("caption")
+        lyr_top_box.append(self.lyrics_status_label)
+        lyrics_page.append(lyr_top_box)
 
         # Stack de estados de letra: 'loading', 'lyrics', 'instrumental', 'not_found'
         self.lyrics_stack = Gtk.Stack()
         self.lyrics_stack.set_transition_type(Gtk.StackTransitionType.CROSSFADE)
         self.lyrics_stack.set_vexpand(True)
         self.lyrics_stack.set_hexpand(True)
-        self.lyrics_stack.add_css_class("super-player-lyrics-glass-panel")
 
         # Estado 1: Cargando letra
         loading_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
@@ -360,7 +393,7 @@ class SuperPlayerMixin:
         loading_box.append(lbl_loading)
         self.lyrics_stack.add_named(loading_box, "loading")
 
-        # Estado 2: Letra encontrada; con marcas de tiempo sigue la canción resaltando la línea actual
+        # Estado 2: Letra encontrada
         self.super_lyrics_view = SyncedLyricsView("super-player-lyrics-text", width_chars=45)
         self.super_lyrics_view.add_css_class("super-player-lyrics-scroll")
         self.super_lyrics_view.on_seek = self.engine.seek
@@ -393,7 +426,24 @@ class SuperPlayerMixin:
         self.lyrics_stack.add_named(not_found_box, "not_found")
 
         self.lyrics_stack.set_visible_child_name("not_found")
-        right_box.append(self.lyrics_stack)
+        lyrics_page.append(self.lyrics_stack)
+        self.super_info_stack.add_named(lyrics_page, "lyrics")
+
+        # Pestañas 2, 3 y 4: Tema, Disco, Artista (Wikipedia + Discogs)
+        self.super_notes_views: dict[str, InfoView] = {}
+        for kind in KINDS:
+            view = InfoView()
+            self.super_notes_views[kind] = view
+            self.super_info_stack.add_named(view, kind)
+        self._super_notes_loaded: dict[str, str] = {}
+
+        right_box.append(self.super_info_stack)
+
+        saved_tab = load_config().get("inspector_tab", "lyrics")
+        initial_tab = saved_tab if saved_tab in self._super_tab_toggles else "lyrics"
+        self.super_info_tabs.set_active_name(initial_tab)
+        self.super_info_stack.set_visible_child_name(initial_tab)
+        self.super_info_tabs.connect("notify::active-name", self._on_super_tab_changed)
 
         super_container.append(right_box)
         return super_root_overlay
@@ -555,3 +605,96 @@ class SuperPlayerMixin:
         else:
             self.lyrics_stack.set_visible_child_name("not_found")
             self.lyrics_status_label.set_text(i18n.t("lyrics.not_found"))
+
+    def _get_screen_height(self) -> int:
+        """Obtiene la altura del monitor o ventana para cálculo proporcional (80%)."""
+        display = Gdk.Display.get_default()
+        if display:
+            surface = self.get_surface()
+            mon = display.get_monitor_at_surface(surface) if surface else None
+            if not mon:
+                monitors = display.get_monitors()
+                if monitors.get_n_items() > 0:
+                    mon = monitors.get_item(0)
+            if mon:
+                geom = mon.get_geometry()
+                if geom.height > 0:
+                    return geom.height
+        h = self.get_height()
+        return h if h > 500 else 1080
+
+    def _on_super_tab_changed(self, *_args):
+        name = self.super_info_tabs.get_active_name()
+        if not name:
+            return
+        self.super_info_stack.set_visible_child_name(name)
+        try:
+            cfg = load_config()
+            cfg["inspector_tab"] = name
+            save_config(cfg)
+        except Exception:
+            pass
+        if name in KINDS:
+            self._load_super_notes(name)
+
+    def _load_super_notes(self, kind: str | None):
+        """Carga la ficha de la pestaña visible (Tema, Disco, Artista)."""
+        if kind not in KINDS:
+            return
+        if not hasattr(self, "super_notes_views") or kind not in self.super_notes_views:
+            return
+        view = self.super_notes_views[kind]
+        track = self.engine.current_track
+        if track is None or not (track.artist or track.album_artist):
+            self._super_notes_loaded.pop(kind, None)
+            view.show_message(i18n.t("info.no_track"))
+            return
+        subject = MusicInfoService.subject_key(kind, track)
+        if self._super_notes_loaded.get(kind) == subject:
+            return
+        self._super_notes_loaded[kind] = subject
+        view.show_loading(i18n.t("info.loading"))
+        MusicInfoService.get_default().fetch(
+            kind, track, i18n.get_language(),
+            lambda info, k=kind, sub=subject: (
+                self._on_super_info(k, info) if self._super_notes_loaded.get(k) == sub else None
+            ),
+        )
+
+    def _on_super_info(self, kind: str, info):
+        if not hasattr(self, "super_notes_views") or kind not in self.super_notes_views:
+            return
+        view = self.super_notes_views[kind]
+        if info.status == "ok":
+            view.show_info(info)
+            if info.temporary:
+                self._super_notes_loaded.pop(kind, None)
+            return
+        if info.status == "empty":
+            view.show_message(i18n.t("info.empty"))
+            return
+        self._super_notes_loaded.pop(kind, None)
+        view.show_message(i18n.t("info.error", error=info.error))
+
+    def _refresh_super_i18n(self):
+        """Actualiza las etiquetas de pestañas y textos traducibles al cambiar de idioma."""
+        if hasattr(self, "_super_tab_toggles"):
+            INFO_TABS = [
+                ("lyrics", "tabs.lyrics"),
+                ("track", "tabs.track"),
+                ("album", "tabs.album"),
+                ("artist", "tabs.artist"),
+            ]
+            for name, key in INFO_TABS:
+                toggle = self._super_tab_toggles.get(name)
+                if toggle:
+                    toggle.set_label(i18n.t(key))
+        if hasattr(self, "super_btn_restore"):
+            self.super_btn_restore.set_tooltip_text(i18n.t("header.unfullscreen"))
+        if hasattr(self, "_super_notes_loaded"):
+            self._super_notes_loaded.clear()
+        if hasattr(self, "super_info_tabs"):
+            active_tab = self.super_info_tabs.get_active_name()
+            if active_tab in KINDS:
+                self._load_super_notes(active_tab)
+

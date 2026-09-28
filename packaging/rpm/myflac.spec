@@ -2,7 +2,7 @@
 %define pysitelib %(python3 -c "import sys; print(f'/usr/lib/python{sys.version_info.major}.{sys.version_info.minor}/site-packages')")
 
 Name:           myflac
-Version:        0.1.1
+Version:        0.1.2
 Release:        1%{?dist}
 Summary:        Bit-perfect Hi-Res audio player for GNOME
 License:        GPL-3.0-or-later
@@ -70,6 +70,11 @@ update-desktop-database -q /usr/share/applications &>/dev/null || :
 gtk-update-icon-cache -q /usr/share/icons/hicolor &>/dev/null || :
 
 %changelog
+* Tue Sep 29 2026 Miguel Angel Esteban <maestebanc@gmail.com> - 0.1.2-1
+- Header bar theme toggle button (dark / Soft Slate light mode).
+- Super Player expanded to 80% screen height with 4 tabs (Lyrics, Track, Album, Artist).
+- Limited log file size to 2 MB with automatic rotation.
+
 * Sun Sep 27 2026 Miguel Angel Esteban <maestebanc@gmail.com> - 0.1.1-1
 - Added close behavior setting: quit completely or keep running in system tray.
 

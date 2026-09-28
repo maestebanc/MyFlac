@@ -16,6 +16,7 @@ from ..config import load_config, save_config
 from ..logger import get_logger
 from ..lyrics import LyricsService
 from ..artist_art import ArtistArtService
+from ..music_info import KINDS
 from .. import i18n
 from .shortcuts import handle_playback_key
 from .super_player import SuperPlayerMixin
@@ -90,6 +91,7 @@ class MiniPlayerWindow(SuperPlayerMixin, Adw.Window):
         self.connect("notify::fullscreened", self._on_fullscreen_changed)
 
         self._build_ui()
+        i18n.add_language_listener(lambda *_: self._refresh_super_i18n())
         self._connect_engine()
         self._setup_controllers()
         self.set_visualizer_mode(self._oscilloscope_mode, save=False)
@@ -401,9 +403,7 @@ class MiniPlayerWindow(SuperPlayerMixin, Adw.Window):
             self.set_title(f"MyFlac - {i18n.t('header.super_player')}")
 
             # Calcular tamaño de carátula según la altura de la pantalla (máx 640px)
-            h = self.get_height()
-            if h <= 0:
-                h = 1080
+            h = self._get_screen_height()
             art_size = max(440, min(640, h - 240))
             self.super_art_overlay.set_size_request(art_size, art_size)
             self.super_cover_stack.set_size_request(art_size, art_size)
@@ -411,12 +411,20 @@ class MiniPlayerWindow(SuperPlayerMixin, Adw.Window):
             self.super_scope.set_size_request(art_size, art_size)
             self.super_controls_panel.set_size_request(art_size, -1)
 
+            # Lateral derecho: 80% de la altura de la pantalla
+            target_h = int(h * 0.80)
+            self.super_right_box.set_size_request(820, target_h)
+
             self.super_scope.set_active(self._oscilloscope_mode == 0)
             self.super_scope.set_playing(is_playing)
             self.super_scope.set_visible(scope_on)
 
             if self.engine.current_track:
                 self._load_lyrics_for_track(self.engine.current_track)
+                if hasattr(self, "super_info_tabs"):
+                    active_tab = self.super_info_tabs.get_active_name()
+                    if active_tab in KINDS:
+                        self._load_super_notes(active_tab)
         else:
             self.main_stack.set_visible_child_name("mini")
             self.set_resizable(False)
@@ -570,6 +578,11 @@ class MiniPlayerWindow(SuperPlayerMixin, Adw.Window):
             self._update_ambient_background(None)
             self._on_artist_image_loaded(None)
             self._last_artist_searched = None
+            if hasattr(self, "_super_notes_loaded"):
+                self._super_notes_loaded.clear()
+            if hasattr(self, "super_notes_views"):
+                for v in self.super_notes_views.values():
+                    v.show_message(i18n.t("info.no_track"))
             return
 
         title = track.title or os.path.basename(track.filepath)
@@ -620,6 +633,14 @@ class MiniPlayerWindow(SuperPlayerMixin, Adw.Window):
 
         # Cargar fotografía del artista para el fondo del Super-Reproductor
         self._load_artist_art_for_track(track)
+
+        # Actualizar fichas de información en el Super-Reproductor si la pestaña activa es una de ellas
+        if hasattr(self, "_super_notes_loaded"):
+            self._super_notes_loaded.clear()
+        if hasattr(self, "super_info_tabs"):
+            active_tab = self.super_info_tabs.get_active_name()
+            if active_tab in KINDS:
+                self._load_super_notes(active_tab)
 
 
     def _on_track_changed(self, track: AudioTrack):

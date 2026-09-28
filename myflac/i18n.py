@@ -111,6 +111,16 @@ STRINGS: dict[str, dict[str, str]] = {
         "en": "Search library (Ctrl+F)",
         "ca": "Cercar a la biblioteca (Ctrl+F)",
     },
+    "header.theme_to_light": {
+        "es": "Cambiar a modo claro",
+        "en": "Switch to light mode",
+        "ca": "Canviar a mode clar",
+    },
+    "header.theme_to_dark": {
+        "es": "Cambiar a modo oscuro",
+        "en": "Switch to dark mode",
+        "ca": "Canviar a mode fosc",
+    },
     "header.fullscreen": {
         "es": "Pantalla completa (F11)",
         "en": "Fullscreen (F11)",

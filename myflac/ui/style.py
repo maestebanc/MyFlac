@@ -616,6 +616,16 @@ paned > separator:hover {
         0 0 0 1px rgba(255, 255, 255, 0.04);
 }
 
+.super-player-info-tabs {
+    font-size: 0.95em;
+    font-weight: 600;
+    margin-bottom: 6px;
+}
+
+.super-player-info-tabs toggle {
+    padding: 6px 14px;
+}
+
 .super-player-container {
     padding: 36px 64px;
 }
