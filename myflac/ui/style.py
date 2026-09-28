@@ -883,7 +883,97 @@ paned > separator:hover {
 """
 
 
+LIGHT_THEME_CSS = """
+/* ==========================================================================
+   Paleta Libadwaita Slate Soft (Opción 1) — Confort visual y descanso ocular
+   Sustituye el blanco puro cegador (#ffffff) por tonos pizarra y piedra caliza.
+   ========================================================================== */
+@define-color window_bg_color #ebeef3;
+@define-color window_fg_color #242731;
+@define-color view_bg_color #f7f9fb;
+@define-color view_fg_color #242731;
+@define-color headerbar_bg_color #ebeef3;
+@define-color headerbar_fg_color #242731;
+@define-color card_bg_color #f7f9fb;
+@define-color card_fg_color #242731;
+@define-color popover_bg_color #f7f9fb;
+@define-color popover_fg_color #242731;
+@define-color secondary_sidebar_bg_color #ebeef3;
+@define-color secondary_sidebar_fg_color #242731;
+@define-color dialog_bg_color #ebeef3;
+@define-color dialog_fg_color #242731;
+
+columnview, listview, .column-list {
+    background-color: @view_bg_color;
+    color: @view_fg_color;
+}
+
+.column-browser-pane {
+    background-color: @window_bg_color;
+    border-bottom: 1px solid alpha(#242731, 0.08);
+}
+
+.column-header-box {
+    background-color: alpha(#242731, 0.035);
+    border-bottom: 1px solid alpha(#242731, 0.07);
+}
+
+.column-header-title {
+    color: alpha(#242731, 0.75);
+}
+
+.count-badge {
+    background-color: alpha(#242731, 0.05);
+    border-color: alpha(#242731, 0.07);
+    color: alpha(#242731, 0.60);
+}
+
+.player-bar {
+    background-color: alpha(#ebeef3, 0.95);
+    border-top: 1px solid alpha(#242731, 0.08);
+}
+
+.inspector-panel {
+    background-color: alpha(#242731, 0.015);
+    border-left: 1px solid alpha(#242731, 0.08);
+}
+
+.audiophile-card {
+    background-color: alpha(#242731, 0.035);
+    border-color: alpha(#242731, 0.07);
+}
+"""
+
+_light_theme_provider: Gtk.CssProvider | None = None
+_style_manager_connected: bool = False
+
+
+def _update_theme_palette() -> None:
+    """Aplica o retira el proveedor de tema claro Libadwaita Slate Soft según el modo activo."""
+    global _light_theme_provider
+    style_manager = Adw.StyleManager.get_default()
+    display = Gdk.Display.get_default()
+    if style_manager is None or display is None:
+        return
+
+    if style_manager.get_dark():
+        if _light_theme_provider is not None:
+            try:
+                Gtk.StyleContext.remove_provider_for_display(display, _light_theme_provider)
+            except Exception:
+                pass
+            _light_theme_provider = None
+    else:
+        if _light_theme_provider is None:
+            _light_theme_provider = Gtk.CssProvider()
+            _light_theme_provider.load_from_string(LIGHT_THEME_CSS)
+            Gtk.StyleContext.add_provider_for_display(
+                display, _light_theme_provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION + 1
+            )
+
+
 def load_extra_css() -> None:
+    global _style_manager_connected
     provider = Gtk.CssProvider()
     provider.load_from_string(EXTRA_CSS)
     display = Gdk.Display.get_default()
@@ -891,6 +981,11 @@ def load_extra_css() -> None:
         Gtk.StyleContext.add_provider_for_display(
             display, provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
         )
+    style_manager = Adw.StyleManager.get_default()
+    if style_manager and not _style_manager_connected:
+        style_manager.connect("notify::dark", lambda *_: _update_theme_palette())
+        _style_manager_connected = True
+    _update_theme_palette()
 
 
 _gnome_settings: Gio.Settings | None = None
@@ -951,6 +1046,7 @@ def apply_theme(theme: str) -> None:
         style_manager.set_color_scheme(Adw.ColorScheme.FORCE_LIGHT)
     else:
         style_manager.set_color_scheme(Adw.ColorScheme.DEFAULT)
+    _update_theme_palette()
 
 
 def ensure_desktop_integration() -> None:

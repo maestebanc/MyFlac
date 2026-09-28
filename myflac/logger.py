@@ -50,13 +50,13 @@ def setup_logging(debug: bool = True) -> logging.Logger:
         datefmt="%Y-%m-%d %H:%M:%S",
     )
 
-    # 1. Handler para archivo rotativo (10 MB x 3 backups)
+    # 1. Handler para archivo rotativo (máximo 2 MB)
     log_file = get_log_path()
     try:
         file_handler = RotatingFileHandler(
             log_file,
-            maxBytes=10 * 1024 * 1024,
-            backupCount=3,
+            maxBytes=2 * 1024 * 1024,
+            backupCount=1,
             encoding="utf-8",
         )
         file_handler.setLevel(logging.DEBUG if debug else logging.INFO)
