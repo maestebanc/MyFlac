@@ -277,6 +277,24 @@ function applyTheme(theme) {
     root.setAttribute("data-theme", "dark");
     localStorage.setItem("myflac_theme", "dark");
   }
+  applyThemedScreenshots(theme === "light" ? "light" : "dark");
+}
+
+// Capturas de la app en el mismo tema que la web: cada imagen declara su versión oscura y clara
+function applyThemedScreenshots(theme) {
+  document.querySelectorAll("img[data-src-dark][data-src-light]").forEach((img) => {
+    const src = img.getAttribute(theme === "light" ? "data-src-light" : "data-src-dark");
+    if (img.getAttribute("src") !== src) {
+      img.setAttribute("src", src);
+    }
+  });
+  // Si hay una captura ampliada abierta, se cambia también
+  const modalImg = document.getElementById("lightboxImage");
+  const modal = document.getElementById("lightboxModal");
+  if (modalImg && modal && modal.classList.contains("active")) {
+    const current = document.querySelector(`img[data-src-dark="${modalImg.dataset.darkSrc || ""}"]`);
+    if (current) modalImg.src = current.src;
+  }
 }
 
 function toggleTheme() {
@@ -500,6 +518,8 @@ function initLightbox() {
         } else {
           caption = el.getAttribute("data-caption") || img.alt || "";
         }
+        // Para cambiarla de tema mientras está ampliada (ver applyThemedScreenshots)
+        modalImg.dataset.darkSrc = img.getAttribute("data-src-dark") || "";
         openLightbox(img.src, img.alt, caption);
       }
     });

@@ -4,7 +4,11 @@
 
 MyFlac is designed for those who want to listen to their music collection in pristine audiophile quality, with zero unnecessary bloat, a modern GNOME/Libadwaita interface, and rich contextual information about every song, album, and artist.
 
-![MyFlac main window](screenshots/main-window.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="screenshots/main-window-dark.png">
+  <source media="(prefers-color-scheme: light)" srcset="screenshots/main-window-light.png">
+  <img src="screenshots/main-window-dark.png" alt="MyFlac main window">
+</picture>
 
 ## Why MyFlac
 
@@ -34,7 +38,7 @@ MyFlac and [MyTag](https://maestebanc.github.io/MyTag/) are designed as companio
   - **Mini-Player (500×500 px)**: Compact floating square with clean album art or real-time oscilloscope, with auto-hiding HUD controls.
   - **Fullscreen Super-Player**: Immersive listening experience with high-resolution artist photography, translucent lyrics card, and phosphor oscilloscope.
 
-![MyFlac Fullscreen Super-Player](screenshots/super-player.png)
+![MyFlac Fullscreen Super-Player](screenshots/super-player-dark.png)
 
 - **System Tray Integration**: Standard StatusNotifierItem / AppIndicator. Left-click opens a sleek popup with cover art and progress bar; right-click opens a full D-Bus menu, and scrolling the mouse wheel adjusts the volume.
 - **Ultra HD Cover Art**: If an embedded cover is low resolution (e.g. 500 px), MyFlac searches iTunes/Deezer for a matching high-resolution version (up to 2000 px) using strict pixel-correlation checks to ensure exact image identity. Press `Ctrl+P` to zoom into full-screen album art.
@@ -42,7 +46,11 @@ MyFlac and [MyTag](https://maestebanc.github.io/MyTag/) are designed as companio
 - **Trilingual Interface**: Full native support for **Spanish, Catalan, and English**, matching your desktop locale.
 
 <p align="center">
-  <img src="screenshots/mini-player.png" alt="MyFlac Mini-Player" width="400">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="screenshots/mini-player-dark.png">
+    <source media="(prefers-color-scheme: light)" srcset="screenshots/mini-player-light.png">
+    <img src="screenshots/mini-player-dark.png" alt="MyFlac Mini-Player" width="400">
+  </picture>
 </p>
 
 ---
