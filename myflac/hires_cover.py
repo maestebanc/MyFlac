@@ -136,7 +136,7 @@ class HiResCoverService:
 
     def fetch(self, track: AudioTrack | None, callback: Callable[[str | None], None]):
         """callback(ruta_hd o None) en el hilo principal. Una sola búsqueda por portada a la vez."""
-        cover = track.get_cover_image_bytes() if track else None
+        cover = track.cached_cover() if track else None
         key = self._key(track, cover)
         if not key:
             GLib.idle_add(callback, None)
@@ -171,7 +171,7 @@ class HiResCoverService:
     def _key(self, track: AudioTrack | None, cover=None) -> str | None:
         if track is None or not track.album or not (track.artist or track.album_artist):
             return None
-        cover = cover if cover is not None else track.get_cover_image_bytes()
+        cover = cover if cover is not None else track.cached_cover()
         if not cover:
             return None
         # Clave por contenido de la portada: todas las pistas del álbum comparten resultado

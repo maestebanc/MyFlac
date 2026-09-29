@@ -2,7 +2,10 @@
 from __future__ import annotations
 
 import os
+import threading
 from dataclasses import dataclass, field
+from typing import Callable
+
 import mutagen
 from mutagen.flac import FLAC
 
@@ -39,10 +42,17 @@ class AudioTrack:
     file_size_bytes: int = 0
     cover_data: bytes | None = field(default=None, repr=False)
     cover_mime: str = ""
+    # Búsqueda de portada: "unloaded", "loading" o "loaded" (encontrada o no; no se repite)
+    _cover_state: str = field(default="unloaded", repr=False, compare=False)
+    _cover_waiters: list = field(default_factory=list, repr=False, compare=False)
 
     def __post_init__(self):
         if not self.filename and self.filepath:
             self.filename = os.path.basename(self.filepath)
+
+    @property
+    def is_dsd(self) -> bool:
+        return "DSD" in self.format_name.upper()
 
     @property
     def is_hires(self) -> bool:
@@ -102,10 +112,59 @@ class AudioTrack:
         kb = self.file_size_bytes / 1024
         return f"{kb:.0f} KB"
 
+    @property
+    def cover_loaded(self) -> bool:
+        return bool(self.cover_data) or self._cover_state == "loaded"
+
+    def cached_cover(self) -> tuple[bytes, str] | None:
+        """Portada ya cargada, sin tocar el disco. Es la que debe usar la interfaz."""
+        return (self.cover_data, self.cover_mime) if self.cover_data else None
+
+    def load_cover_async(self, callback: Callable[[], None] | None = None):
+        """
+        Busca la portada en un hilo aparte y llama a callback() en el hilo principal al terminar.
+        La interfaz no debe leer el archivo de audio ni su carpeta en el hilo principal: en una
+        unidad de red (SMB, NFS...) cada acceso puede tardar segundos y congelaría la ventana.
+        """
+        from gi.repository import GLib
+
+        if self.cover_loaded:
+            if callback:
+                GLib.idle_add(lambda: (callback(), False)[1])
+            return
+        if callback:
+            self._cover_waiters.append(callback)
+        if self._cover_state == "loading":
+            return
+        self._cover_state = "loading"
+
+        def worker():
+            try:
+                self.get_cover_image_bytes()
+            finally:
+                GLib.idle_add(self._cover_done)
+
+        threading.Thread(target=worker, name="cover-loader", daemon=True).start()
+
+    def _cover_done(self) -> bool:
+        self._cover_state = "loaded"
+        waiters, self._cover_waiters = self._cover_waiters, []
+        for callback in waiters:
+            try:
+                callback()
+            except Exception as e:
+                log.exception("Error tras cargar la portada: %s", e)
+        return False
+
     def get_cover_image_bytes(self) -> tuple[bytes, str] | None:
-        """Obtiene los bytes de carátula embebida o archivo local en el directorio."""
+        """
+        Obtiene los bytes de carátula embebida o archivo local en el directorio. Lee del disco:
+        desde la interfaz hay que usar cached_cover() tras load_cover_async().
+        """
         if self.cover_data:
             return self.cover_data, self.cover_mime
+        if self._cover_state == "loaded":
+            return None  # Ya se buscó y no hay: no repetir los accesos al disco
 
         # 1. Si no está en memoria, extraer carátula embebida directamente del archivo de audio
         if self.filepath and os.path.isfile(self.filepath):
@@ -157,6 +216,8 @@ class AudioTrack:
                     return data, mime
                 except Exception:
                     pass
+        if self._cover_state != "loading":
+            self._cover_state = "loaded"
         return None
 
 

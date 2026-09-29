@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import os
+import re
+import time
 import urllib.parse
 from enum import Enum
 from typing import Callable
@@ -14,14 +16,16 @@ from gi.repository import GLib, Gst
 
 from ..logger import get_logger
 from .. import i18n
+from .hwmixer import HardwareMixer
 from .devices import (
     AudioDevice,
+    base_node_name,
     find_device_by_id,
+    find_published_device,
     get_default_device,
     resolve_hardware_device,
-    wait_for_device,
 )
-from .reserve import AudioDeviceReservation, wait_until_pcm_closed
+from .reserve import AudioDeviceReservation, pcm_is_closed, wait_until_pcm_closed
 from .track import AudioTrack
 
 log = get_logger("audio.engine")
@@ -30,9 +34,20 @@ if not Gst.is_initialized():
     Gst.init(None)
 
 
+# En pausa o parado, el DAC se devuelve a PipeWire tras este margen. Reservar y liberar la tarjeta
+# en ciclos muy seguidos (pausa/play, fin de pista y siguiente) deja a WirePlumber sin recrearla.
+_EXCLUSIVE_RELEASE_DELAY_S = 10
+
 # GstPlayFlags de playbin3
 _PLAY_FLAG_AUDIO = 0x02
+_PLAY_FLAG_SOFT_VOLUME = 0x10
 _PLAY_FLAG_NATIVE_AUDIO = 0x20
+
+
+def _format_depth(fmt: str) -> int | None:
+    """Bits útiles de un formato PCM de GStreamer: S16LE → 16, S24_32LE → 24, S32LE → 32."""
+    m = re.match(r"[SU](\d+)", fmt)
+    return int(m.group(1)) if m else None
 
 
 class PlaybackState(Enum):
@@ -44,19 +59,43 @@ class PlaybackState(Enum):
 class AudioEngine:
     def __init__(self, device_id: str = "default", volume: float = 1.0, exclusive: bool = False):
         self.device_id = device_id
-        self.volume = max(0.0, min(1.0, volume))
+        self._sw_volume = max(0.0, min(1.0, volume))  # Volumen de GStreamer (solo con el mezclador)
+        # En exclusivo: mezclador ALSA propio del DAC, si lo tiene, y el volumen elegido para él
+        self.hw_mixer: HardwareMixer | None = None
+        self._hw_volume_target: float | None = None
 
         # Modo exclusivo: preferencia del usuario y estado real (puede caer al mezclador si falla)
         self.exclusive = exclusive
         self.exclusive_active = False
+        self.resampling_active = False
+        self.depth_reduced = False  # El DAC recibe menos bits de los que tiene la pista
+        # DSD: nativo al DAC (sin DoP ni conversión) o convertido a PCM si el DAC no lo admite
+        self._dsd_mode = False
+        self.output_dsd = False
+        self.dsd_to_pcm = False
+        # Frecuencias DSD que el DAC (o alsasink) no aceptó en nativo, por tarjeta: van como PCM
+        self._dsd_rejected: dict[int, set[int]] = {}
+        self.output_sample_rate: int = 0
+        self.output_bit_depth: int = 0
         self.hw_device: AudioDevice | None = None
         self._reservation: AudioDeviceReservation | None = None
         self._released_node: str | None = None  # Salida devuelta a PipeWire que aún puede no estar lista
         # En exclusivo, el DAC solo se retiene mientras suena: en pausa o parado se devuelve a PipeWire
         self._hw_suspended = False
+        self._release_timer: int | None = None
         # Pista que el DAC no admite en exclusivo: se reproduce por el mezclador y luego se vuelve
         self._exclusive_bypass_track: AudioTrack | None = None
         self._fallback_scheduled = False
+        # Reserva pedida de antemano mientras se espera a que WirePlumber cierre la tarjeta
+        self._prepared_reservation: AudioDeviceReservation | None = None
+        # Reconstrucción de la salida en curso (se espera sin bloquear la interfaz)
+        self._rebuild_timer: int | None = None
+        self._rebuild_finish: Callable[[], None] | None = None
+        self._rebuild_gen = 0  # Invalida esperas y reservas asíncronas de una reconstrucción anulada
+        # Pista que cargará la reconstrucción en curso (la última que se haya pedido mientras espera)
+        self._rebuild_request: tuple[AudioTrack, float] | None = None
+        self._resume_pending = False
+        self._levels_enabled = True
 
         self.current_track: AudioTrack | None = None
         self.next_track: AudioTrack | None = None
@@ -85,7 +124,7 @@ class AudioEngine:
         self.on_error: Callable[[str], None] | None = None
         self._output_listeners: list[Callable[[], None]] = []
 
-        log.info("Inicializando AudioEngine con mezclador del sistema (device_id='%s')", device_id)
+        log.info("Inicializando AudioEngine (device_id='%s', exclusivo=%s)", device_id, exclusive)
         self._init_pipeline()
 
     def add_state_listener(self, callback: Callable[[PlaybackState], None]):
@@ -158,6 +197,11 @@ class AudioEngine:
             except Exception as e:
                 log.exception("Error en listener de nivel de audio: %s", e)
 
+    def renotify_track_changed(self):
+        """Vuelve a avisar de la pista actual (p. ej. cuando su portada termina de cargarse)."""
+        if self.current_track:
+            self._notify_track_changed(self.current_track)
+
     def _notify_track_changed(self, track: AudioTrack):
         """Notifica cambio de pista a todos los listeners registrados."""
         if self.on_track_changed:
@@ -194,7 +238,12 @@ class AudioEngine:
             log.critical("No se pudo instanciar playbin3 en GStreamer")
             raise RuntimeError("No se pudo instanciar playbin3 en GStreamer")
 
+        # Solo audio: sin esto, la portada incrustada de un DSF/MP3 llega como pista de vídeo y
+        # playbin3 abre una ventana (xvimagesink) al usar el mezclador del sistema
+        self._playbin.set_property("flags", _PLAY_FLAG_AUDIO | _PLAY_FLAG_SOFT_VOLUME)
         self._apply_audio_sink()
+        if self._dsd_mode:
+            self._allow_dsd_passthrough()
 
         # Filtro de nivel en tiempo real para osciloscopio y vúmetro. En modo exclusivo va en una
         # rama aparte del sink (ver _build_exclusive_sink) para no alterar el formato de la muestra.
@@ -215,13 +264,57 @@ class AudioEngine:
         self._playbin.connect("about-to-finish", self._on_about_to_finish)
 
         # Fijar volumen inicial (en exclusivo, siempre 0 dB)
-        self._playbin.set_property("volume", 1.0 if self.exclusive_active else self.volume)
+        self._playbin.set_property("volume", 1.0 if self.exclusive_active else self._sw_volume)
 
-    @staticmethod
-    def _make_level_element(name: str) -> Gst.Element | None:
+    def _allow_dsd_passthrough(self):
+        """
+        playbin3 decodifica el DSD a PCM aunque el sink acepte audio/x-dsd: se amplían las caps de
+        su uridecodebin3 para que el flujo DSD del demuxer llegue tal cual a dsdconvert ! alsasink.
+        """
+        it = self._playbin.iterate_recurse()
+        while True:
+            res, element = it.next()
+            if res != Gst.IteratorResult.OK:
+                break
+            factory = element.get_factory()
+            if factory and factory.get_name() == "uridecodebin3":
+                caps = element.get_property("caps")
+                element.set_property("caps", Gst.Caps.from_string(caps.to_string() + "; audio/x-dsd"))
+
+    def _set_dsd_pcm_rate(self, track: AudioTrack):
+        """
+        DSD convertido a PCM en exclusivo: se fija la mayor frecuencia de la familia de 44,1 kHz que
+        admita el DAC (352,8 kHz en el iFi), con relación entera respecto al DSD. Sin esto,
+        audioresample elegiría la máxima del DAC (384 kHz), una conversión menos limpia.
+        """
+        if not (self.exclusive_active and isinstance(self._sink, Gst.Bin)):
+            return
+        capsfilter = self._sink.get_by_name("dsd_pcm_rate")
+        if capsfilter is None:
+            return
+        caps = Gst.Caps.new_any()
+        if track.is_dsd and self.hw_device and self.hw_device.max_sample_rate:
+            rate = 44100
+            while rate * 2 <= min(self.hw_device.max_sample_rate, track.sample_rate // 8):
+                rate *= 2
+            caps = Gst.Caps.from_string(f"audio/x-raw,rate={rate}")
+        capsfilter.set_property("caps", caps)
+
+    def _wants_dsd(self, track: AudioTrack | None) -> bool:
+        """La pista es DSD y va a un DAC en exclusivo que lo admite de forma nativa."""
+        if track is None or not track.is_dsd or not self.exclusive or self.device_id == "default":
+            return False
+        if self._exclusive_bypass_track is not None:
+            return False
+        hw_dev = self.hw_device or self._resolve_hw_device()
+        if not (hw_dev and hw_dev.dsd_native):
+            return False
+        return track.sample_rate not in self._dsd_rejected.get(hw_dev.alsa_card, set())
+
+    def _make_level_element(self, name: str) -> Gst.Element | None:
         level = Gst.ElementFactory.make("level", name)
         if level:
-            level.set_property("post-messages", True)
+            level.set_property("post-messages", self._levels_enabled)
             level.set_property("interval", 33000000)  # ~33 ms (~30 fps)
         return level
 
@@ -231,29 +324,36 @@ class AudioEngine:
             return
 
         self._release_reservation()
+        self._close_hw_mixer()
         self.exclusive_active = False
-        self.hw_device = None
         self._hw_suspended = False
+        self.resampling_active = False
+        self.depth_reduced = False
+        self.output_sample_rate = 0
+        self.output_bit_depth = 0
+        self.output_dsd = False
+        self.dsd_to_pcm = False
 
-        if self.exclusive and self._exclusive_bypass_track is None:
-            sink = self._build_exclusive_sink()
+        if self.exclusive and self.device_id != "default" and self._exclusive_bypass_track is None:
+            # La tarjeta solo se toma aquí si _rebuild_output ya la reservó (de forma asíncrona). En
+            # otro caso (arranque en pausa...) el sink se crea en espera y play() la reserva sin bloquear.
+            reserve = self._prepared_reservation is not None
+            sink = self._build_exclusive_sink(reserve)
             if sink is not None:
                 self._sink = sink
+                self._released_node = None
                 self.exclusive_active = True
                 # Sin volumen software ni conversiones de playsink: la muestra llega intacta al DAC
                 self._playbin.set_property("flags", _PLAY_FLAG_AUDIO | _PLAY_FLAG_NATIVE_AUDIO)
                 self._playbin.set_property("audio-sink", self._sink)
                 return
 
-        device = find_device_by_id(self.device_id)
-        if self._released_node:
-            # WirePlumber recrea la salida unos instantes después de recuperar la tarjeta (con otro
-            # node.name): sin esperar, el audio acabaría en la salida por defecto del sistema
-            released, self._released_node = self._released_node, None
-            fresh = wait_for_device(released)
-            if device is None or device.id != "default":
-                device = fresh or device
-        device = device or get_default_device(self.device_id)
+        self.hw_device = None
+        self._dsd_mode = False
+        # Si se acaba de devolver la tarjeta a PipeWire, _rebuild_output ya esperó (sin bloquear)
+        # a que WirePlumber volviera a publicar la salida, que puede tener otro sufijo .N
+        self._released_node = None
+        device = find_device_by_id(self.device_id) or get_default_device(self.device_id)
         sink = None
 
         # Priorizar pulsesink (conecta a PipeWire vía pipewire-pulse de forma robusta y sin bloqueos en PAUSED)
@@ -281,9 +381,11 @@ class AudioEngine:
         self._sink = sink
         self._playbin.set_property("audio-sink", self._sink)
 
-    def _build_exclusive_sink(self) -> Gst.Element | None:
-        """Reserva la tarjeta frente a PipeWire y crea un bin alsasink hw:X,Y bit-perfect."""
-        hw_dev = resolve_hardware_device(self.device_id)
+    def _build_exclusive_sink(self, reserve: bool = True) -> Gst.Element | None:
+        """Crea un bin alsasink hw:X,Y bit-perfect y, si reserve, reserva ya la tarjeta frente a PipeWire."""
+        if self.device_id == "default":
+            return None
+        hw_dev = self._resolve_hw_device()
         if hw_dev is None:
             log.warning("Modo exclusivo no disponible para '%s' (no es una salida ALSA)", self.device_id)
             return None
@@ -291,39 +393,149 @@ class AudioEngine:
             log.warning("Modo exclusivo no disponible: falta el elemento alsasink")
             return None
 
-        reservation = AudioDeviceReservation(hw_dev.alsa_card, hw_dev.id)
-        if not reservation.acquire():
-            log.warning("No se pudo reservar la tarjeta %s; se usará el mezclador", hw_dev.hw_path)
-            return None
-        wait_until_pcm_closed(hw_dev.alsa_card, hw_dev.alsa_device)
+        reservation, self._prepared_reservation = self._prepared_reservation, None
+        if reservation is not None and (not reserve or reservation.card_index != hw_dev.alsa_card):
+            reservation.release()
+            reservation = None
+        if reservation is not None:
+            # Inmediato: _rebuild_output ya esperó (sin bloquear) a que WirePlumber cerrara la tarjeta
+            wait_until_pcm_closed(hw_dev.alsa_card, hw_dev.alsa_device)
 
-        # tee ─┬─ queue ─ audioconvert (sin dither: solo reempaqueta, p.ej. S24_32 → S24_3) ─ alsasink
+        if self._dsd_mode and hw_dev.dsd_native:
+            # DSD nativo: dsdconvert solo reagrupa los bits (DSDU8 planar → DSD_U32_BE del DAC).
+            # El osciloscopio no puede analizar DSD: en este modo queda en reposo.
+            desc = f"dsdconvert ! alsasink name=hw_sink device={hw_dev.hw_path}"
+            return self._finish_exclusive_bin(desc, hw_dev, reservation)
+        self._dsd_mode = False
+
+        # tee ─┬─ queue ─ audioconvert ─ audioresample (quality=10: passthrough si coincide, downsample si excede) ─ alsasink
         #      └─ queue ─ audioconvert ─ level ─ fakesink   (solo análisis para el osciloscopio)
         desc = (
             "tee name=t "
             "t. ! queue ! audioconvert dithering=none noise-shaping=none ! "
+            "audioresample quality=10 ! capsfilter name=dsd_pcm_rate ! "
             f"alsasink name=hw_sink device={hw_dev.hw_path} "
             "t. ! queue ! audioconvert ! "
-            "level name=myflac_audio_level post-messages=true interval=33000000 ! "
+            f"level name=myflac_audio_level post-messages={str(self._levels_enabled).lower()} "
+            "interval=33000000 ! "
             "fakesink sync=true async=false"
         )
+        return self._finish_exclusive_bin(desc, hw_dev, reservation)
+
+    def _finish_exclusive_bin(self, desc: str, hw_dev: AudioDevice,
+                              reservation: AudioDeviceReservation | None) -> Gst.Element | None:
         try:
-            sink_bin = Gst.parse_bin_from_description(desc, False)
+            sink_bin = Gst.parse_bin_from_description(desc, True)
         except GLib.Error as e:
             log.error("No se pudo crear el sink exclusivo: %s", e.message)
-            reservation.release()
+            if reservation:
+                reservation.release()
             return None
 
-        tee_pad = sink_bin.get_by_name("t").get_static_pad("sink")
-        sink_bin.add_pad(Gst.GhostPad.new("sink", tee_pad))
+        hw_sink = sink_bin.get_by_name("hw_sink")
+        if hw_sink:
+            pad = hw_sink.get_static_pad("sink")
+            if pad:
+                pad.connect("notify::caps", self._on_hw_sink_caps)
 
         self._reservation = reservation
+        self._hw_suspended = reservation is None  # Sin reserva: play() la pedirá sin bloquear
         self.hw_device = hw_dev
-        log.info("Modo exclusivo: salida directa a %s (%s)", hw_dev.hw_path, hw_dev.name)
+        self._open_hw_mixer()
+        log.info("Modo exclusivo%s: salida directa a %s (%s)",
+                 " DSD nativo" if self._dsd_mode else "", hw_dev.hw_path, hw_dev.name)
         return sink_bin
+
+    def _on_hw_sink_caps(self, pad: Gst.Pad, _pspec):
+        """Comprueba en las caps negociadas con el DAC si la muestra llega intacta (frecuencia y bits)."""
+        # Se ejecuta en un hilo de streaming. En una transición gapless las caps nuevas llegan antes
+        # de que el hilo principal procese STREAM_START: la pista que suena es la encadenada.
+        caps = pad.get_current_caps()
+        if not caps or caps.get_size() == 0:
+            return
+        s = caps.get_structure(0)
+        track = self._gapless_pending or self.current_track
+        ok_rate, rate = s.get_int("rate")
+        if s.get_name() == "audio/x-dsd":
+            # En GStreamer la "rate" del DSD es de bytes por canal: DSD64 = 2 822 400 bits/s = 352 800
+            self.output_dsd = True
+            self.dsd_to_pcm = False
+            self.output_sample_rate = rate * 8 if ok_rate else 0
+            self.output_bit_depth = 1
+            self.resampling_active = False
+            self.depth_reduced = False
+            log.info("Caps negociadas en DAC: DSD nativo %s (DSD%d)", s.get_string("format") or "?",
+                     self.output_sample_rate // 44100)
+            GLib.idle_add(self._notify_output_changed)
+            return
+        self.output_dsd = False
+        self.dsd_to_pcm = bool(track and track.is_dsd)
+        fmt = s.get_string("format") or ""
+        depth = _format_depth(fmt)
+
+        self.output_sample_rate = rate if ok_rate else 0
+        self.output_bit_depth = depth or 0
+        if track and track.sample_rate and ok_rate:
+            self.resampling_active = rate != track.sample_rate
+        else:
+            self.resampling_active = False
+        # 24 bits en un contenedor de 32 es relleno sin pérdida; menos bits que la pista, no.
+        # DSD convertido a PCM no se compara (dsd_to_pcm ya lo indica)
+        if self.dsd_to_pcm:
+            self.resampling_active = False
+            self.depth_reduced = False
+        elif track and track.bits_per_sample > 1 and depth:
+            self.depth_reduced = depth < track.bits_per_sample
+        else:
+            self.depth_reduced = fmt.startswith("F")
+        log.info("Caps negociadas en DAC: %s Hz %s (pista: %s Hz / %s bits) -> Resampling=%s, Bits reducidos=%s",
+                 rate if ok_rate else "?", fmt or "?",
+                 track.sample_rate if track else 0, track.bits_per_sample if track else 0,
+                 self.resampling_active, self.depth_reduced)
+        GLib.idle_add(self._notify_output_changed)
+
+    @property
+    def is_bitperfect(self) -> bool:
+        return self.exclusive_active and not self.resampling_active and not self.depth_reduced \
+            and not self.dsd_to_pcm
+
+    def set_levels_enabled(self, enabled: bool):
+        """Activa o pausa los mensajes de nivel (osciloscopio). Sin él, no se generan 30 mensajes/s."""
+        self._levels_enabled = enabled
+        level = self._level_filter
+        if level is None and isinstance(self._sink, Gst.Bin):
+            level = self._sink.get_by_name("myflac_audio_level")
+        if level is not None:
+            level.set_property("post-messages", enabled)
+
+    def _resolve_hw_device(self) -> AudioDevice | None:
+        """Tarjeta ALSA de la salida actual, aunque PipeWire aún no la haya vuelto a publicar."""
+        hw_dev = resolve_hardware_device(self.device_id)
+        if hw_dev is None and self.hw_device and base_node_name(self.hw_device.id) == base_node_name(self.device_id):
+            hw_dev = self.hw_device
+        return hw_dev
+
+    def _schedule_release(self):
+        """Devuelve el DAC a PipeWire si sigue sin sonar pasado el margen."""
+        if not self.exclusive_active or self._hw_suspended:
+            return
+        self._cancel_release()
+        self._release_timer = GLib.timeout_add_seconds(_EXCLUSIVE_RELEASE_DELAY_S, self._on_release_timeout)
+
+    def _cancel_release(self):
+        if self._release_timer is not None:
+            GLib.source_remove(self._release_timer)
+            self._release_timer = None
+
+    def _on_release_timeout(self) -> bool:
+        self._release_timer = None
+        if self.state != PlaybackState.PLAYING:
+            self._suspend_exclusive(keep_position=True)
+        return False
 
     def _suspend_exclusive(self, keep_position: bool):
         """Cierra el DAC y lo devuelve a PipeWire (pausa o parada en modo exclusivo)."""
+        self._cancel_release()
         if not self.exclusive_active or self._hw_suspended:
             return
         if keep_position:
@@ -336,78 +548,300 @@ class AudioEngine:
         log.info("DAC liberado mientras no suena (%s)", self.hw_device.hw_path if self.hw_device else "?")
 
     def _resume_exclusive(self) -> bool:
-        """Vuelve a reservar el DAC antes de reproducir. False si no se pudo y se pasó al mezclador."""
+        """
+        Prepara el DAC para reproducir. True si ya está listo; False si se está reservando (play()
+        se repetirá solo al terminar) o si no se pudo y la pista pasó al mezclador.
+        """
         if not self.exclusive_active or not self._hw_suspended:
             return True
-        reservation = AudioDeviceReservation(self.hw_device.alsa_card, self.hw_device.id)
-        if reservation.acquire():
-            self._reservation = reservation
-            self._hw_suspended = False
-            wait_until_pcm_closed(self.hw_device.alsa_card, self.hw_device.alsa_device)
-            log.info("DAC recuperado para reproducir (%s)", self.hw_device.hw_path)
-            return True
+        if self._resume_pending:
+            return False
+        self._resume_pending = True
+        hw_dev = self.hw_device
+        playbin = self._playbin
+        reservation = AudioDeviceReservation(hw_dev.alsa_card, hw_dev.id)
 
-        log.warning("No se pudo recuperar el DAC %s; esta pista va por el mezclador", self.hw_device.hw_path)
-        position = self._pending_seek or 0.0
-        self._exclusive_bypass_track = self.current_track
-        next_track = self.next_track
-        self._rebuild_output(self.current_track, position)
-        self.next_track = next_track
-        if self.on_error:
-            self.on_error(i18n.t("devices.exclusive_failed", reason=i18n.t("devices.exclusive_busy")))
+        def stale() -> bool:
+            return self._playbin is not playbin or not self.exclusive_active or not self._hw_suspended
+
+        def ready():
+            self._resume_pending = False
+            if self._playbin is not playbin or not self.exclusive_active or self._reservation is not reservation:
+                return
+            if self._want_playing:
+                self.play()
+            else:
+                self._schedule_release()  # Se pausó mientras se reservaba
+
+        def on_reserved(ok: bool):
+            if stale():
+                self._resume_pending = False
+                reservation.release()
+                return
+            if ok:
+                self._reservation = reservation
+                self._hw_suspended = False
+                log.info("DAC recuperado para reproducir (%s)", hw_dev.hw_path)
+                self._reapply_hw_volume()
+                self._wait_until(lambda: pcm_is_closed(hw_dev.alsa_card, hw_dev.alsa_device), 2.0, 20,
+                                 f"{hw_dev.hw_path} sigue abierto por otro proceso", ready)
+                return
+            self._resume_pending = False
+            log.warning("No se pudo recuperar el DAC %s; esta pista va por el mezclador", hw_dev.hw_path)
+            position = self._pending_seek or 0.0
+            self._exclusive_bypass_track = self.current_track
+            next_track = self.next_track
+            self._rebuild_output(self.current_track, position)
+            self.next_track = next_track
+            if self.on_error:
+                self.on_error(i18n.t("devices.exclusive_failed", reason=i18n.t("devices.exclusive_busy")))
+
+        reservation.acquire_async(on_reserved)
         return False
+
+    def _wait_until(self, check: Callable[[], bool], timeout: float, interval_ms: int, what: str,
+                    then: Callable[[], None], user_msg: str | None = None) -> int | None:
+        """Llama a then() cuando check() se cumpla o pase el timeout, sin bloquear. Devuelve el timer."""
+        if check():
+            then()
+            return None
+        deadline = time.monotonic() + timeout
+
+        def poll() -> bool:
+            ok = check()
+            if not ok and time.monotonic() < deadline:
+                return True
+            if not ok:
+                log.warning("%s tras %.1fs; se continúa igualmente", what, timeout)
+                if user_msg and self.on_error:
+                    self.on_error(user_msg)
+            then()
+            return False
+
+        return GLib.timeout_add(interval_ms, poll)
 
     def _release_reservation(self):
         if self._reservation:
+            self._restore_hw_volume()
             self._reservation.release()
             self._reservation = None
             if self.hw_device:
                 self._released_node = self.hw_device.id
 
     def _rebuild_output(self, track: AudioTrack | None = None, position: float | None = None):
-        """Reconstruye el pipeline con la salida actual conservando pista y posición."""
-        was_playing = self._want_playing
+        """
+        Reconstruye el pipeline con la salida actual conservando pista y posición.
+
+        Al cambiar entre exclusivo y mezclador hay que esperar a WirePlumber: que ceda la tarjeta y
+        la cierre antes de abrirla en hw:X,Y, o que vuelva a publicar la salida tras devolvérsela.
+        Todo se hace de forma asíncrona para no congelar la interfaz.
+        """
         current_pos = self.get_position() if position is None else position
         curr_track = track or self.current_track
 
-        self._init_pipeline()
-        self._notify_output_changed()
+        self._cancel_pending_rebuild()
+        # Si la nueva salida es el mismo DAC en exclusivo (p. ej. cambio PCM ↔ DSD), la reserva se
+        # conserva: soltarla y pedirla de nuevo al instante deja a WirePlumber en un estado roto
+        target_exclusive = self.exclusive and self.device_id != "default" and self._exclusive_bypass_track is None
+        target_hw = self._resolve_hw_device() if target_exclusive else None
+        kept = None
+        if self._reservation and target_hw and self._reservation.card_index == target_hw.alsa_card:
+            kept, self._reservation = self._reservation, None
+        self._cleanup_pipeline()  # Devuelve la tarjeta a PipeWire si estaba en exclusivo (y no se conserva)
+        self._pending_seek = current_pos if current_pos > 0.0 else None
+        self._rebuild_gen += 1
+        gen = self._rebuild_gen
+        self._rebuild_request = (curr_track, current_pos) if curr_track else None
+        # DSD nativo o PCM según la pista que va a sonar: una sola construcción de la salida
+        self._dsd_mode = self._wants_dsd(curr_track)
+        if kept is not None:
+            self._prepared_reservation = kept
 
-        if curr_track:
-            self.load_track(curr_track, play_now=was_playing, initial_position=current_pos)
+        def finish():
+            if gen != self._rebuild_gen:
+                return
+            self._rebuild_timer = None
+            self._rebuild_finish = None
+            request, self._rebuild_request = self._rebuild_request, None
+            self._init_pipeline()
+            self._notify_output_changed()
+            if request:
+                self.load_track(request[0], play_now=self._want_playing, initial_position=request[1])
 
-    def set_device(self, device_id: str):
-        """Cambia el dispositivo de salida."""
-        if self.device_id == device_id:
+        self._rebuild_finish = finish
+
+        if self.exclusive and self.device_id != "default" and self._exclusive_bypass_track is None \
+                and self._want_playing and self._prepared_reservation is None:
+            hw_dev = self._resolve_hw_device()
+            if hw_dev is not None and hw_dev.alsa_card is not None:
+                reservation = AudioDeviceReservation(hw_dev.alsa_card, hw_dev.id)
+
+                def on_reserved(ok: bool):
+                    if gen != self._rebuild_gen:
+                        reservation.release()
+                        return
+                    if not ok:
+                        # WirePlumber no la cede: esta pista suena por el mezclador
+                        request = self._rebuild_request
+                        self._exclusive_bypass_track = request[0] if request else None
+                        if self.on_error:
+                            self.on_error(i18n.t("devices.exclusive_failed",
+                                                 reason=i18n.t("devices.exclusive_busy")))
+                        finish()
+                        return
+                    self._prepared_reservation = reservation
+                    card, device = hw_dev.alsa_card, hw_dev.alsa_device
+                    self._rebuild_timer = self._wait_until(
+                        lambda: pcm_is_closed(card, device), 2.0, 20,
+                        f"hw:{card},{device} sigue abierto por otro proceso", finish)
+
+                reservation.acquire_async(on_reserved)
+                return
+
+        released = self._released_node
+        if released and self.device_id != "default" and find_published_device(released) is None:
+            name = self.hw_device.name if self.hw_device else released
+            self._rebuild_timer = self._wait_until(
+                lambda: find_published_device(released) is not None, 3.0, 150,
+                f"La salida '{released}' no ha reaparecido en PipeWire", finish,
+                user_msg=i18n.t("devices.wireplumber_lost", name=name))
             return
-        log.info("Cambiando salida de audio a: '%s'", device_id)
+        finish()
+
+    def _cancel_pending_rebuild(self):
+        self._rebuild_gen += 1
+        if self._rebuild_timer is not None:
+            GLib.source_remove(self._rebuild_timer)
+            self._rebuild_timer = None
+        self._rebuild_finish = None
+        if self._prepared_reservation is not None:
+            self._prepared_reservation.release()
+            self._prepared_reservation = None
+
+    def set_output(self, device_id: str, exclusive: bool):
+        """Cambia a la vez dispositivo y modo exclusivo reconstruyendo la salida una sola vez."""
+        if device_id == "default" and exclusive:
+            log.warning("No se puede activar el modo exclusivo para la salida predeterminada del sistema")
+            exclusive = False
+        same_device = self.device_id == device_id
+        if same_device and self.exclusive == exclusive and self.exclusive_active == exclusive \
+                and self._exclusive_bypass_track is None:
+            return
+        log.info("Salida de audio: '%s' (exclusivo=%s)", device_id, exclusive)
+        if not same_device:
+            self._hw_volume_target = None  # Cada DAC conserva su propio volumen de hardware
         self.device_id = device_id
-        self._rebuild_output()
-
-    def set_exclusive(self, enabled: bool):
-        """Activa o desactiva el modo exclusivo bit-perfect (ALSA hw directo)."""
-        if self.exclusive == enabled and self.exclusive_active == enabled:
-            return
-        log.info("Modo exclusivo %s", "activado" if enabled else "desactivado")
-        self.exclusive = enabled
+        self.exclusive = exclusive
         self._exclusive_bypass_track = None
         self._rebuild_output()
 
+    def set_device(self, device_id: str):
+        """Cambia el dispositivo de salida conservando el modo exclusivo si es el mismo dispositivo."""
+        if self.device_id == device_id:
+            return
+        self.set_output(device_id, self.exclusive and device_id != "default")
+
+    def set_exclusive(self, enabled: bool):
+        """Activa o desactiva el modo exclusivo bit-perfect (ALSA hw directo)."""
+        self.set_output(self.device_id, enabled)
+
+    @property
+    def volume(self) -> float:
+        """Volumen efectivo: el del DAC en exclusivo (si tiene control propio) o el de GStreamer."""
+        if self.exclusive_active and self.hw_mixer:
+            return self.hw_mixer.get_volume()
+        return self._sw_volume
+
+    @property
+    def software_volume(self) -> float:
+        return self._sw_volume
+
+    @property
+    def volume_adjustable(self) -> bool:
+        """En exclusivo solo se puede ajustar si el DAC tiene volumen por hardware."""
+        return not self.exclusive_active or self.hw_mixer is not None
+
     def set_volume(self, vol: float):
-        """Ajusta el volumen software (0.0 a 1.0). Se ignora en modo exclusivo."""
-        self.volume = max(0.0, min(1.0, vol))
-        if self._playbin and not self.exclusive_active:
-            self._playbin.set_property("volume", self.volume)
+        """Ajusta el volumen: por hardware en el DAC en exclusivo, o por software con el mezclador."""
+        vol = max(0.0, min(1.0, vol))
+        if self.exclusive_active:
+            if self.hw_mixer:
+                self._hw_volume_target = vol
+                self.hw_mixer.set_volume(vol)
+            return
+        self._sw_volume = vol
+        if self._playbin:
+            self._playbin.set_property("volume", vol)
+
+    def _open_hw_mixer(self):
+        self._close_hw_mixer()
+        if self.hw_device and self.hw_device.alsa_card is not None:
+            self.hw_mixer = HardwareMixer.open(self.hw_device.alsa_card)
+            self._reapply_hw_volume()
+
+    def _close_hw_mixer(self):
+        if self.hw_mixer:
+            self._restore_hw_volume()
+            self.hw_mixer.close()
+            self.hw_mixer = None
+
+    def _restore_hw_volume(self):
+        # La tarjeta vuelve a PipeWire y a las demás aplicaciones con el volumen que tenía
+        if self.hw_mixer:
+            self.hw_mixer.restore_initial()
+
+    def _reapply_hw_volume(self):
+        # Al devolver la tarjeta, PipeWire restaura en el mezclador su propio volumen
+        if self.hw_mixer and self._hw_volume_target is not None:
+            self.hw_mixer.set_volume(self._hw_volume_target)
 
     def load_track(self, track: AudioTrack, play_now: bool = True, initial_position: float = 0.0):
         """Carga una pista para reproducción de forma segura y sin bloqueos."""
+        if self._rebuild_finish is not None:
+            # Salida aún en preparación: cargará esta pista cuando esté lista
+            self._rebuild_request = (track, initial_position)
+            self._want_playing = play_now
+            self.current_track = track
+            self._pending_seek = initial_position if initial_position > 0.0 else None
+            self._notify_track_changed(track)
+            return
+        if self.exclusive_active and self._wants_dsd(track) != self._dsd_mode:
+            # DSD nativo y PCM necesitan un sink distinto: se reconstruye la salida para esta pista
+            self._dsd_mode = not self._dsd_mode
+            self._want_playing = play_now
+            self._rebuild_output(track, initial_position)
+            return
         if self._exclusive_bypass_track is not None and track is not self._exclusive_bypass_track:
-            self._restore_exclusive()
+            # Terminó la pista que el DAC no admitía: se vuelve al exclusivo con la nueva
+            self._exclusive_bypass_track = None
+            self._want_playing = play_now
+            self._rebuild_output(track, initial_position)
+            return
         self.current_track = track
         self._gapless_pending = None
         self._error_seen = False
         self._pending_seek = initial_position if initial_position > 0.0 else None
         self._is_prerolled = False
+        self.depth_reduced = False
+        self.output_bit_depth = 0
+
+        # Previsión hasta que el DAC negocie las caps (_on_hw_sink_caps la confirma)
+        self.output_dsd = self.exclusive_active and self._dsd_mode and track.is_dsd
+        self.dsd_to_pcm = self.exclusive_active and track.is_dsd and not self.output_dsd
+        if self.output_dsd or self.dsd_to_pcm:
+            self.resampling_active = False
+            self.output_sample_rate = track.sample_rate or 0
+        elif self.exclusive_active and self.hw_device:
+            if self.hw_device.max_sample_rate and track.sample_rate and track.sample_rate > self.hw_device.max_sample_rate:
+                self.resampling_active = True
+                self.output_sample_rate = self.hw_device.max_sample_rate
+            else:
+                self.resampling_active = False
+                self.output_sample_rate = track.sample_rate or 0
+        else:
+            self.resampling_active = False
+            self.output_sample_rate = track.sample_rate or 0
+
         uri = "file://" + urllib.parse.quote(os.path.abspath(track.filepath))
         log.info("Cargando pista: '%s' (%s) | URI: %s", track.title, track.badge_full, uri)
 
@@ -418,12 +852,13 @@ class AudioEngine:
         # En GStreamer playbin3, para cambiar de pista se pasa a READY (no a NULL para evitar reabrir sinks).
         # En exclusivo, READY ya abre el DAC: se pasa a NULL y solo se abre al reproducir.
         self._playbin.set_state(Gst.State.NULL if self.exclusive_active else Gst.State.READY)
+        self._set_dsd_pcm_rate(track)
         self._playbin.set_property("uri", uri)
 
         if play_now:
             self.play()
         elif self.exclusive_active:
-            self._suspend_exclusive(keep_position=False)
+            self._schedule_release()
             self.state = PlaybackState.PAUSED
             self._notify_state_changed()
         else:
@@ -447,6 +882,8 @@ class AudioEngine:
         if playbin is not self._playbin or not self._is_prerolled or self._error_seen:
             return
         next_track = self.next_track
+        if next_track and self.exclusive_active and self._wants_dsd(next_track) != self._dsd_mode:
+            return  # Cambio DSD ↔ PCM: la siguiente pista se carga al terminar esta, con otro sink
         if next_track:
             next_uri = "file://" + urllib.parse.quote(os.path.abspath(next_track.filepath))
             log.info("Encadenando siguiente pista gapless: '%s'", next_track.title)
@@ -455,12 +892,16 @@ class AudioEngine:
             self.next_track = None
 
     def play(self):
+        if self._rebuild_finish is not None:
+            self._want_playing = True  # Empezará a sonar al terminar de preparar la salida
+            return
         if not self._playbin or not self.current_track:
             return
         log.info("Iniciando reproducción: '%s'", self.current_track.title)
         self._want_playing = True
+        self._cancel_release()
         if not self._resume_exclusive():
-            return  # El DAC no estaba disponible: ya se reproduce por el mezclador
+            return  # Reservando el DAC (play() se repetirá al terminar) o ya va por el mezclador
         ret = self._playbin.set_state(Gst.State.PLAYING)
         if ret == Gst.StateChangeReturn.FAILURE:
             log.error("Fallo al reproducir en GStreamer")
@@ -477,33 +918,54 @@ class AudioEngine:
         self._notify_state_changed()
 
     def pause(self):
+        if self._rebuild_finish is not None:
+            self._want_playing = False
+            self.state = PlaybackState.PAUSED
+            self._notify_state_changed()
+            return
         if not self._playbin:
             return
         log.info("Pausando reproducción")
         self._want_playing = False
-        if self.exclusive_active:
-            self._suspend_exclusive(keep_position=True)
+        if self.exclusive_active and self._hw_suspended:
+            pass  # El DAC ya está devuelto a PipeWire; play() lo volverá a reservar
         else:
+            # En exclusivo el DAC se retiene unos segundos para reanudar al instante
             self._playbin.set_state(Gst.State.PAUSED)
+            self._schedule_release()
         self.state = PlaybackState.PAUSED
         self._stop_timer()
         self._notify_state_changed()
         self._notify_level([-100.0, -100.0], [-100.0, -100.0])
 
     def toggle_play_pause(self):
+        if self._rebuild_finish is not None:
+            if self._want_playing:
+                self.pause()
+            else:
+                self.play()
+            return
         if self.state == PlaybackState.PLAYING:
             self.pause()
         else:
             self.play()
 
     def stop(self):
+        if self._rebuild_finish is not None:
+            self._want_playing = False
         if not self._playbin:
             return
         self._pending_seek = None
         self._is_prerolled = False
         self._want_playing = False
+        self.resampling_active = False
+        self.depth_reduced = False
+        self.output_sample_rate = 0
+        self.output_bit_depth = 0
         if self.exclusive_active:
-            self._suspend_exclusive(keep_position=False)
+            # NULL cierra el PCM; la reserva se mantiene unos segundos por si llega la siguiente pista
+            self._playbin.set_state(Gst.State.NULL)
+            self._schedule_release()
         else:
             self._playbin.set_state(Gst.State.READY)
         self.state = PlaybackState.STOPPED
@@ -668,6 +1130,20 @@ class AudioEngine:
         if track is None:
             return False
 
+        if "not-negotiated" in debug and self._dsd_mode and track.is_dsd and self.hw_device:
+            # alsasink (GStreamer 1.28) solo anuncia DSD64 aunque el DAC admita DSD128/256: esta
+            # frecuencia se convierte a PCM sin salir del exclusivo y no se vuelve a intentar
+            self._dsd_rejected.setdefault(self.hw_device.alsa_card, set()).add(track.sample_rate)
+            dsd = f"DSD{track.sample_rate // 44100}"
+            log.warning("%s no se pudo negociar en nativo con %s; se convierte a PCM en exclusivo",
+                        dsd, self.hw_device.hw_path)
+            next_track = self.next_track
+            self._rebuild_output(track, position)  # Conserva la reserva: mismo DAC
+            self.next_track = next_track
+            if self.on_error:
+                self.on_error(i18n.t("devices.dsd_native_rejected", dsd=dsd))
+            return False
+
         if "not-negotiated" in debug:
             log.warning("El DAC no admite '%s' (%s) en exclusivo; se usa el mezclador para esta pista",
                         track.title, track.badge_full)
@@ -685,11 +1161,6 @@ class AudioEngine:
             self.on_error(message)
         return False
 
-    def _restore_exclusive(self):
-        self._exclusive_bypass_track = None
-        self._init_pipeline()
-        self._notify_output_changed()
-
     def _restore_exclusive_and_reload(self) -> bool:
         if self._exclusive_bypass_track is not None:
             self._exclusive_bypass_track = None
@@ -698,10 +1169,13 @@ class AudioEngine:
 
     def shutdown(self):
         """Detiene la reproducción y devuelve la tarjeta a PipeWire."""
+        self._cancel_pending_rebuild()
         self._cleanup_pipeline()
 
     def _cleanup_pipeline(self):
         self._stop_timer()
+        self._close_hw_mixer()
+        self._cancel_release()
         if self._bus:
             self._bus.remove_signal_watch()
             self._bus = None

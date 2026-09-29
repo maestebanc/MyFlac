@@ -124,8 +124,19 @@ class LyricsService:
         Debe llamarse desde el hilo principal. Varias peticiones de la misma pista comparten una
         descarga; cada consumidor comprueba (con track_key) si el resultado sigue siendo el suyo.
         """
-        # 1. Comprobar letras embebidas en el archivo de audio
-        embedded = self._get_embedded_lyrics(track)
+        # 1. Letras embebidas en el archivo de audio: se leen en otro hilo, porque el archivo puede
+        # estar en una unidad de red y congelaría la interfaz mientras responde el servidor
+        def read_embedded():
+            try:
+                embedded = self._get_embedded_lyrics(track)
+            except Exception as e:
+                log.debug("No se pudieron leer letras embebidas de %s: %s", track.filepath, e)
+                embedded = None
+            GLib.idle_add(self._continue_fetch, track, callback, embedded)
+
+        threading.Thread(target=read_embedded, name="lyrics-embedded", daemon=True).start()
+
+    def _continue_fetch(self, track: AudioTrack, callback, embedded: str | None) -> bool:
         if embedded:
             log.info("Letra encontrada embebida en metadatos para: %s - %s", track.artist, track.title)
             synced = parse_lrc(embedded)
@@ -180,6 +191,7 @@ class LyricsService:
             )
 
         threading.Thread(target=_worker, name=f"lyrics-{cache_key[:8]}", daemon=True).start()
+        return False
 
     def _deliver(self, cache_key: str, lyrics: str | None, status: str, synced: SyncedLyrics | None) -> bool:
         for callback in self._pending.pop(cache_key, []):

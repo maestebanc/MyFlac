@@ -29,6 +29,8 @@ class AudioDevice:
     alsa_card: int | None = None  # Índice de tarjeta ALSA (para reservarla frente a PipeWire)
     alsa_card_id: str = ""  # Identificador estable de la tarjeta (ej. 'Audio')
     alsa_device: int | None = None
+    max_sample_rate: int | None = None
+    dsd_native: bool = False  # La tarjeta acepta DSD nativo en ALSA (DSD_U32_BE...), sin DoP
 
     @property
     def hw_path(self) -> str | None:
@@ -36,6 +38,68 @@ class AudioDevice:
         if not self.alsa_card_id or self.alsa_device is None:
             return None
         return f"hw:CARD={self.alsa_card_id},DEV={self.alsa_device}"
+
+
+_card_rate_cache: dict[tuple[int, str], tuple[int | None, bool]] = {}
+
+
+def parse_stream_dsd_native(text: str) -> bool:
+    """True si la sección Playback de stream0 ofrece algún formato DSD nativo de ALSA."""
+    in_playback = False
+    for line in text.splitlines():
+        stripped = line.strip()
+        if stripped.endswith(":") and " " not in stripped:
+            in_playback = stripped == "Playback:"
+        elif in_playback and stripped.startswith("Format:") and "DSD_" in stripped:
+            return True
+    return False
+
+
+def parse_stream_max_rate(text: str) -> int | None:
+    """Frecuencia máxima de la sección Playback de un /proc/asound/cardN/stream0 (tarjetas USB)."""
+    max_rate: int | None = None
+    in_playback = False
+    for line in text.splitlines():
+        stripped = line.strip()
+        # Las secciones ("Playback:", "Capture:") son las únicas líneas que terminan en ':'
+        if stripped.endswith(":") and " " not in stripped:
+            in_playback = stripped == "Playback:"
+            continue
+        if in_playback and stripped.startswith("Rates:"):
+            rates = [int(r) for r in re.findall(r"\d+", stripped)]
+            if rates:
+                max_rate = max(max_rate or 0, max(rates))
+    return max_rate
+
+
+def read_card_max_rate(card: int | None, card_id: str = "") -> int | None:
+    """
+    Frecuencia máxima de reproducción de una tarjeta USB según /proc/asound/cardN/stream0.
+    No abre el dispositivo (abrirlo mientras PipeWire lo tiene daría "busy" y bloquearía la UI).
+    Las tarjetas no USB no publican este fichero: se devuelve None.
+    """
+    if card is None:
+        return None
+    return _read_stream_info(card, card_id)[0]
+
+
+def read_card_dsd_native(card: int | None, card_id: str = "") -> bool:
+    """True si la tarjeta USB admite DSD nativo según /proc/asound/cardN/stream0."""
+    if card is None:
+        return False
+    return _read_stream_info(card, card_id)[1]
+
+
+def _read_stream_info(card: int, card_id: str) -> tuple[int | None, bool]:
+    key = (card, card_id)
+    if key not in _card_rate_cache:
+        try:
+            with open(f"/proc/asound/card{card}/stream0", encoding="utf-8") as f:
+                text = f.read()
+            _card_rate_cache[key] = (parse_stream_max_rate(text), parse_stream_dsd_native(text))
+        except OSError:
+            _card_rate_cache[key] = (None, False)
+    return _card_rate_cache[key]
 
 
 def _clean_device_name(raw_name: str) -> str:
@@ -65,12 +129,30 @@ import time
 
 _cached_devices: list[AudioDevice] = []
 _last_scan_time: float = 0.0
+_last_logged_count = -1
 _CACHE_TTL = 3.0  # segundos
+
+# Monitor único y siempre activo. Crear y detener un Gst.DeviceMonitor en cada consulta hacía
+# que el hilo del proveedor de PipeWire procesara eventos de nodos (p. ej. al recuperar la tarjeta
+# tras el modo exclusivo) mientras monitor.stop() liberaba su núcleo: SIGSEGV en libgstpipewire.
+_monitor: Gst.DeviceMonitor | None = None
+
+
+def _get_monitor() -> Gst.DeviceMonitor | None:
+    global _monitor
+    if _monitor is None:
+        monitor = Gst.DeviceMonitor.new()
+        monitor.add_filter("Audio/Sink", None)
+        if not monitor.start():
+            log.warning("No se pudo iniciar Gst.DeviceMonitor para salidas de audio")
+            return None
+        _monitor = monitor
+    return _monitor
 
 
 def get_available_devices(force_refresh: bool = False) -> list[AudioDevice]:
     """Obtiene la lista de dispositivos de salida a través del mezclador del sistema (PipeWire/Pulse)."""
-    global _cached_devices, _last_scan_time
+    global _cached_devices, _last_scan_time, _last_logged_count
     now = time.time()
     if not force_refresh and _cached_devices and (now - _last_scan_time < _CACHE_TTL):
         # Actualizar textos del dispositivo por defecto según el idioma actual
@@ -93,10 +175,8 @@ def get_available_devices(force_refresh: bool = False) -> list[AudioDevice]:
     )
 
     try:
-        monitor = Gst.DeviceMonitor.new()
-        monitor.add_filter("Audio/Sink", None)
-        monitor.start()
-        gst_devices = monitor.get_devices()
+        monitor = _get_monitor()
+        gst_devices = monitor.get_devices() if monitor else []
 
         for d in gst_devices:
             raw_display = d.get_display_name() or ""
@@ -134,19 +214,18 @@ def get_available_devices(force_refresh: bool = False) -> list[AudioDevice]:
             else:
                 icon = "audio-speakers-symbolic"
 
-            devices.append(
-                AudioDevice(
-                    id=node_name,
-                    name=display_name,
-                    description=raw_display,
-                    is_usb=is_usb,
-                    is_default=is_sys_default,
-                    icon_name=icon,
-                    **_parse_alsa_fields(alsa_fields),
-                )
+            dev = AudioDevice(
+                id=node_name,
+                name=display_name,
+                description=raw_display,
+                is_usb=is_usb,
+                is_default=is_sys_default,
+                icon_name=icon,
+                **_parse_alsa_fields(alsa_fields),
             )
-
-        monitor.stop()
+            dev.max_sample_rate = read_card_max_rate(dev.alsa_card, dev.alsa_card_id)
+            dev.dsd_native = read_card_dsd_native(dev.alsa_card, dev.alsa_card_id)
+            devices.append(dev)
     except Exception as e:
         log.exception("Error al enumerar dispositivos de audio con Gst.DeviceMonitor: %s", e)
 
@@ -161,7 +240,9 @@ def get_available_devices(force_refresh: bool = False) -> list[AudioDevice]:
     devices.sort(key=sort_key)
     _cached_devices = list(devices)
     _last_scan_time = time.time()
-    log.info("Dispositivos de salida del mezclador disponibles: %d", len(devices))
+    if len(devices) != _last_logged_count:
+        _last_logged_count = len(devices)
+        log.info("Dispositivos de salida del mezclador disponibles: %d", len(devices))
     return devices
 
 
@@ -198,31 +279,25 @@ def find_device_by_id(device_id: str) -> AudioDevice | None:
 
 
 def resolve_hardware_device(device_id: str) -> AudioDevice | None:
-    """Devuelve el dispositivo ALSA real tras un id (resolviendo 'default' a la salida del sistema)."""
+    """Devuelve el dispositivo ALSA real tras un id, o None si no es una salida hardware ALSA concreta."""
+    if not device_id or device_id in ("default", "auto", "pipewire"):
+        return None
     for force_refresh in (False, True):
         devices = get_available_devices(force_refresh=force_refresh)
-        if not device_id or device_id in ("default", "auto", "pipewire"):
-            dev = next((d for d in devices if d.is_default and d.id != "default"), None)
-        else:
-            base_id = base_node_name(device_id)
-            dev = next((d for d in devices if base_node_name(d.id) == base_id or device_id in d.id), None)
+        base_id = base_node_name(device_id)
+        dev = next((d for d in devices if base_node_name(d.id) == base_id or device_id in d.id), None)
         if dev and dev.hw_path:
             return dev
     return None
 
 
-def wait_for_device(device_id: str, timeout: float = 3.0) -> AudioDevice | None:
-    """Espera a que PipeWire vuelva a publicar una salida (p.ej. tras liberar el modo exclusivo)."""
+def find_published_device(device_id: str) -> AudioDevice | None:
+    """Devuelve la salida si PipeWire la está publicando ahora mismo (sin esperar)."""
     base_id = base_node_name(device_id)
-    deadline = time.monotonic() + timeout
-    while True:
-        for dev in get_available_devices(force_refresh=True):
-            if dev.id != "default" and base_node_name(dev.id) == base_id:
-                return dev
-        if time.monotonic() >= deadline:
-            log.warning("La salida '%s' no ha reaparecido en PipeWire tras %.1fs", device_id, timeout)
-            return None
-        time.sleep(0.15)
+    for dev in get_available_devices(force_refresh=True):
+        if dev.id != "default" and base_node_name(dev.id) == base_id:
+            return dev
+    return None
 
 
 def get_default_device(preferred_id: str | None = None) -> AudioDevice:

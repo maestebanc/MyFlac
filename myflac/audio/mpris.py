@@ -438,7 +438,7 @@ class MprisServer:
         # Actualizar carátula en caché para clientes MPRIS
         self._has_cached_cover = False
         try:
-            cover_info = track.get_cover_image_bytes()
+            cover_info = track.cached_cover()
             if cover_info:
                 data, _ = cover_info
                 name = f"mpris-cover-{hashlib.sha1(data).hexdigest()[:16]}.img"
