@@ -2,7 +2,7 @@
 %define pysitelib %(python3 -c "import sys; print(f'/usr/lib/python{sys.version_info.major}.{sys.version_info.minor}/site-packages')")
 
 Name:           myflac
-Version:        0.1.2
+Version:        0.2.0
 Release:        1%{?dist}
 Summary:        Bit-perfect Hi-Res audio player for GNOME
 License:        GPL-3.0-or-later
@@ -18,6 +18,7 @@ Requires:       libadwaita >= 1.4
 Requires:       gstreamer1
 Requires:       gstreamer1-plugins-base
 Requires:       gstreamer1-plugins-good
+Recommends:     gstreamer1-plugin-libav
 
 %description
 MyFlac is an audiophile, bit-perfect music player built specifically for GNOME
@@ -70,6 +71,15 @@ update-desktop-database -q /usr/share/applications &>/dev/null || :
 gtk-update-icon-cache -q /usr/share/icons/hicolor &>/dev/null || :
 
 %changelog
+* Tue Sep 29 2026 Miguel Angel Esteban <maestebanc@gmail.com> - 0.2.0-1
+- Safe exclusive mode negotiation with WirePlumber (the DAC no longer disappears from the system).
+- Native DSD playback on DSD-capable DACs; DSD128+ converted to 352.8 kHz PCM in exclusive mode.
+- DAC hardware volume in exclusive mode, restored when the DAC is handed back.
+- Honest transport status in the output selector (bit-perfect, resampling, reduced bits, DSD).
+- Network libraries: covers, lyrics and session restore no longer freeze the interface.
+- Redesigned output selector and tabbed preferences without scrolling.
+- Light and dark theme tones (Warm Paper and Obsidian by default).
+
 * Tue Sep 29 2026 Miguel Angel Esteban <maestebanc@gmail.com> - 0.1.2-1
 - Header bar theme toggle button (dark / Soft Slate light mode).
 - Super Player expanded to 80% screen height with 4 tabs (Lyrics, Track, Album, Artist).

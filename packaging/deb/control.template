@@ -5,7 +5,7 @@ Priority: optional
 Architecture: all
 Maintainer: Miguel Angel Esteban <maestebanc@gmail.com>
 Depends: python3 (>= 3.11), python3-gi, python3-mutagen, python3-pil, gir1.2-gtk-4.0, gir1.2-adw-1, gstreamer1.0-plugins-base, gstreamer1.0-plugins-good
-Recommends: gstreamer1.0-plugins-bad, gstreamer1.0-plugins-ugly, gstreamer1.0-alsa
+Recommends: gstreamer1.0-plugins-bad, gstreamer1.0-plugins-ugly, gstreamer1.0-alsa, gstreamer1.0-libav
 Homepage: https://maestebanc.github.io/MyFlac/
 Description: Bit-perfect Hi-Res audio player for GNOME
  MyFlac is an audiophile, bit-perfect music player built specifically for GNOME

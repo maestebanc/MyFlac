@@ -1,6 +1,6 @@
 # Maintainer: Miguel Angel Esteban <maestebanc@gmail.com>
 pkgname=myflac
-pkgver=0.1.2
+pkgver=0.2.0
 pkgrel=1
 pkgdesc="Bit-perfect Hi-Res audio player for GNOME"
 arch=('any')
@@ -20,6 +20,7 @@ optdepends=(
     'gst-plugins-bad: Additional audio format decoders'
     'gst-plugins-ugly: Additional audio format decoders'
     'gst-plugin-pipewire: Native PipeWire audio output'
+    'gst-libav: DSD (DSF) playback'
 )
 source=()
 

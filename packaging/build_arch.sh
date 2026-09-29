@@ -82,6 +82,7 @@ depend = gst-plugins-good
 optdepend = gst-plugins-bad: Additional audio format decoders
 optdepend = gst-plugins-ugly: Additional audio format decoders
 optdepend = gst-plugin-pipewire: Native PipeWire audio output
+optdepend = gst-libav: DSD (DSF) playback
 EOF
 
     RAW_VER="${VERSION%-1}"
