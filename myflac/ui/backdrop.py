@@ -33,7 +33,7 @@ LIGHT_SCRIM_EXTRA = 0.04
 TINT_AMOUNT_DARK = 0.12
 TINT_AMOUNT_LIGHT = 0.08
 BASE_DARK = (12, 13, 17)  # Obsidiana (#0c0d11); con otro tono se usa dark_base_rgb()
-BASE_LIGHT = (235, 238, 243)  # Pizarra suave (#ebeef3); con otro tono se usa light_base_rgb()
+BASE_LIGHT = (230, 224, 214)  # Papel cálido (#e6e0d6); la capa usa light_base_rgb() del tono activo
 MAX_CACHED_TEXTURES = 8
 
 

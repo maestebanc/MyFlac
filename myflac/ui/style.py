@@ -19,12 +19,12 @@ def _load_css(provider: Gtk.CssProvider, name: str) -> None:
     provider.load_from_path(os.path.join(_CSS_DIR, name))
 
 
-# Tonos de cada tema. light.css y dark.css están escritos con los colores del tono por defecto
-# ("slate" y "obsidian"); los demás tonos los sustituyen al cargar la hoja. "backdrop" no aparece en
+# Tonos de cada tema. light.css y dark.css están escritos con los colores de "slate" y "obsidian"
+# (SOURCE_*); los demás tonos los sustituyen al cargar la hoja. "backdrop" no aparece en
 # el CSS: es la base de la capa que oscurece o aclara la foto del artista tras la biblioteca.
 LIGHT_VARIANTS: dict[str, dict[str, str]] = {
-    "slate": {"window": "#ebeef3", "view": "#f7f9fb", "fg": "#242731"},      # Pizarra suave
     "paper": {"window": "#e6e0d6", "view": "#efeae1", "fg": "#2b2620"},      # Papel cálido
+    "slate": {"window": "#ebeef3", "view": "#f7f9fb", "fg": "#242731"},      # Pizarra suave
     "slate_mid": {"window": "#d8dce3", "view": "#e2e6ec", "fg": "#1f232b"},  # Pizarra media
     "graphite": {"window": "#d6d6d3", "view": "#e1e1de", "fg": "#1e1e1e"},   # Grafito claro
     "sage": {"window": "#dde3dc", "view": "#e7ece6", "fg": "#222822"},       # Salvia
@@ -51,7 +51,10 @@ DARK_VARIANTS: dict[str, dict[str, str]] = {
         "dialog": "#272727", "bar": "#1f1f1f", "fg": "#f0f0f0", "backdrop": "#1b1b1b",
     },
 }
-DEFAULT_LIGHT_VARIANT = "slate"
+SOURCE_LIGHT_VARIANT = "slate"
+SOURCE_DARK_VARIANT = "obsidian"
+# Tonos que se usan si el usuario no ha elegido otro
+DEFAULT_LIGHT_VARIANT = "paper"
 DEFAULT_DARK_VARIANT = "obsidian"
 _variants = {"light": DEFAULT_LIGHT_VARIANT, "dark": DEFAULT_DARK_VARIANT}
 _palette_listeners: list = []
@@ -120,7 +123,7 @@ def set_dark_variant(name: str) -> None:
 def theme_css(mode: str, variant: str) -> str:
     """Hoja del tema claro u oscuro con los colores del tono indicado."""
     variants = variants_for(mode)
-    default = variants[DEFAULT_DARK_VARIANT if mode == "dark" else DEFAULT_LIGHT_VARIANT]
+    default = variants[SOURCE_DARK_VARIANT if mode == "dark" else SOURCE_LIGHT_VARIANT]
     with open(os.path.join(_CSS_DIR, "dark.css" if mode == "dark" else "light.css"), encoding="utf-8") as f:
         css = f.read()
     for role, new in variants[variant].items():

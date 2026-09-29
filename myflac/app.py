@@ -85,7 +85,7 @@ class MyFlacApplication(Adw.Application):
             cfg = config.load_config()
             log.info("Configuración cargada: %s", {k: v for k, v in cfg.items() if k != "last_directory"})
             apply_ui_scale(cfg.get("ui_scale", 100))
-            set_light_variant(cfg.get("light_variant", "slate"))
+            set_light_variant(cfg.get("light_variant", "paper"))
             set_dark_variant(cfg.get("dark_variant", "obsidian"))
             apply_theme(cfg.get("theme", "system"))
 

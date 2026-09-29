@@ -6,7 +6,7 @@ import pytest
 style = pytest.importorskip("myflac.ui.style")
 
 ALL_VARIANTS = [("light", v) for v in style.LIGHT_VARIANTS] + [("dark", v) for v in style.DARK_VARIANTS]
-DEFAULTS = {"light": style.DEFAULT_LIGHT_VARIANT, "dark": style.DEFAULT_DARK_VARIANT}
+SOURCES = {"light": style.SOURCE_LIGHT_VARIANT, "dark": style.SOURCE_DARK_VARIANT}
 
 
 def _luminance(hex_color: str) -> float:
@@ -33,8 +33,8 @@ def test_variant_replaces_every_base_color(mode, variant):
         assert f"@define-color card_bg_color {colors['card']};" in css
         assert f"@define-color popover_bg_color {colors['popover']};" in css
         assert f"@define-color dialog_bg_color {colors['dialog']};" in css
-    if variant != DEFAULTS[mode]:
-        default = style.variants_for(mode)[DEFAULTS[mode]]
+    if variant != SOURCES[mode]:
+        default = style.variants_for(mode)[SOURCES[mode]]
         leftovers = {c for role, c in default.items() if role != "backdrop"} & set(re.findall(r"#[0-9a-f]{6}", css))
         assert not leftovers  # Ningún resto del tono por defecto (barra, popovers...)
 
@@ -44,6 +44,13 @@ def test_text_contrast_is_comfortable(mode, variant):
     colors = style.variants_for(mode)[variant]
     for background in ("window", "view"):
         assert _contrast(colors["fg"], colors[background]) >= 7.0  # WCAG AAA
+
+
+def test_defaults_are_paper_and_obsidian():
+    from myflac.config import DEFAULTS as CONFIG_DEFAULTS
+
+    assert style.DEFAULT_LIGHT_VARIANT == CONFIG_DEFAULTS["light_variant"] == "paper"
+    assert style.DEFAULT_DARK_VARIANT == CONFIG_DEFAULTS["dark_variant"] == "obsidian"
 
 
 def test_backdrop_follows_active_tones(monkeypatch):

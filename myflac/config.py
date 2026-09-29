@@ -48,7 +48,7 @@ DEFAULTS = {
     "backdrop_intensity": 10,   # Visibilidad de esa foto en % (10-80)
     "ui_scale": 100,
     "theme": "system",          # "system", "light", "dark"
-    "light_variant": "slate",   # Tono del tema claro: slate, paper, slate_mid, graphite, sage
+    "light_variant": "paper",   # Tono del tema claro: paper, slate, slate_mid, graphite, sage
     "dark_variant": "obsidian", # Tono del tema oscuro: obsidian, midnight, espresso, oled, graphite
     "window_width": 1280,
     "window_height": 880,

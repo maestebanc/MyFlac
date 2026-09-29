@@ -34,6 +34,23 @@
   </developer>
   <content_rating type="oars-1.1" />
   <releases>
+    <release version="0.2.0" date="2026-09-29">
+      <description>
+        <p>Safe exclusive mode: the DAC is negotiated with PipeWire/WirePlumber following the ReserveDevice1 protocol, so it no longer disappears from the system after using bit-perfect mode.</p>
+        <p>Native DSD: DSF files reach DSD-capable DACs untouched. DSD128 and above are converted to 352.8 kHz PCM without leaving exclusive mode.</p>
+        <p>Hardware volume: in exclusive mode the volume slider drives the DAC's own volume control, keeping the digital stream bit-perfect.</p>
+        <p>Honest output status: the output selector shows whether playback is bit-perfect, resampled, reduced in bit depth or native DSD.</p>
+        <p>Network libraries: covers, lyrics and session restore are read in the background, so SMB/NFS shares no longer freeze the interface.</p>
+        <p>New light and dark theme tones (Warm Paper and Obsidian by default), a redesigned output selector and tabbed preferences.</p>
+        <p xml:lang="es">Modo exclusivo seguro: el DAC se negocia con PipeWire/WirePlumber siguiendo el protocolo ReserveDevice1 y ya no desaparece del sistema tras usar el modo bit-perfect.</p>
+        <p xml:lang="es">DSD nativo: los DSF llegan intactos a los DAC compatibles. DSD128 y superiores se convierten a PCM a 352,8 kHz sin salir del modo exclusivo.</p>
+        <p xml:lang="es">Volumen por hardware: en modo exclusivo el deslizador controla el volumen propio del DAC y la señal digital sigue siendo bit-perfect.</p>
+        <p xml:lang="es">Estado real de la salida: el selector indica si la reproducción es bit-perfect, remuestreada, con bits reducidos o DSD nativo.</p>
+        <p xml:lang="es">Bibliotecas en red: portadas, letras y sesión se leen en segundo plano; las unidades SMB/NFS ya no congelan la interfaz.</p>
+        <p xml:lang="es">Nuevos tonos de tema claro y oscuro (Papel cálido y Obsidiana por defecto), selector de salida rediseñado y preferencias por pestañas.</p>
+        <p xml:lang="ca">Mode exclusiu segur, DSD natiu, volum per maquinari del DAC, estat real de la sortida, biblioteques en xarxa sense bloquejos i nous tons de tema (Paper càlid i Obsidiana per defecte).</p>
+      </description>
+    </release>
     <release version="0.1.2" date="2026-09-29">
       <description>
         <p>Header bar theme toggle: switch easily between dark mode and eye-friendly Soft Slate light mode right next to the search button.</p>

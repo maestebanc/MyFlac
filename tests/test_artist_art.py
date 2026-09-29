@@ -115,7 +115,7 @@ def test_backdrop_blur_and_tint(tmp_path):
     # El tinte rojo se nota, pero la capa sigue siendo oscura
     r, g, b = (int(v) for v in dark[5:].split(",")[:3])
     assert r > g and max(r, g, b) < 60
-    assert scrim_color(None, dark=False, intensity=42) == "rgba(235, 238, 243, 0.62)"
+    assert scrim_color(None, dark=False, intensity=42) == "rgba(230, 224, 214, 0.62)"  # Papel cálido
     # Por defecto, intensidad 10 %: capa del 90 % (94 % en tema claro)
     assert scrim_color(None, dark=True).endswith("0.9)") and scrim_color(None, dark=False).endswith("0.94)")
 
