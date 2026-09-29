@@ -8,6 +8,14 @@
 // ==========================================
 const translations = {
   es: {
+    btn_install: "Instalar MyFlac",
+    btn_install_sub: "Flatpak · actualizaciones automáticas",
+    btn_other_packages: "Otros paquetes",
+    install_hint: "Se abre en GNOME Software o Discover. También desde la terminal:",
+    copy_btn: "Copiar",
+    dl_flatpak_desc: "Instalación aislada y segura, con actualizaciones automáticas desde GNOME Software o Discover.",
+    dl_flatpak_install: "Instalar con actualizaciones automáticas",
+    dl_flatpak_bundle: "o descarga el paquete .flatpak (6.5 MB)",
     page_title: "MyFlac — Reproductor de música Hi-Res y Bit-Perfect para Linux",
     meta_desc: "MyFlac es un reproductor audiófilo nativo para GNOME y Linux con sonido bit-perfect, letras sincronizadas, fichas de Wikipedia y Discogs, y diseño GTK4 / Libadwaita.",
 
@@ -76,6 +84,14 @@ const translations = {
   },
 
   en: {
+    btn_install: "Install MyFlac",
+    btn_install_sub: "Flatpak · automatic updates",
+    btn_other_packages: "Other packages",
+    install_hint: "Opens in GNOME Software or Discover. Or from the terminal:",
+    copy_btn: "Copy",
+    dl_flatpak_desc: "Sandboxed and secure, with automatic updates from GNOME Software or Discover.",
+    dl_flatpak_install: "Install with automatic updates",
+    dl_flatpak_bundle: "or download the .flatpak package (6.5 MB)",
     page_title: "MyFlac — Bit-Perfect Hi-Res Music Player for Linux",
     meta_desc: "MyFlac is a native audiophile music player for GNOME and Linux featuring bit-perfect output, synchronized lyrics, Wikipedia and Discogs info cards, and GTK4 / Libadwaita design.",
 
@@ -144,6 +160,14 @@ const translations = {
   },
 
   ca: {
+    btn_install: "Instal·lar MyFlac",
+    btn_install_sub: "Flatpak · actualitzacions automàtiques",
+    btn_other_packages: "Altres paquets",
+    install_hint: "S'obre a GNOME Programari o Discover. També des del terminal:",
+    copy_btn: "Copiar",
+    dl_flatpak_desc: "Instal·lació aïllada i segura, amb actualitzacions automàtiques des de GNOME Programari o Discover.",
+    dl_flatpak_install: "Instal·lar amb actualitzacions automàtiques",
+    dl_flatpak_bundle: "o descarrega el paquet .flatpak (6.5 MB)",
     page_title: "MyFlac — Reproductor de música Hi-Res i Bit-Perfect per a Linux",
     meta_desc: "MyFlac és un reproductor audiòfil natiu per a GNOME i Linux amb so bit-perfect, lletres sincronitzades, fitxes de Wikipedia i Discogs, i disseny GTK4 / Libadwaita.",
 

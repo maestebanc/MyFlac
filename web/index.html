@@ -116,13 +116,19 @@
         </p>
 
         <div class="hero-cta">
-          <a href="#download" class="btn btn-primary">
-            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <a href="myflac.flatpakref" type="application/vnd.flatpak.ref" class="btn btn-primary btn-install">
+            <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
               <polyline points="7 10 12 15 17 10"></polyline>
               <line x1="12" y1="15" x2="12" y2="3"></line>
             </svg>
-            <span data-i18n="btn_download">Descargar para Linux</span>
+            <span class="btn-install-text">
+              <span data-i18n="btn_install">Instalar MyFlac</span>
+              <small data-i18n="btn_install_sub">Flatpak · actualizaciones automáticas</small>
+            </span>
+          </a>
+          <a href="#download" class="btn btn-secondary">
+            <span data-i18n="btn_other_packages">Otros paquetes</span>
           </a>
           <a href="https://github.com/maestebanc/MyFlac" target="_blank" rel="noopener noreferrer" class="btn btn-secondary">
             <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
@@ -130,6 +136,14 @@
             </svg>
             <span data-i18n="btn_github">Código en GitHub</span>
           </a>
+        </div>
+
+        <div class="hero-install-hint">
+          <p data-i18n="install_hint">Se abre en GNOME Software o Discover. También desde la terminal:</p>
+          <div class="code-box">
+            <code>flatpak install --from https://maestebanc.github.io/MyFlac/myflac.flatpakref</code>
+            <button class="code-copy-btn" data-copy="flatpak install --from https://maestebanc.github.io/MyFlac/myflac.flatpakref" title="Copiar comando" data-i18n="copy_btn">Copiar</button>
+          </div>
         </div>
 
         <!-- Showcase: Carrusel Interactivo de Capturas con auto-scroll y zoom -->
@@ -352,13 +366,16 @@
                 <span class="dl-distro">Cualquier distribución Linux</span>
               </div>
             </div>
-            <p class="dl-desc">Instalación aislada, segura y con todas las dependencias integradas (GNOME 50 Platform).</p>
+            <p class="dl-desc" data-i18n="dl_flatpak_desc">Instalación aislada y segura, con actualizaciones automáticas desde GNOME Software o Discover.</p>
             <div class="code-box">
-              <code>flatpak install myflac-0.2.0.flatpak</code>
-              <button class="code-copy-btn" data-copy="flatpak install myflac-0.2.0.flatpak" title="Copiar comando">Copiar</button>
+              <code>flatpak install --from https://maestebanc.github.io/MyFlac/myflac.flatpakref</code>
+              <button class="code-copy-btn" data-copy="flatpak install --from https://maestebanc.github.io/MyFlac/myflac.flatpakref" title="Copiar comando">Copiar</button>
             </div>
-            <a href="https://github.com/maestebanc/MyFlac/releases/download/v0.2.0/myflac-0.2.0.flatpak" class="btn btn-primary btn-block">
-              Descargar .flatpak (5.4 MB)
+            <a href="myflac.flatpakref" type="application/vnd.flatpak.ref" class="btn btn-primary btn-block" data-i18n="dl_flatpak_install">
+              Instalar con actualizaciones automáticas
+            </a>
+            <a href="https://github.com/maestebanc/MyFlac/releases/download/v0.2.0/myflac-0.2.0.flatpak" class="dl-alt-link" data-i18n="dl_flatpak_bundle">
+              o descarga el paquete .flatpak (6.5 MB)
             </a>
           </div>
 

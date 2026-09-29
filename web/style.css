@@ -485,8 +485,75 @@ a:hover {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
+  align-items: center;
   gap: 16px;
-  margin-bottom: 50px;
+  margin-bottom: 18px;
+}
+
+/* Botón principal de instalación: lo primero que se ve al entrar */
+.btn-install {
+  background-color: var(--blue-3);
+  padding: 16px 34px 16px 28px;
+  font-size: 1.12rem;
+  gap: 14px;
+  box-shadow: 0 6px 24px var(--accent-glow), 0 2px 8px rgba(0, 0, 0, 0.25);
+}
+
+.btn-install:hover {
+  background-color: var(--blue-4);
+  box-shadow: 0 10px 32px var(--accent-glow), 0 3px 10px rgba(0, 0, 0, 0.3);
+}
+
+.btn-install-text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: left;
+  line-height: 1.15;
+}
+
+.btn-install-text small {
+  font-size: 0.74rem;
+  font-weight: 500;
+  opacity: 0.85;
+  margin-top: 3px;
+}
+
+.hero-install-hint {
+  width: 100%;
+  max-width: 620px;
+  margin: 0 auto 46px;
+  text-align: center;
+}
+
+.hero-install-hint p {
+  font-size: 0.86rem;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+}
+
+.hero-install-hint .code-box {
+  margin-bottom: 0;
+  text-align: left;
+}
+
+/* El comando es largo: salta de línea en lugar de mostrar una barra de desplazamiento */
+.hero-install-hint .code-box code {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  overflow: visible;
+}
+
+.dl-alt-link {
+  display: block;
+  margin-top: 12px;
+  text-align: center;
+  font-size: 0.84rem;
+  color: var(--text-secondary);
+}
+
+.dl-alt-link:hover {
+  color: var(--accent);
 }
 
 /* Showcase Wrapper & Interactive Carousel */

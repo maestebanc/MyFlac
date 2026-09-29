@@ -63,11 +63,15 @@ MyFlac and [MyTag](https://maestebanc.github.io/MyTag/) are designed as companio
 
 Grab the pre-built packages from the [GitHub Releases page](https://github.com/maestebanc/MyFlac/releases).
 
-### Flatpak (any Linux distribution)
+### Flatpak (any Linux distribution) — recommended
+
+Install from the official MyFlac repository and get automatic updates through GNOME Software or Discover:
 
 ```bash
-flatpak install myflac-0.2.0.flatpak
+flatpak install --from https://maestebanc.github.io/MyFlac/myflac.flatpakref
 ```
+
+Or click **Install MyFlac** on the [official website](https://maestebanc.github.io/MyFlac/). The standalone `myflac-0.2.0.flatpak` bundle from the releases page also receives updates from the repository.
 
 ### Fedora / RHEL (RPM)
 
