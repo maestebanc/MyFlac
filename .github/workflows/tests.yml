@@ -1,0 +1,33 @@
+name: Tests
+
+on:
+  push:
+    branches: ["master"]
+    paths-ignore:
+      - "web/**"
+      - "screenshots/**"
+      - "**.md"
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  pytest:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # PyGObject, GTK4/Libadwaita y GStreamer vienen del sistema: son los que usa la aplicación
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            python3 python3-gi python3-pytest python3-mutagen python3-pil \
+            gir1.2-gtk-4.0 gir1.2-adw-1 gir1.2-gstreamer-1.0 gir1.2-gst-plugins-base-1.0 \
+            gstreamer1.0-plugins-base gstreamer1.0-plugins-good xvfb
+
+      - name: Run tests
+        run: xvfb-run -a python3 -m pytest -q

@@ -21,6 +21,10 @@ myflac = "myflac.app:main"
 [tool.setuptools.packages.find]
 include = ["myflac*"]
 
+# Hojas de estilo, iconos y placeholder: sin esto, "pip install ." (Flatpak) no los instala
+[tool.setuptools.package-data]
+myflac = ["resources/*.png", "resources/*.svg", "resources/css/*.css", "resources/icons/**/*"]
+
 [project.optional-dependencies]
 dev = ["pytest>=8"]
 

@@ -20,7 +20,12 @@ MyFlac and [MyTag](https://maestebanc.github.io/MyTag/) are designed as companio
 
 ## Key Features
 
-- **Pure Bit-Perfect Playback**: Direct hardware access to your DAC via exclusive ALSA (`hw:CARD=...,DEV=...`) with D-Bus device reservation (`org.freedesktop.ReserveDevice1`). No forced resampling, no digital dithering, and volume fixed at 0 dB.
+- **Pure Bit-Perfect Playback**: Direct hardware access to your DAC via exclusive ALSA (`hw:CARD=...,DEV=...`), negotiated with PipeWire/WirePlumber through the standard `org.freedesktop.ReserveDevice1` D-Bus protocol. No mixer, no digital volume (fixed at 0 dB), no dithering.
+  - **Per-device**: enable *Bit-Perfect exclusive mode* for each DAC from the output selector; other outputs keep using the system mixer.
+  - **Honest status**: the output selector shows what really reaches the DAC — `Bit-perfect · 192 kHz` when samples arrive untouched, *Resampled to 96 kHz* when the track exceeds the DAC's maximum rate, or *Reduced to 16 bits* if the DAC cannot take the track's bit depth.
+  - **Hardware volume**: if the DAC has its own volume control (most USB DACs do), the volume slider drives it directly — attenuation happens in the DAC and the digital stream stays bit-perfect. The previous level is restored when the DAC is handed back to the system.
+  - **Native DSD**: DSF files are sent to DSD-capable DACs as native DSD (`DSD_U32_BE`), without converting to PCM or packing into DoP. DACs without native DSD get a PCM conversion, clearly flagged as *DSD → PCM*.
+  - **Plays nicely with the desktop**: the DAC is only held while music plays. After 10 seconds paused or stopped it is handed back to PipeWire, so other applications can use it; resuming reserves it again without freezing the interface.
 - **Roon-Style Synchronized Lyrics**: Real-time line-by-line lyrics fetched via LRCLIB. Active lines are highlighted and kept centered with smooth scrolling; click any line to seek instantly to that position.
 - **Ambient Backdrop & Artist Wallpapers**: The library background softly blurs and tints the artist's photography, preserving crisp readability while creating a modern, warm atmosphere.
 - **Wikipedia & Discogs Insights**: Built-in tabs in the inspector panel displaying the story of the track, album, and artist — including release year, label, country, formats, musicians, producers, and liner notes, auto-translated to Spanish or Catalan.
