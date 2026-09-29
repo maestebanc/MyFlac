@@ -181,7 +181,7 @@ class TrayPlayerWindow(Adw.Window):
             return
         self.title.set_text(track.title)
         self.subtitle.set_text(" — ".join(x for x in (track.artist, track.album) if x))
-        cover = track.get_cover_image_bytes()
+        cover = track.cached_cover()
         try:
             self.cover.set_paintable(Gdk.Texture.new_from_bytes(GLib.Bytes.new(cover[0])) if cover else None)
         except GLib.Error:

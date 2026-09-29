@@ -1,0 +1,65 @@
+/* ==========================================================================
+   Paleta Libadwaita Slate Soft (Opción 1) — Confort visual y descanso ocular
+   Sustituye el blanco puro cegador (#ffffff) por tonos pizarra y piedra caliza.
+   ========================================================================== */
+@define-color window_bg_color #ebeef3;
+@define-color window_fg_color #242731;
+@define-color view_bg_color #f7f9fb;
+@define-color view_fg_color #242731;
+@define-color headerbar_bg_color #ebeef3;
+@define-color headerbar_fg_color #242731;
+@define-color card_bg_color #f7f9fb;
+@define-color card_fg_color #242731;
+@define-color popover_bg_color #f7f9fb;
+@define-color popover_fg_color #242731;
+@define-color secondary_sidebar_bg_color #ebeef3;
+@define-color secondary_sidebar_fg_color #242731;
+@define-color dialog_bg_color #ebeef3;
+@define-color dialog_fg_color #242731;
+
+/* Sin fondo propio: este archivo tiene más prioridad que base.css, y un fondo opaco aquí taparía
+   la foto del artista que base.css deja ver a través de las listas de la biblioteca */
+columnview, listview, .column-list {
+    color: @view_fg_color;
+}
+
+.column-browser-pane {
+    border-bottom: 1px solid alpha(#242731, 0.08);
+}
+
+.column-header-box {
+    background-color: alpha(#242731, 0.035);
+    border-bottom: 1px solid alpha(#242731, 0.07);
+}
+
+.column-header-title {
+    color: alpha(#242731, 0.75);
+}
+
+.count-badge {
+    background-color: alpha(#242731, 0.05);
+    border-color: alpha(#242731, 0.07);
+    color: alpha(#242731, 0.60);
+}
+
+.player-bar {
+    background-color: alpha(#ebeef3, 0.95);
+    border-top: 1px solid alpha(#242731, 0.08);
+}
+
+.inspector-panel {
+    background-color: alpha(#242731, 0.015);
+    border-left: 1px solid alpha(#242731, 0.08);
+}
+
+.audiophile-card {
+    background-color: alpha(#242731, 0.035);
+    border-color: alpha(#242731, 0.07);
+}
+
+
+popover contents {
+    background-color: #f7f9fb;
+    border: 1px solid alpha(#242731, 0.10);
+    box-shadow: 0 10px 28px alpha(black, 0.12), 0 3px 8px alpha(black, 0.06);
+}

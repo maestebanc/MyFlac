@@ -62,6 +62,7 @@ class MiniPlayerWindow(SuperPlayerMixin, Adw.Window):
             self._oscilloscope_mode = main_window.inspector.visualizer_mode % 2
         else:
             self._oscilloscope_mode = cfg.get("visualizer_mode", 0) % 2
+        self._oscilloscope_enabled: bool = cfg.get("oscilloscope_enabled", True)
 
         self._hud_timeout_id: int | None = None
         self._mouse_inside = False
@@ -337,13 +338,18 @@ class MiniPlayerWindow(SuperPlayerMixin, Adw.Window):
         """Conmuta el osciloscopio al hacer clic directamente en la carátula en modo super."""
         self.toggle_oscilloscope_mode()
 
+    def set_oscilloscope_enabled(self, enabled: bool):
+        """Activa o desactiva el osciloscopio en el reproductor (desde Preferencias)."""
+        self._oscilloscope_enabled = enabled
+        self.set_visualizer_mode(self._oscilloscope_mode, save=False)
+
     def set_visualizer_mode(self, mode: int, save: bool = True):
         """
         Establece el modo de la portada y lo sincroniza con el inspector:
         0: portada con osciloscopio (portada limpia en pausa); 1: foto del artista.
         """
         self._oscilloscope_mode = mode % 2
-        is_active = (self._oscilloscope_mode == 0)
+        is_active = (self._oscilloscope_mode == 0) and getattr(self, "_oscilloscope_enabled", True)
         is_playing = (self.engine.state == PlaybackState.PLAYING)
 
         self.mini_scope.set_active(is_active)
@@ -392,7 +398,8 @@ class MiniPlayerWindow(SuperPlayerMixin, Adw.Window):
 
     def _apply_player_mode(self, is_super: bool):
         is_playing = (self.engine.state == PlaybackState.PLAYING)
-        scope_on = (self._oscilloscope_mode == 0) and is_playing
+        scope_active = (self._oscilloscope_mode == 0) and getattr(self, "_oscilloscope_enabled", True)
+        scope_on = scope_active and is_playing
 
         if is_super:
             self.set_resizable(True)
@@ -415,7 +422,7 @@ class MiniPlayerWindow(SuperPlayerMixin, Adw.Window):
             target_h = int(h * 0.80)
             self.super_right_box.set_size_request(820, target_h)
 
-            self.super_scope.set_active(self._oscilloscope_mode == 0)
+            self.super_scope.set_active(scope_active)
             self.super_scope.set_playing(is_playing)
             self.super_scope.set_visible(scope_on)
 
@@ -434,7 +441,7 @@ class MiniPlayerWindow(SuperPlayerMixin, Adw.Window):
             self.remove_css_class("super-player-window")
             self.set_title("MyFlac - Mini Reproductor")
 
-            self.mini_scope.set_active(self._oscilloscope_mode == 0)
+            self.mini_scope.set_active(scope_active)
             self.mini_scope.set_playing(is_playing)
             self.mini_scope.set_visible(scope_on)
 
@@ -564,6 +571,30 @@ class MiniPlayerWindow(SuperPlayerMixin, Adw.Window):
             self.mini_dur_label.set_text(dur_str)
             self.super_dur_label.set_text(dur_str)
 
+    def _on_output_changed(self):
+        """Mantiene sincronizado el estado del dispositivo y la insignia en el super-reproductor."""
+        if not hasattr(self, "super_badge_label"):
+            return
+        track = self.engine.current_track
+        if not track:
+            return
+        rate_khz = track.sample_rate / 1000.0 if track.sample_rate else 44.1
+        depth_str = f"{track.bits_per_sample} bits" if track.bits_per_sample > 1 else "1 bit (DSD)"
+        base_badge = f"{track.format_name} • {rate_khz:g} kHz • {depth_str} • {track.formatted_bitrate}"
+        if self.engine.exclusive_active and self.engine.output_dsd:
+            self.super_badge_label.set_text(f"{base_badge} • ⚡ Native DSD")
+        elif self.engine.exclusive_active and self.engine.dsd_to_pcm:
+            self.super_badge_label.set_text(f"{base_badge} • DSD → PCM")
+        elif self.engine.exclusive_active and self.engine.resampling_active and self.engine.output_sample_rate:
+            out_khz = self.engine.output_sample_rate / 1000.0
+            self.super_badge_label.set_text(f"{base_badge} • ⚡ Resampled {out_khz:g} kHz")
+        elif self.engine.exclusive_active and self.engine.depth_reduced:
+            self.super_badge_label.set_text(f"{base_badge} • ⚡ {self.engine.output_bit_depth}-bit")
+        elif self.engine.exclusive_active:
+            self.super_badge_label.set_text(f"{base_badge} • ⚡ Bit-Perfect")
+        else:
+            self.super_badge_label.set_text(base_badge)
+
     def set_track(self, track: AudioTrack | None):
         if not track:
             self.mini_title_label.set_text(i18n.t("inspector.no_playback"))
@@ -603,17 +634,14 @@ class MiniPlayerWindow(SuperPlayerMixin, Adw.Window):
         self.super_album_label.set_text(meta_sub)
 
         # Ficha técnica de calidad audiófila
-        rate_khz = track.sample_rate / 1000.0 if track.sample_rate else 44.1
-        depth_str = f"{track.bits_per_sample} bits" if track.bits_per_sample > 1 else "1 bit (DSD)"
-        badge_text = f"{track.format_name} • {rate_khz:g} kHz • {depth_str} • {track.formatted_bitrate}"
-        self.super_badge_label.set_text(badge_text)
+        self._on_output_changed()
 
         self._current_duration = track.duration or 0.0
         self.mini_scale.set_range(0.0, max(1.0, self._current_duration))
         self.super_scale.set_range(0.0, max(1.0, self._current_duration))
 
         # Cargar carátula HD en ambas vistas y actualizar paleta ambiental
-        cover_info = track.get_cover_image_bytes()
+        cover_info = track.cached_cover()
         if cover_info:
             data, _mime = cover_info
             gbytes = GLib.Bytes.new(data)
@@ -649,7 +677,8 @@ class MiniPlayerWindow(SuperPlayerMixin, Adw.Window):
     def _on_playback_state_changed(self, state: PlaybackState):
         GLib.idle_add(self._update_play_button, state)
         is_playing = (state == PlaybackState.PLAYING)
-        scope_on = is_playing and (self._oscilloscope_mode == 0)
+        scope_active = (self._oscilloscope_mode == 0) and getattr(self, "_oscilloscope_enabled", True)
+        scope_on = is_playing and scope_active
 
         GLib.idle_add(self.mini_scope.set_playing, is_playing)
         GLib.idle_add(self.mini_scope.set_visible, scope_on)
@@ -664,7 +693,8 @@ class MiniPlayerWindow(SuperPlayerMixin, Adw.Window):
         self.super_btn_play.set_icon_name(icon)
 
     def _on_level_updated(self, rms: list[float], peak: list[float]):
-        if not self.get_visible() or self._oscilloscope_mode != 0:
+        scope_active = (self._oscilloscope_mode == 0) and getattr(self, "_oscilloscope_enabled", True)
+        if not self.get_visible() or not scope_active:
             return
         if self.is_fullscreen():
             self.super_scope.update_levels(rms, peak)

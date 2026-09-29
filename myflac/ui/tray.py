@@ -352,7 +352,7 @@ class TrayIcon:
 
     def _cover_png(self, track) -> bytes:
         """Miniatura de la portada para el menú."""
-        cover = track.get_cover_image_bytes() if track else None
+        cover = track.cached_cover() if track else None
         if not cover:
             return b""
         try:

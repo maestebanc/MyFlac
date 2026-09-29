@@ -2,17 +2,18 @@
 from __future__ import annotations
 
 import os
+import threading
 
 import gi
 gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
 from gi.repository import Adw, Gdk, Gio, GLib, GObject, Gtk
 
-from ..audio.devices import AudioDevice, find_device_by_id, get_default_device
+from ..audio.devices import AudioDevice, base_node_name, find_device_by_id, get_default_device
 from ..audio.engine import AudioEngine, PlaybackState
 from ..audio.track import AudioTrack, load_track
 from ..audio.mpris import MprisServer
-from ..config import save_config
+from ..config import is_device_exclusive_enabled, save_config, set_device_exclusive_enabled
 from ..hires_cover import HiResCoverService
 from ..music_info import MusicInfoService
 from ..constants import APP_ID, APP_NAME
@@ -53,6 +54,7 @@ class MainWindow(Adw.ApplicationWindow):
         self.cfg = cfg
         self._inhibit_cookie: int = 0
         self.play_queue: list[AudioTrack] = []
+        self._pending_activation: AudioTrack | None = None
         self.mini_player: MiniPlayerWindow | None = None
         self._initial_startup_done = False
 
@@ -62,11 +64,15 @@ class MainWindow(Adw.ApplicationWindow):
 
         # 2. Inicializar motor de audio a través del mezclador del sistema
         dev_id = cfg.get("audio_device_id", "default")
+        ex_mode = False
+        if dev_id != "default":
+            ex_mode = is_device_exclusive_enabled(cfg, dev_id)
         self.engine = AudioEngine(
             device_id=dev_id,
             volume=cfg.get("software_volume", 1.0),
-            exclusive=cfg.get("exclusive_mode", False),
+            exclusive=ex_mode,
         )
+        self.engine.set_levels_enabled(cfg.get("oscilloscope_enabled", True))
 
         # 3. Servidor D-Bus MPRIS2 (control por teclas multimedia, auriculares y GNOME)
         self.mpris = MprisServer(window=self, engine=self.engine)
@@ -208,7 +214,7 @@ class MainWindow(Adw.ApplicationWindow):
         # La biblioteca, con la foto del artista en reproducción desenfocada de fondo
         self.library_backdrop = ArtistBackdrop(
             self.browser,
-            enabled=self.cfg.get("backdrop_enabled", True),
+            enabled=self.cfg.get("backdrop_enabled", False),
             intensity=self.cfg.get("backdrop_intensity", DEFAULT_INTENSITY),
         )
         self.paned.set_start_child(self.library_backdrop)
@@ -232,6 +238,8 @@ class MainWindow(Adw.ApplicationWindow):
         self.player_bar.on_clear_queue_clicked = self._on_clear_queue
         self.player_bar.on_queue_track_removed = self._on_remove_from_queue
         self.player_bar.on_device_selected = self._on_device_selected
+        self.player_bar.on_device_exclusive_toggled = self._on_device_exclusive_toggled
+        self.player_bar.is_device_exclusive_enabled_cb = lambda dev: is_device_exclusive_enabled(self.cfg, dev)
         self.player_bar.on_exclusive_toggled = self._on_exclusive_toggled
         self.player_bar.on_cover_clicked = self._toggle_cover_popup
 
@@ -312,41 +320,67 @@ class MainWindow(Adw.ApplicationWindow):
         last_path = self.cfg.get("last_track_path", "")
         last_artist = self.cfg.get("last_artist", "__ALL__")
         last_album = self.cfg.get("last_album", "__ALL__")
-
-        # Si last_artist o last_album no están configurados pero hay una última pista, deducirlos
-        last_track = None
-        if last_path and os.path.exists(last_path):
-            try:
-                last_track = load_track(last_path)
-                if last_track:
-                    if (not last_artist or last_artist == "__ALL__") and last_track.artist:
-                        last_artist = last_track.artist
-                    if (not last_album or last_album == "__ALL__") and last_track.album:
-                        last_album = last_track.album
-            except Exception as e:
-                log.warning("No se pudo cargar la pista previa para restaurar estado: %s", e)
+        known_selection = last_artist and last_artist != "__ALL__" and last_album and last_album != "__ALL__"
 
         # Carga instantánea de los datos indexados en SQLite filtrados por el estado previo
-        self.browser.load_initial_data(initial_artist=last_artist, initial_album=last_album)
+        if known_selection or not last_path:
+            self.browser.load_initial_data(initial_artist=last_artist, initial_album=last_album)
+        if not last_path:
+            self._show_first_track()
+            return
 
-        # Restauración de sesión previa si existe
-        if last_track:
+        # La pista anterior (metadatos y portada) se lee en otro hilo: si está en una unidad de red,
+        # el arranque no se congela esperando al servidor
+        def load_last():
+            track = None
             try:
-                log.info("Restaurando pista de sesión anterior: '%s'", last_track.title)
-                self.inspector.set_track(last_track)
-                self.player_bar.set_track(last_track)
-                last_pos = float(self.cfg.get("last_position", 0.0))
-                self.engine.load_track(last_track, play_now=False, initial_position=last_pos)
-                self.browser.set_current_playing_track(last_track, is_paused=True)
-                self.player_bar._on_position_updated(last_pos, last_track.duration)
-                self.library_backdrop.set_artist(last_track.artist)
+                if os.path.exists(last_path):
+                    track = load_track(last_path)
+                    if track:
+                        track.get_cover_image_bytes()
             except Exception as e:
-                log.warning("No se pudo restaurar la reproducción de sesión previa: %s", e)
-        else:
-            first_track = self.browser.get_selected_or_first_track()
-            if first_track and not self.inspector.current_track:
-                self.inspector.set_track(first_track)
-                self.player_bar.set_track(first_track)
+                log.warning("No se pudo cargar la pista previa para restaurar estado: %s", e)
+            GLib.idle_add(self._finish_session_restore, track, None if known_selection else (last_artist, last_album))
+
+        threading.Thread(target=load_last, name="session-restore", daemon=True).start()
+
+    def _finish_session_restore(self, last_track: AudioTrack | None, pending_selection) -> bool:
+        if pending_selection is not None:
+            # Si last_artist o last_album no estaban guardados, se deducen de la última pista
+            last_artist, last_album = pending_selection
+            if last_track:
+                if (not last_artist or last_artist == "__ALL__") and last_track.artist:
+                    last_artist = last_track.artist
+                if (not last_album or last_album == "__ALL__") and last_track.album:
+                    last_album = last_track.album
+            self.browser.load_initial_data(initial_artist=last_artist, initial_album=last_album)
+
+        if last_track is None or self.engine.current_track is not None:
+            # Sin pista previa, o el usuario ya eligió otra mientras se cargaba
+            if self.engine.current_track is None:
+                self._show_first_track()
+            return False
+        try:
+            log.info("Restaurando pista de sesión anterior: '%s'", last_track.title)
+            self.inspector.set_track(last_track)
+            self.player_bar.set_track(last_track)
+            last_pos = float(self.cfg.get("last_position", 0.0))
+            self.engine.load_track(last_track, play_now=False, initial_position=last_pos)
+            self.browser.set_current_playing_track(last_track, is_paused=True)
+            self.player_bar._on_position_updated(last_pos, last_track.duration)
+            self.library_backdrop.set_artist(last_track.artist)
+        except Exception as e:
+            log.warning("No se pudo restaurar la reproducción de sesión previa: %s", e)
+        return False
+
+    def _show_first_track(self):
+        first_track = self.browser.get_selected_or_first_track()
+        if first_track and not self.inspector.current_track:
+            def show():
+                if not self.inspector.current_track and self.engine.current_track is None:
+                    self.inspector.set_track(first_track)
+                    self.player_bar.set_track(first_track)
+            first_track.load_cover_async(show)
 
     def _show_library_setup_dialog(self):
         dlg = LibrarySetupDialog(parent=self, on_folder_chosen=self._on_initial_folder_chosen)
@@ -555,8 +589,8 @@ class MainWindow(Adw.ApplicationWindow):
 
     def set_volume(self, value: float):
         """Ajusta el volumen desde un atajo, sincronizando los controles de todas las vistas."""
-        if self.engine.exclusive_active:
-            return  # En exclusivo el volumen está fijo a 0 dB
+        if not self.engine.volume_adjustable:
+            return  # Exclusivo en un DAC sin volumen por hardware: fijo a 0 dB
         value = max(0.0, min(1.0, value))
         self.player_bar.vol_scale.set_value(value)
         if self.mini_player:
@@ -604,6 +638,14 @@ class MainWindow(Adw.ApplicationWindow):
 
     def _on_track_activated(self, track: AudioTrack):
         log.info("Pista activada: '%s' - '%s'", track.artist, track.title)
+        if not track.cover_loaded:
+            # La portada se lee en otro hilo: en una unidad de red puede tardar segundos y la
+            # ventana no debe congelarse. Si mientras tanto se elige otra pista, esta se descarta.
+            self._pending_activation = track
+            self.browser.set_current_playing_track(track, is_paused=False)
+            track.load_cover_async(lambda: self._pending_activation is track and self._on_track_activated(track))
+            return
+        self._pending_activation = None
         self.browser.set_current_playing_track(track, is_paused=False)
         self.inspector.set_track(track)
         self.player_bar.set_track(track)
@@ -615,6 +657,9 @@ class MainWindow(Adw.ApplicationWindow):
 
     def _on_engine_track_changed(self, track: AudioTrack):
         """Notificado cuando cambia la pista en reproducción (incluyendo encadenamiento gapless)."""
+        if not track.cover_loaded:
+            # Normalmente ya está precargada; si no, la interfaz se refresca cuando llegue
+            track.load_cover_async(lambda: self.engine.current_track is track and self.engine.renotify_track_changed())
         is_paused = (self.engine.state == PlaybackState.PAUSED)
         self.browser.set_current_playing_track(track, is_paused=is_paused)
         self.inspector.set_track(track)
@@ -676,6 +721,8 @@ class MainWindow(Adw.ApplicationWindow):
             shuffle = self.cfg.get("shuffle", False)
             repeat = self.cfg.get("repeat_mode", "none")
             nxt = self.browser.get_next_track(shuffle=shuffle, repeat_mode=repeat)
+        if nxt is not None:
+            nxt.load_cover_async()  # Lista antes del cambio gapless, sin leer la red en el hilo principal
         self.engine.queue_next_track(nxt)
 
     def _play_next(self):
@@ -802,20 +849,44 @@ class MainWindow(Adw.ApplicationWindow):
         )
         dlg.present()
 
-    def _on_device_selected(self, dev: AudioDevice):
-        log.info("Usuario seleccionó dispositivo: '%s' [%s]", dev.name, dev.id)
-        self.cfg["audio_device_id"] = dev.id
+    def _on_device_selected(self, dev: AudioDevice | str):
+        dev_id = dev if isinstance(dev, str) else dev.id
+        log.info("Usuario seleccionó dispositivo: [%s]", dev_id)
+        is_ex = dev_id != "default" and is_device_exclusive_enabled(self.cfg, dev)
+        self.cfg["audio_device_id"] = dev_id
+        self.cfg["exclusive_mode"] = is_ex
         save_config(self.cfg)
-        self.engine.set_device(dev.id)
+        # Un único cambio de salida: dispositivo y modo exclusivo a la vez
+        self.engine.set_output(dev_id, is_ex)
         self._update_output_status()
+
+    def _on_device_exclusive_toggled(self, dev: AudioDevice, enabled: bool):
+        log.info("Usuario cambió bit-perfect en dispositivo '%s' a: %s", dev.name, enabled)
+        set_device_exclusive_enabled(self.cfg, dev, enabled)
+        curr_id = self.engine.device_id
+        is_current = curr_id != "default" and base_node_name(dev.id) == base_node_name(curr_id)
+        if is_current:
+            self.cfg["exclusive_mode"] = enabled
+            save_config(self.cfg)
+            self.engine.set_exclusive(enabled)
+            self._update_output_status()
+        elif enabled:
+            # Activar bit-perfect en un DAC no seleccionado lo selecciona
+            self._on_device_selected(dev)
+        else:
+            save_config(self.cfg)
 
     def apply_backdrop_settings(self):
         """Aplica al instante los ajustes del fondo del artista desde Preferencias."""
-        self.library_backdrop.set_enabled(self.cfg.get("backdrop_enabled", True))
+        self.library_backdrop.set_enabled(self.cfg.get("backdrop_enabled", False))
         self.library_backdrop.set_intensity(self.cfg.get("backdrop_intensity", DEFAULT_INTENSITY))
 
     def _on_exclusive_toggled(self, enabled: bool):
         log.info("Usuario cambió el modo exclusivo a: %s", enabled)
+        if self.engine.device_id == "default" and enabled:
+            log.warning("No se puede activar bit-perfect en salida por defecto")
+            return
+        set_device_exclusive_enabled(self.cfg, self.engine.device_id, enabled)
         self.cfg["exclusive_mode"] = enabled
         save_config(self.cfg)
         self.engine.set_exclusive(enabled)
@@ -876,7 +947,7 @@ class MainWindow(Adw.ApplicationWindow):
         self.cfg["window_maximized"] = self.is_maximized()
         if self._split_moved_by_user and hasattr(self, "browser") and self.browser:
             self.cfg["browser_split_position"] = self.browser.v_paned.get_position()
-        self.cfg["software_volume"] = self.engine.volume
+        self.cfg["software_volume"] = self.engine.software_volume
         save_config(self.cfg)
 
         app = self.get_application()

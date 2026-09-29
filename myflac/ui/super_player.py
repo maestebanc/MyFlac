@@ -20,6 +20,7 @@ from ..logger import get_logger
 from ..lyrics import SyncedLyrics
 from ..music_info import KINDS, MusicInfoService
 from .. import i18n
+from .output_status import volume_tooltip
 from .info_view import InfoView
 from .lyrics_view import SyncedLyricsView
 from .visualizers import OscilloscopeWidget
@@ -475,13 +476,13 @@ class SuperPlayerMixin:
             self.super_vol_scale.set_value(restore_val)
 
     def _on_output_changed(self):
-        """En modo exclusivo el volumen queda fijo a 0 dB y no se puede ajustar."""
-        exclusive = self.engine.exclusive_active
-        self.super_vol_btn.set_sensitive(not exclusive)
-        self.super_vol_scale.set_sensitive(not exclusive)
-        self.super_vol_btn.set_tooltip_text(
-            i18n.t("player.volume_locked") if exclusive else i18n.t("player.volume")
-        )
+        """En exclusivo el volumen solo se ajusta si el DAC tiene control por hardware."""
+        adjustable = self.engine.volume_adjustable
+        self.super_vol_btn.set_sensitive(adjustable)
+        self.super_vol_scale.set_sensitive(adjustable)
+        self.super_vol_btn.set_tooltip_text(volume_tooltip(self.engine))
+        if adjustable and abs(self.super_vol_scale.get_value() - self.engine.volume) > 0.001:
+            self.super_vol_scale.set_value(self.engine.volume)
 
     def _update_volume_icons(self, val: float):
         if val <= 0.001:

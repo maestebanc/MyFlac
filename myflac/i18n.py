@@ -871,10 +871,135 @@ STRINGS: dict[str, dict[str, str]] = {
         "en": "The DAC does not support {format} in exclusive mode. This track plays through the mixer.",
         "ca": "El DAC no admet {format} en mode exclusiu. Aquesta pista es reprodueix pel mesclador.",
     },
+    "devices.bitperfect_enable": {
+        "es": "Bit-Perfect",
+        "en": "Bit-Perfect",
+        "ca": "Bit-Perfect",
+    },
+    "devices.bitperfect_tooltip": {
+        "es": "Salida directa ALSA por hardware (Bit-Perfect)",
+        "en": "Direct hardware ALSA output (Bit-Perfect)",
+        "ca": "Sortida directa ALSA per maquinari (Bit-Perfect)",
+    },
+    "devices.subtitle_default": {
+        "es": "Mezclador general del sistema",
+        "en": "System audio mixer",
+        "ca": "Mesclador general del sistema",
+    },
+    "devices.type_usb": {
+        "es": "DAC USB",
+        "en": "USB DAC",
+        "ca": "DAC USB",
+    },
+    "devices.type_hdmi": {
+        "es": "Audio HDMI",
+        "en": "HDMI Audio",
+        "ca": "Àudio HDMI",
+    },
+    "devices.type_network": {
+        "es": "AirPlay / Red",
+        "en": "AirPlay / Network",
+        "ca": "AirPlay / Xarxa",
+    },
+    "devices.type_integrated": {
+        "es": "Audio integrado",
+        "en": "Integrated audio",
+        "ca": "Àudio integrat",
+    },
+    "devices.max_sample_rate": {
+        "es": "Hasta {rate} kHz",
+        "en": "Up to {rate} kHz",
+        "ca": "Fins a {rate} kHz",
+    },
+    "player.bitperfect_tooltip": {
+        "es": "Modo exclusivo directo por hardware (Bit-Perfect)",
+        "en": "Direct hardware exclusive mode (Bit-Perfect)",
+        "ca": "Mode exclusiu directe per maquinari (Bit-Perfect)",
+    },
+    "player.resampling_tooltip": {
+        "es": "Remuestreado a {rate} (límite máximo del DAC)",
+        "en": "Resampled to {rate} (DAC maximum limit)",
+        "ca": "Remostrejat a {rate} (límit màxim del DAC)",
+    },
+    "player.depth_tooltip": {
+        "es": "El DAC recibe {bits} bits: menos de los que tiene la pista",
+        "en": "The DAC receives {bits} bits: fewer than the track has",
+        "ca": "El DAC rep {bits} bits: menys dels que té la pista",
+    },
+    "devices.wireplumber_lost": {
+        "es": "PipeWire no ha recuperado «{name}». Si no vuelve a aparecer, reinicia WirePlumber: systemctl --user restart wireplumber",
+        "en": "PipeWire has not recovered “{name}”. If it does not come back, restart WirePlumber: systemctl --user restart wireplumber",
+        "ca": "PipeWire no ha recuperat «{name}». Si no torna a aparèixer, reinicia WirePlumber: systemctl --user restart wireplumber",
+    },
+    "devices.unavailable": {
+        "es": "No disponible ahora mismo",
+        "en": "Not available right now",
+        "ca": "No disponible ara mateix",
+    },
+    "devices.popover_title": {
+        "es": "Salida de audio",
+        "en": "Audio output",
+        "ca": "Sortida d'àudio",
+    },
+    "devices.exclusive_subtitle_short": {
+        "es": "Directo al DAC, sin mezclador ni volumen digital",
+        "en": "Straight to the DAC, no mixer or digital volume",
+        "ca": "Directe al DAC, sense mesclador ni volum digital",
+    },
+    "devices.exclusive_unavailable_short": {
+        "es": "No disponible para esta salida",
+        "en": "Not available for this output",
+        "ca": "No disponible per a aquesta sortida",
+    },
+    "devices.status_mixer": {
+        "es": "Mezclador del sistema",
+        "en": "System mixer",
+        "ca": "Mesclador del sistema",
+    },
+    "devices.dsd_native_rejected": {
+        "es": "{dsd} no se puede enviar en nativo a este DAC: se convierte a PCM de alta resolución, sin salir del modo exclusivo.",
+        "en": "{dsd} cannot be sent natively to this DAC: it is converted to high-resolution PCM, staying in exclusive mode.",
+        "ca": "{dsd} no es pot enviar en natiu a aquest DAC: es converteix a PCM d'alta resolució, sense sortir del mode exclusiu.",
+    },
+    "devices.status_dsd_native": {
+        "es": "DSD nativo · {dsd}",
+        "en": "Native DSD · {dsd}",
+        "ca": "DSD natiu · {dsd}",
+    },
+    "devices.status_dsd_pcm": {
+        "es": "DSD → PCM · {rate}",
+        "en": "DSD → PCM · {rate}",
+        "ca": "DSD → PCM · {rate}",
+    },
+    "player.dsd_native_tooltip": {
+        "es": "El flujo DSD llega al DAC tal cual, sin convertirlo a PCM ni empaquetarlo en DoP",
+        "en": "The DSD stream reaches the DAC as is, without PCM conversion or DoP packing",
+        "ca": "El flux DSD arriba al DAC tal qual, sense convertir-lo a PCM ni empaquetar-lo en DoP",
+    },
+    "player.dsd_pcm_tooltip": {
+        "es": "Este DAC no admite DSD nativo: la pista se convierte a PCM",
+        "en": "This DAC does not accept native DSD: the track is converted to PCM",
+        "ca": "Aquest DAC no admet DSD natiu: la pista es converteix a PCM",
+    },
+    "devices.status_resampling": {
+        "es": "Remuestreo a {rate}",
+        "en": "Resampled to {rate}",
+        "ca": "Remostreig a {rate}",
+    },
+    "devices.status_depth": {
+        "es": "Reducido a {bits} bits",
+        "en": "Reduced to {bits} bits",
+        "ca": "Reduït a {bits} bits",
+    },
     "player.cover_tooltip": {
         "es": "Ver la portada a gran tamaño",
         "en": "Show the cover art full size",
         "ca": "Mostra la portada a mida gran",
+    },
+    "player.volume_hardware": {
+        "es": "Volumen del DAC (por hardware: la señal digital llega intacta)",
+        "en": "DAC volume (hardware: the digital signal arrives untouched)",
+        "ca": "Volum del DAC (per maquinari: el senyal digital arriba intacte)",
     },
     "player.volume_locked": {
         "es": "Volumen fijo a 0 dB en modo exclusivo (ajústalo en el DAC o amplificador)",
@@ -903,16 +1028,6 @@ STRINGS: dict[str, dict[str, str]] = {
         "en": "User interface language",
         "ca": "Idioma de la interfície d'usuari",
     },
-    "prefs.audio_group": {
-        "es": "Dispositivo de Audio",
-        "en": "Audio Device",
-        "ca": "Dispositiu d'Àudio",
-    },
-    "prefs.audio_device": {
-        "es": "Salida de audio predeterminada",
-        "en": "Default audio output",
-        "ca": "Sortida d'àudio predeterminada",
-    },
     "prefs.behavior_group": {
         "es": "Comportamiento",
         "en": "Behavior",
@@ -929,9 +1044,9 @@ STRINGS: dict[str, dict[str, str]] = {
         "ca": "Mantenir MyFlac reproduint en segon pla en tancar la finestra. Si es desactiva, tancar la finestra sortirà de l'aplicació completament.",
     },
     "prefs.ui_group": {
-        "es": "Apariencia de la Interfaz",
-        "en": "Interface Appearance",
-        "ca": "Aparença de la Interfície",
+        "es": "Interfaz",
+        "en": "Interface",
+        "ca": "Interfície",
     },
     "prefs.theme": {
         "es": "Tema",
@@ -947,6 +1062,66 @@ STRINGS: dict[str, dict[str, str]] = {
         "es": "Claro",
         "en": "Light",
         "ca": "Clar",
+    },
+    "prefs.appearance_page": {
+        "es": "Apariencia",
+        "en": "Appearance",
+        "ca": "Aparença",
+    },
+    "prefs.tone": {
+        "es": "Tono",
+        "en": "Tone",
+        "ca": "To",
+    },
+    "prefs.tone_dark_obsidian": {
+        "es": "Obsidiana",
+        "en": "Obsidian",
+        "ca": "Obsidiana",
+    },
+    "prefs.tone_dark_midnight": {
+        "es": "Medianoche",
+        "en": "Midnight",
+        "ca": "Mitjanit",
+    },
+    "prefs.tone_dark_espresso": {
+        "es": "Espresso",
+        "en": "Espresso",
+        "ca": "Espresso",
+    },
+    "prefs.tone_dark_oled": {
+        "es": "OLED (negro puro)",
+        "en": "OLED (pure black)",
+        "ca": "OLED (negre pur)",
+    },
+    "prefs.tone_dark_graphite": {
+        "es": "Grafito",
+        "en": "Graphite",
+        "ca": "Grafit",
+    },
+    "prefs.tone_light_slate": {
+        "es": "Pizarra suave",
+        "en": "Soft slate",
+        "ca": "Pissarra suau",
+    },
+    "prefs.tone_light_paper": {
+        "es": "Papel cálido",
+        "en": "Warm paper",
+        "ca": "Paper càlid",
+    },
+    "prefs.tone_light_slate_mid": {
+        "es": "Pizarra media",
+        "en": "Medium slate",
+        "ca": "Pissarra mitjana",
+    },
+    "prefs.tone_light_graphite": {
+        "es": "Grafito claro",
+        "en": "Light graphite",
+        "ca": "Grafit clar",
+    },
+    "prefs.tone_light_sage": {
+        "es": "Salvia",
+        "en": "Sage",
+        "ca": "Sàlvia",
     },
     "prefs.theme_dark": {
         "es": "Oscuro",
@@ -987,6 +1162,16 @@ STRINGS: dict[str, dict[str, str]] = {
         "es": "Ajusta el tamaño visual de textos e iconos",
         "en": "Adjust visual size of text and icons",
         "ca": "Ajusta la mida visual de textos i icones",
+    },
+    "prefs.oscilloscope_enabled": {
+        "es": "Osciloscopio en tiempo real",
+        "en": "Real-time oscilloscope",
+        "ca": "Oscil·loscopi en temps real",
+    },
+    "prefs.oscilloscope_desc": {
+        "es": "Muestra la animación de onda sobre la portada del disco; si se desactiva, se muestra solo la carátula limpia",
+        "en": "Shows waveform animation over album cover; when disabled, shows clean cover art only",
+        "ca": "Mostra l'animació d'ona sobre la portada del disc; si es desactiva, es mostra només la caràtula neta",
     },
 
     # --- Diálogos de archivo ---

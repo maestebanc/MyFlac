@@ -72,7 +72,7 @@ class CoverPopup(Gtk.Revealer):
         Usa la versión HD idéntica si ya está descargada; si no, la incrustada y la cambia por la HD
         en cuanto llegue (si existe).
         """
-        cover = track.get_cover_image_bytes() if track else None
+        cover = track.cached_cover() if track else None
         if not cover:
             return False
         hires = HiResCoverService.get_default()

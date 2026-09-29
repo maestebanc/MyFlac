@@ -1,0 +1,890 @@
+/* Badges de calidad de audio */
+.hires-badge {
+    border-radius: 6px;
+    padding: 2px 7px;
+    font-size: 0.76em;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    background-color: alpha(#d97706, 0.22);
+    color: #f59e0b;
+    border: 1px solid alpha(#f59e0b, 0.35);
+}
+
+.hires-cd-badge {
+    border-radius: 6px;
+    padding: 2px 7px;
+    font-size: 0.76em;
+    font-weight: 600;
+    background-color: alpha(@window_fg_color, 0.08);
+    color: alpha(@window_fg_color, 0.7);
+    border: 1px solid alpha(@window_fg_color, 0.12);
+}
+
+.hires-dsd-badge {
+    border-radius: 6px;
+    padding: 2px 7px;
+    font-size: 0.76em;
+    font-weight: 700;
+    background-color: alpha(#8b5cf6, 0.22);
+    color: #a78bfa;
+    border: 1px solid alpha(#a78bfa, 0.35);
+}
+
+/* Ficha técnica audiófila en el inspector */
+.audiophile-card {
+    border-radius: 10px;
+    background-color: alpha(@window_fg_color, 0.04);
+    border: 1px solid alpha(@window_fg_color, 0.08);
+    padding: 10px;
+}
+
+.audiophile-card-title {
+    font-size: 0.74em;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    opacity: 0.65;
+}
+
+.audiophile-stat-val {
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+    font-size: 0.88em;
+}
+
+/* Marco de carátula en alta definición e interactivo para alternar modos */
+.album-cover-frame {
+    border-radius: 12px;
+    border: 1px solid alpha(@window_fg_color, 0.12);
+    box-shadow: 0 10px 24px alpha(black, 0.25), 0 3px 8px alpha(black, 0.12);
+    background-color: alpha(@window_fg_color, 0.03);
+    transition: box-shadow 200ms ease;
+}
+
+.album-cover-frame:hover {
+    box-shadow: 0 14px 32px alpha(black, 0.35), 0 4px 12px alpha(black, 0.20);
+}
+
+/* Indicador de modo del visualizador en la carátula */
+.visualizer-pill {
+    background-color: alpha(black, 0.55);
+    border-radius: 9999px;
+    padding: 3px 8px;
+    margin-bottom: 8px;
+    box-shadow: 0 2px 6px alpha(black, 0.40);
+    border: 1px solid alpha(white, 0.15);
+}
+
+.visualizer-dot {
+    min-width: 6px;
+    min-height: 6px;
+    border-radius: 9999px;
+    background-color: alpha(white, 0.35);
+    margin: 2px 2px;
+}
+
+.visualizer-dot.active {
+    min-width: 16px;
+    background-color: #3584e4;
+    box-shadow: 0 0 6px alpha(#3584e4, 0.6);
+}
+
+.album-cover-placeholder {
+    border-radius: 12px;
+    border: 2px dashed alpha(@window_fg_color, 0.18);
+    background-color: alpha(@window_fg_color, 0.02);
+    padding: 24px;
+}
+
+/* Miniatura de la barra inferior: adaptada al alto del minireproductor */
+.mini-cover-frame {
+    border-radius: 8px;
+    border: 1px solid alpha(@window_fg_color, 0.12);
+    box-shadow: 0 2px 8px alpha(black, 0.20);
+    background-color: alpha(@window_fg_color, 0.04);
+}
+
+/* Barra inferior del reproductor: relleno ceñido para apurar toda la altura */
+.player-bar {
+    min-height: 64px;
+    background-color: alpha(@window_bg_color, 0.95);
+    border-top: 1px solid alpha(@window_fg_color, 0.10);
+    padding: 4px 16px 4px 6px;
+}
+
+/* Barra de progreso de escaneo: delgada línea azul (#3584e4) no obstructiva */
+.scan-progress-line {
+    min-height: 2px;
+    padding: 0;
+    margin: 0;
+    border: none;
+    background-color: transparent;
+}
+
+.scan-progress-line > trough {
+    min-height: 2px;
+    border: none;
+    border-radius: 0;
+    background-color: alpha(@window_fg_color, 0.04);
+}
+
+.scan-progress-line > trough > progress {
+    min-height: 2px;
+    border: none;
+    border-radius: 0;
+    background-color: #3584e4;
+    box-shadow: 0 0 4px alpha(#3584e4, 0.4);
+}
+
+.play-pause-btn {
+    border-radius: 9999px;
+    min-width: 42px;
+    min-height: 42px;
+    padding: 0;
+}
+
+.time-label {
+    font-variant-numeric: tabular-nums;
+    font-size: 0.82em;
+    opacity: 0.75;
+    min-width: 40px;
+}
+
+/* Tabla de canciones */
+.track-table {
+    background-color: transparent;
+}
+
+.track-table header button {
+    padding: 5px 8px;
+    font-weight: 700;
+    font-size: 0.78em;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: alpha(@window_fg_color, 0.65);
+    background-color: alpha(@window_fg_color, 0.035);
+    border-bottom: 1px solid alpha(@window_fg_color, 0.08);
+    box-shadow: none;
+}
+
+.track-table row {
+    min-height: 28px;
+    border-bottom: 1px solid alpha(@window_fg_color, 0.025);
+}
+
+.track-table row:nth-child(even) {
+    background-color: alpha(@window_fg_color, 0.012);
+}
+
+.track-table row:hover {
+    background-color: alpha(@window_fg_color, 0.045);
+}
+
+.track-table row:selected {
+    background-color: alpha(#f59e0b, 0.16);
+}
+
+.track-table columnviewcell {
+    padding: 2px 8px;
+    font-size: 0.92em;
+}
+
+.track-number-cell {
+    font-variant-numeric: tabular-nums;
+    opacity: 0.6;
+    font-size: 0.88em;
+}
+
+.row-playing-num {
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+    color: #f59e0b;
+    opacity: 1.0;
+}
+
+.row-playing {
+    font-weight: 700;
+    color: #f59e0b;
+}
+
+/* Selector de salida de audio: sobrio, ancho fijo, dos líneas (nombre + estado) */
+.output-selector {
+    border-radius: 10px;
+    padding: 4px 10px;
+    background-color: alpha(@window_fg_color, 0.04);
+    border: 1px solid alpha(@window_fg_color, 0.08);
+    transition: background-color 150ms ease, border-color 150ms ease;
+}
+
+.output-selector:hover {
+    background-color: alpha(@window_fg_color, 0.07);
+    border-color: alpha(@window_fg_color, 0.14);
+}
+
+.output-selector:checked,
+.output-selector:active {
+    background-color: alpha(@window_fg_color, 0.10);
+}
+
+.output-icon {
+    opacity: 0.75;
+}
+
+.output-name {
+    font-weight: 600;
+    font-size: 0.84em;
+}
+
+.output-status {
+    font-size: 0.72em;
+    opacity: 0.60;
+    font-feature-settings: "tnum";
+}
+
+.output-chevron {
+    opacity: 0.45;
+}
+
+.output-dot {
+    min-width: 6px;
+    min-height: 6px;
+    border-radius: 9999px;
+    background-color: alpha(@window_fg_color, 0.35);
+}
+
+.output-dot.ok {
+    background-color: #34d399;
+}
+
+.output-dot.warn {
+    background-color: #f59e0b;
+}
+
+.output-popover-title {
+    font-size: 0.78em;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    opacity: 0.55;
+}
+
+.output-row-icon {
+    opacity: 0.60;
+}
+
+/* Navegador Multicolumnas estilo iTunes */
+/* Portada a gran tamaño superpuesta a la ventana principal */
+.cover-popup-scrim {
+    background-color: rgba(0, 0, 0, 0.72);
+}
+
+.cover-popup-art {
+    border-radius: 14px;
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.60);
+}
+
+/* Fondo ambiental desenfocado detrás de la biblioteca */
+.artist-backdrop-picture {
+    opacity: 0;
+    transition: opacity 900ms ease;
+}
+
+.artist-backdrop-picture.visible {
+    opacity: 1;
+}
+
+.has-backdrop-dark .track-table label,
+.has-backdrop-dark .column-list label {
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.75);
+}
+
+.track-table,
+.track-table > listview,
+.track-table > header {
+    background: transparent;
+}
+
+.column-browser-pane {
+    background-color: alpha(@window_bg_color, 0.4);
+    border-bottom: 1px solid alpha(@window_fg_color, 0.10);
+}
+
+.column-header-box {
+    padding: 5px 12px;
+    background-color: alpha(@window_fg_color, 0.04);
+    border-bottom: 1px solid alpha(@window_fg_color, 0.09);
+}
+
+.column-header-title {
+    font-weight: 700;
+    font-size: 0.78em;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: alpha(@window_fg_color, 0.75);
+}
+
+.column-header-count {
+    font-size: 0.76em;
+    color: #f59e0b;
+    opacity: 0.85;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+
+.column-list {
+    background-color: transparent;
+}
+
+.column-list row {
+    padding: 3px 10px;
+    min-height: 26px;
+    border-bottom: 1px solid alpha(@window_fg_color, 0.025);
+    transition: background-color 100ms ease;
+    font-size: 0.92em;
+}
+
+.column-list row:nth-child(even) {
+    background-color: alpha(@window_fg_color, 0.012);
+}
+
+.column-list row:hover {
+    background-color: alpha(@window_fg_color, 0.045);
+}
+
+.column-list row:selected {
+    background-color: alpha(#f59e0b, 0.18);
+    color: #f59e0b;
+    font-weight: 600;
+}
+
+.column-list row:selected label {
+    color: #f59e0b;
+}
+
+.count-badge {
+    font-size: 0.74em;
+    font-variant-numeric: tabular-nums;
+    color: alpha(@window_fg_color, 0.5);
+    padding: 0px 6px;
+    border-radius: 8px;
+    background-color: alpha(@window_fg_color, 0.05);
+    border: 1px solid alpha(@window_fg_color, 0.06);
+    min-height: 18px;
+}
+
+.column-list row:selected .count-badge {
+    background-color: alpha(#f59e0b, 0.25);
+    color: #f59e0b;
+    border-color: alpha(#f59e0b, 0.35);
+}
+
+/* Divisores de paneles (Paned separators) */
+paned > separator {
+    background-color: alpha(@window_fg_color, 0.10);
+    min-width: 1px;
+    min-height: 1px;
+    transition: background-color 150ms ease;
+}
+
+paned > separator:hover {
+    background-color: alpha(#f59e0b, 0.5);
+}
+
+/* Panel inspector con borde izquierdo divisorio */
+.inspector-panel {
+    border-left: 1px solid alpha(@window_fg_color, 0.10);
+    background-color: alpha(@window_fg_color, 0.012);
+}
+
+/* Menú contextual de pista */
+.context-menu-box {
+    min-width: 220px;
+}
+
+.context-menu-item {
+    padding: 6px 10px;
+    border-radius: 6px;
+    font-size: 0.88em;
+}
+
+.context-menu-item:hover {
+    background-color: alpha(@window_fg_color, 0.08);
+}
+
+/* Botón y Popover de Cola de reproducción (A continuación) */
+.queue-btn {
+    border-radius: 9999px;
+    padding: 6px;
+}
+
+.queue-btn.accent {
+    color: #3584e4;
+    background-color: alpha(#3584e4, 0.15);
+}
+
+.queue-popover-box {
+    min-width: 320px;
+}
+
+.queue-row {
+    padding: 6px 8px;
+    border-radius: 6px;
+    transition: background-color 150ms ease;
+}
+
+.queue-row:hover {
+    background-color: alpha(@window_fg_color, 0.06);
+}
+
+/* Modo Mini-Reproductor (500x500) estilo Apple Music */
+.mini-player-window {
+    background-color: #0b0d10;
+    border-radius: 16px;
+}
+
+.mini-player-hud {
+    opacity: 0.0;
+    transition: opacity 280ms cubic-bezier(0.4, 0, 0.2, 1);
+    background: linear-gradient(
+        to bottom,
+        rgba(0, 0, 0, 0.55) 0%,
+        rgba(0, 0, 0, 0.20) 18%,
+        transparent 35%,
+        rgba(0, 0, 0, 0.40) 65%,
+        rgba(0, 0, 0, 0.78) 82%,
+        rgba(0, 0, 0, 0.90) 100%
+    );
+}
+
+.mini-player-hud.visible {
+    opacity: 1.0;
+}
+
+.mini-player-btn-circle {
+    border-radius: 9999px;
+    background-color: rgba(20, 20, 24, 0.55);
+    color: #ffffff;
+    padding: 7px;
+    transition: background-color 150ms ease, transform 120ms ease;
+}
+
+.mini-player-btn-circle:hover {
+    background-color: rgba(255, 255, 255, 0.22);
+    transform: scale(1.06);
+}
+
+.mini-player-title {
+    font-weight: 700;
+    font-size: 1.20em;
+    color: #ffffff;
+    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.75);
+    letter-spacing: -0.01em;
+}
+
+.mini-player-sub {
+    font-size: 0.90em;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.78);
+    text-shadow: 0 1px 5px rgba(0, 0, 0, 0.65);
+}
+
+.mini-player-time {
+    font-size: 0.80em;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.75);
+    font-variant-numeric: tabular-nums;
+    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.65);
+    min-width: 36px;
+}
+
+.mini-player-scale trough {
+    min-height: 4px;
+    border-radius: 2px;
+    background-color: rgba(255, 255, 255, 0.28);
+}
+
+.mini-player-scale highlight {
+    border-radius: 2px;
+    background-color: #ffffff;
+}
+
+.mini-player-scale slider {
+    min-width: 10px;
+    min-height: 10px;
+    border-radius: 9999px;
+    background-color: #ffffff;
+    margin: -3px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.45);
+}
+
+.mini-player-play-btn {
+    border-radius: 9999px;
+    min-width: 50px;
+    min-height: 50px;
+    padding: 0;
+    color: #ffffff;
+    background-color: rgba(255, 255, 255, 0.22);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+    transition: background-color 150ms ease, transform 120ms ease;
+}
+
+.mini-player-play-btn:hover {
+    background-color: rgba(255, 255, 255, 0.35);
+    transform: scale(1.06);
+}
+
+.mini-player-skip-btn {
+    border-radius: 9999px;
+    min-width: 38px;
+    min-height: 38px;
+    padding: 0;
+    color: rgba(255, 255, 255, 0.90);
+    background: transparent;
+    transition: color 150ms ease, transform 120ms ease;
+}
+
+.mini-player-skip-btn:hover {
+    color: #ffffff;
+    transform: scale(1.12);
+}
+
+.mini-player-aux-btn {
+    border-radius: 9999px;
+    min-width: 32px;
+    min-height: 32px;
+    padding: 0;
+    color: rgba(255, 255, 255, 0.65);
+    background: transparent;
+}
+
+.mini-player-aux-btn:hover {
+    color: #ffffff;
+}
+
+.mini-player-aux-btn.active {
+    color: #f59e0b;
+}
+
+.mini-player-window.fullscreen-mode {
+    border-radius: 0px;
+    background-color: #000000;
+}
+
+/* =========================================================================
+   Super-Reproductor a Pantalla Completa (Hi-Fi Ambient Canvas)
+   ========================================================================= */
+
+.super-player-ambient-bg {
+    background: radial-gradient(
+        circle at 28% 46%,
+        rgba(30, 48, 80, 0.45) 0%,
+        rgba(15, 22, 36, 0.70) 50%,
+        #07080b 85%
+    );
+    transition: background 600ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.super-player-wallpaper-picture {
+    opacity: 0.70;
+    transition: opacity 800ms ease-in-out;
+}
+
+.super-player-wallpaper-scrim {
+    background:
+        radial-gradient(
+            circle at center,
+            rgba(5, 6, 10, 0.10) 0%,
+            rgba(5, 6, 10, 0.38) 70%,
+            rgba(5, 6, 10, 0.65) 100%
+        ),
+        linear-gradient(
+            to bottom,
+            rgba(5, 6, 10, 0.30) 0%,
+            rgba(5, 6, 10, 0.05) 30%,
+            rgba(5, 6, 10, 0.45) 100%
+        );
+}
+
+.super-player-lyrics-glass-panel {
+    background-color: rgba(10, 13, 20, 0.58);
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    border-radius: 22px;
+    padding: 22px 28px;
+    box-shadow:
+        0 20px 50px -10px rgba(0, 0, 0, 0.55),
+        0 0 0 1px rgba(255, 255, 255, 0.04);
+}
+
+.super-player-info-tabs {
+    font-size: 0.95em;
+    font-weight: 600;
+    margin-bottom: 6px;
+}
+
+.super-player-info-tabs toggle {
+    padding: 6px 14px;
+}
+
+.super-player-container {
+    padding: 36px 64px;
+}
+
+.super-player-art-frame {
+    border-radius: 28px;
+    box-shadow:
+        0 30px 80px -15px rgba(0, 0, 0, 0.85),
+        0 0 70px -10px rgba(0, 180, 255, 0.20),
+        0 0 0 1px rgba(255, 255, 255, 0.12);
+    background-color: #0d0f14;
+    transition: box-shadow 400ms ease, transform 300ms ease;
+}
+
+.super-player-art-frame:hover {
+    box-shadow:
+        0 36px 90px -10px rgba(0, 0, 0, 0.90),
+        0 0 90px -5px rgba(0, 200, 255, 0.30),
+        0 0 0 1px rgba(255, 255, 255, 0.18);
+}
+
+.super-player-controls-panel {
+    background: rgba(18, 20, 26, 0.68);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 20px;
+    padding: 16px 24px;
+    opacity: 0.0;
+    transition: opacity 300ms cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.40);
+}
+
+.super-player-controls-panel.visible {
+    opacity: 1.0;
+}
+
+.super-player-btn-restore {
+    border-radius: 9999px;
+    background: rgba(255, 255, 255, 0.09);
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    color: #ffffff;
+    padding: 10px;
+    min-width: 46px;
+    min-height: 46px;
+    transition: background 180ms ease, transform 150ms ease, box-shadow 180ms ease, opacity 250ms ease;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.30);
+}
+
+.super-player-btn-restore:hover {
+    background: rgba(255, 255, 255, 0.22);
+    transform: scale(1.08);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+}
+
+.super-player-title {
+    font-size: 2.80em;
+    font-weight: 800;
+    color: #ffffff;
+    letter-spacing: -0.025em;
+    text-shadow: 0 3px 14px rgba(0, 0, 0, 0.75);
+}
+
+.super-player-artist {
+    font-size: 1.75em;
+    font-weight: 600;
+    color: #f59e0b;
+    letter-spacing: -0.01em;
+    text-shadow: 0 2px 10px rgba(0, 0, 0, 0.65);
+}
+
+.super-player-album {
+    font-size: 1.30em;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.65);
+}
+
+.super-player-hi-res-pill {
+    background: linear-gradient(135deg, rgba(56, 189, 248, 0.14) 0%, rgba(245, 158, 11, 0.14) 100%);
+    border: 1px solid rgba(56, 189, 248, 0.35);
+    border-radius: 9999px;
+    padding: 6px 18px;
+    font-size: 0.95em;
+    font-weight: 700;
+    color: #ffffff;
+    letter-spacing: 0.04em;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+}
+
+.super-player-lyrics-header {
+    font-size: 0.90em;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+    color: #38bdf8;
+}
+
+.super-player-lyrics-scroll {
+    background: transparent;
+    border: none;
+    outline: none;
+    box-shadow: none;
+}
+
+.super-player-lyrics-scroll viewport {
+    background: transparent;
+    border: none;
+}
+
+.super-player-lyrics-scroll scrollbar {
+    background: transparent;
+    opacity: 0.30;
+}
+
+.super-player-lyrics-scroll scrollbar:hover {
+    opacity: 0.85;
+}
+
+.super-player-lyrics-text {
+    font-size: 1.80em;
+    line-height: 2.05;
+    color: rgba(255, 255, 255, 0.96);
+    font-weight: 700;
+    letter-spacing: 0.015em;
+    text-shadow: 0 2px 16px rgba(0, 0, 0, 0.80);
+}
+
+/* Letra sincronizada (Super-Reproductor e inspector): la línea cantada se resalta en color,
+   las cantadas se atenúan y las siguientes quedan en segundo plano */
+.lyrics-view,
+.lyrics-view viewport {
+    background: transparent;
+}
+
+.lyrics-line {
+    transition: color 350ms ease, opacity 350ms ease;
+}
+
+.lyrics-line-upcoming {
+    opacity: 0.55;
+}
+
+.lyrics-line-past {
+    opacity: 0.30;
+}
+
+.lyrics-line-active {
+    opacity: 1.0;
+    color: #38bdf8;
+}
+
+.lyrics-line-past:hover,
+.lyrics-line-upcoming:hover {
+    opacity: 0.90;
+}
+
+.super-player-lyrics-text.lyrics-line {
+    line-height: 1.35;
+    padding: 9px 0;
+}
+
+.super-player-lyrics-text.lyrics-line-active {
+    text-shadow: 0 0 22px rgba(56, 189, 248, 0.55), 0 2px 16px rgba(0, 0, 0, 0.80);
+}
+
+.inspector-lyrics-text {
+    font-size: 1.02em;
+    font-weight: 600;
+    line-height: 1.3;
+}
+
+.inspector-lyrics-text.lyrics-line {
+    padding: 4px 0;
+}
+
+.inspector-info-tabs {
+    font-size: 0.86em;
+    margin-bottom: 2px;
+}
+
+.inspector-notes-text {
+    font-size: 0.98em;
+    line-height: 1.45;
+}
+
+.tray-player-cover {
+    border-radius: 12px;
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
+}
+
+.tray-player-play {
+    min-width: 52px;
+    min-height: 52px;
+}
+
+.notes-image {
+    border-radius: 10px;
+}
+
+.notes-title {
+    font-weight: 800;
+    font-size: 1.15em;
+}
+
+.notes-description {
+    font-style: italic;
+    opacity: 0.65;
+    margin-top: -4px;
+}
+
+.notes-notice {
+    font-size: 0.85em;
+    padding: 6px 9px;
+    border-radius: 8px;
+    color: @warning_fg_color;
+    background-color: alpha(@warning_bg_color, 0.85);
+}
+
+.inspector-lyrics-card {
+    padding-right: 4px;
+}
+
+.super-player-play-btn {
+    border-radius: 9999px;
+    min-width: 64px;
+    min-height: 64px;
+    padding: 0;
+    color: #ffffff;
+    background: linear-gradient(135deg, #0284c7 0%, #38bdf8 100%);
+    box-shadow: 0 6px 20px rgba(56, 189, 248, 0.40);
+    transition: transform 140ms ease, box-shadow 140ms ease;
+}
+
+.super-player-play-btn:hover {
+    transform: scale(1.08);
+    box-shadow: 0 8px 26px rgba(56, 189, 248, 0.55);
+}
+
+.super-player-vol-scale {
+    min-width: 90px;
+}
+
+.super-player-vol-scale highlight {
+    background: #38bdf8;
+    border-radius: 9999px;
+}
+
+.super-player-vol-scale slider {
+    min-width: 16px;
+    min-height: 16px;
+    margin: 0;
+    padding: 0;
+    background: #ffffff;
+    border-radius: 9999px;
+}
+
+.super-player-instrumental-badge {
+    background: rgba(245, 158, 11, 0.14);
+    border: 1px solid rgba(245, 158, 11, 0.35);
+    border-radius: 16px;
+    padding: 24px 36px;
+    font-size: 1.4em;
+    font-weight: 700;
+    color: #f59e0b;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}

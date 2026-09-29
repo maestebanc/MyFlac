@@ -11,956 +11,136 @@ from gi.repository import Adw, Gdk, Gio, Gtk
 
 from ..constants import APP_ID
 
-EXTRA_CSS = """
-/* Badges de calidad de audio */
-.hires-badge {
-    border-radius: 6px;
-    padding: 2px 7px;
-    font-size: 0.76em;
-    font-weight: 700;
-    letter-spacing: 0.03em;
-    background-color: alpha(#d97706, 0.22);
-    color: #f59e0b;
-    border: 1px solid alpha(#f59e0b, 0.35);
-}
-
-.hires-cd-badge {
-    border-radius: 6px;
-    padding: 2px 7px;
-    font-size: 0.76em;
-    font-weight: 600;
-    background-color: alpha(@window_fg_color, 0.08);
-    color: alpha(@window_fg_color, 0.7);
-    border: 1px solid alpha(@window_fg_color, 0.12);
-}
-
-.hires-dsd-badge {
-    border-radius: 6px;
-    padding: 2px 7px;
-    font-size: 0.76em;
-    font-weight: 700;
-    background-color: alpha(#8b5cf6, 0.22);
-    color: #a78bfa;
-    border: 1px solid alpha(#a78bfa, 0.35);
-}
-
-/* Ficha técnica audiófila en el inspector */
-.audiophile-card {
-    border-radius: 10px;
-    background-color: alpha(@window_fg_color, 0.04);
-    border: 1px solid alpha(@window_fg_color, 0.08);
-    padding: 10px;
-}
-
-.audiophile-card-title {
-    font-size: 0.74em;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    opacity: 0.65;
-}
-
-.audiophile-stat-val {
-    font-variant-numeric: tabular-nums;
-    font-weight: 600;
-    font-size: 0.88em;
-}
-
-/* Marco de carátula en alta definición e interactivo para alternar modos */
-.album-cover-frame {
-    border-radius: 12px;
-    border: 1px solid alpha(@window_fg_color, 0.12);
-    box-shadow: 0 10px 24px alpha(black, 0.25), 0 3px 8px alpha(black, 0.12);
-    background-color: alpha(@window_fg_color, 0.03);
-    transition: box-shadow 200ms ease;
-}
-
-.album-cover-frame:hover {
-    box-shadow: 0 14px 32px alpha(black, 0.35), 0 4px 12px alpha(black, 0.20);
-}
-
-/* Indicador de modo del visualizador en la carátula */
-.visualizer-pill {
-    background-color: alpha(black, 0.55);
-    border-radius: 9999px;
-    padding: 3px 8px;
-    margin-bottom: 8px;
-    box-shadow: 0 2px 6px alpha(black, 0.40);
-    border: 1px solid alpha(white, 0.15);
-}
-
-.visualizer-dot {
-    min-width: 6px;
-    min-height: 6px;
-    border-radius: 9999px;
-    background-color: alpha(white, 0.35);
-    margin: 2px 2px;
-}
-
-.visualizer-dot.active {
-    min-width: 16px;
-    background-color: #3584e4;
-    box-shadow: 0 0 6px alpha(#3584e4, 0.6);
-}
-
-.album-cover-placeholder {
-    border-radius: 12px;
-    border: 2px dashed alpha(@window_fg_color, 0.18);
-    background-color: alpha(@window_fg_color, 0.02);
-    padding: 24px;
-}
-
-/* Miniatura de la barra inferior: adaptada al alto del minireproductor */
-.mini-cover-frame {
-    border-radius: 8px;
-    border: 1px solid alpha(@window_fg_color, 0.12);
-    box-shadow: 0 2px 8px alpha(black, 0.20);
-    background-color: alpha(@window_fg_color, 0.04);
-}
-
-/* Barra inferior del reproductor: relleno ceñido para apurar toda la altura */
-.player-bar {
-    min-height: 64px;
-    background-color: alpha(@window_bg_color, 0.95);
-    border-top: 1px solid alpha(@window_fg_color, 0.10);
-    padding: 4px 16px 4px 6px;
-}
-
-/* Barra de progreso de escaneo: delgada línea azul (#3584e4) no obstructiva */
-.scan-progress-line {
-    min-height: 2px;
-    padding: 0;
-    margin: 0;
-    border: none;
-    background-color: transparent;
-}
-
-.scan-progress-line > trough {
-    min-height: 2px;
-    border: none;
-    border-radius: 0;
-    background-color: alpha(@window_fg_color, 0.04);
-}
-
-.scan-progress-line > trough > progress {
-    min-height: 2px;
-    border: none;
-    border-radius: 0;
-    background-color: #3584e4;
-    box-shadow: 0 0 4px alpha(#3584e4, 0.4);
-}
-
-.play-pause-btn {
-    border-radius: 9999px;
-    min-width: 42px;
-    min-height: 42px;
-    padding: 0;
-}
-
-.time-label {
-    font-variant-numeric: tabular-nums;
-    font-size: 0.82em;
-    opacity: 0.75;
-    min-width: 40px;
-}
-
-/* Tabla de canciones */
-.track-table {
-    background-color: transparent;
-}
-
-.track-table header button {
-    padding: 5px 8px;
-    font-weight: 700;
-    font-size: 0.78em;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: alpha(@window_fg_color, 0.65);
-    background-color: alpha(@window_fg_color, 0.035);
-    border-bottom: 1px solid alpha(@window_fg_color, 0.08);
-    box-shadow: none;
-}
-
-.track-table row {
-    min-height: 28px;
-    border-bottom: 1px solid alpha(@window_fg_color, 0.025);
-}
-
-.track-table row:nth-child(even) {
-    background-color: alpha(@window_fg_color, 0.012);
-}
-
-.track-table row:hover {
-    background-color: alpha(@window_fg_color, 0.045);
-}
-
-.track-table row:selected {
-    background-color: alpha(#f59e0b, 0.16);
-}
-
-.track-table columnviewcell {
-    padding: 2px 8px;
-    font-size: 0.92em;
-}
-
-.track-number-cell {
-    font-variant-numeric: tabular-nums;
-    opacity: 0.6;
-    font-size: 0.88em;
-}
-
-.row-playing-num {
-    font-variant-numeric: tabular-nums;
-    font-weight: 700;
-    color: #f59e0b;
-    opacity: 1.0;
-}
-
-.row-playing {
-    font-weight: 700;
-    color: #f59e0b;
-}
-
-/* Selector de dispositivo de audio enriquecido (Píldora audiófila) */
-.audiophile-device-pill {
-    border-radius: 10px;
-    background-color: alpha(@window_fg_color, 0.05);
-    border: 1px solid alpha(@window_fg_color, 0.12);
-    padding: 3px 10px 3px 6px;
-    transition: all 150ms ease;
-}
-
-.audiophile-device-pill:hover {
-    background-color: alpha(@window_fg_color, 0.09);
-    border-color: alpha(#f59e0b, 0.40);
-    box-shadow: 0 2px 8px alpha(black, 0.20);
-}
-
-.device-icon-bubble {
-    border-radius: 9999px;
-    background-color: alpha(#f59e0b, 0.14);
-    padding: 5px;
-}
-
-.device-icon-bubble image {
-    color: #f59e0b;
-}
-
-.bitperfect-pill {
-    font-size: 0.66em;
-    font-weight: 800;
-    letter-spacing: 0.06em;
-    color: #10b981;
-    background-color: alpha(#10b981, 0.14);
-    border: 1px solid alpha(#10b981, 0.40);
-    border-radius: 9999px;
-    padding: 1px 7px;
-}
-
-.device-name-label {
-    font-weight: 600;
-    font-size: 0.84em;
-}
-
-.device-sub-label {
-    font-size: 0.70em;
-    opacity: 0.70;
-    letter-spacing: 0.04em;
-}
-
-.device-led-active {
-    color: #2ec27e;
-    font-size: 0.75em;
-}
-
-/* Navegador Multicolumnas estilo iTunes */
-/* Portada a gran tamaño superpuesta a la ventana principal */
-.cover-popup-scrim {
-    background-color: rgba(0, 0, 0, 0.72);
-}
-
-.cover-popup-art {
-    border-radius: 14px;
-    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.60);
-}
-
-/* Fondo ambiental desenfocado detrás de la biblioteca */
-.artist-backdrop-picture {
-    opacity: 0;
-    transition: opacity 900ms ease;
-}
-
-.artist-backdrop-picture.visible {
-    opacity: 1;
-}
-
-.has-backdrop-dark .track-table label,
-.has-backdrop-dark .column-list label {
-    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.75);
-}
-
-.track-table,
-.track-table > listview,
-.track-table > header {
-    background: transparent;
-}
-
-.column-browser-pane {
-    background-color: alpha(@window_bg_color, 0.4);
-    border-bottom: 1px solid alpha(@window_fg_color, 0.10);
-}
-
-.column-header-box {
-    padding: 5px 12px;
-    background-color: alpha(@window_fg_color, 0.04);
-    border-bottom: 1px solid alpha(@window_fg_color, 0.09);
-}
-
-.column-header-title {
-    font-weight: 700;
-    font-size: 0.78em;
-    text-transform: uppercase;
-    letter-spacing: 0.07em;
-    color: alpha(@window_fg_color, 0.75);
-}
-
-.column-header-count {
-    font-size: 0.76em;
-    color: #f59e0b;
-    opacity: 0.85;
-    font-weight: 600;
-    font-variant-numeric: tabular-nums;
-}
-
-.column-list {
-    background-color: transparent;
-}
-
-.column-list row {
-    padding: 3px 10px;
-    min-height: 26px;
-    border-bottom: 1px solid alpha(@window_fg_color, 0.025);
-    transition: background-color 100ms ease;
-    font-size: 0.92em;
-}
-
-.column-list row:nth-child(even) {
-    background-color: alpha(@window_fg_color, 0.012);
-}
-
-.column-list row:hover {
-    background-color: alpha(@window_fg_color, 0.045);
-}
-
-.column-list row:selected {
-    background-color: alpha(#f59e0b, 0.18);
-    color: #f59e0b;
-    font-weight: 600;
-}
-
-.column-list row:selected label {
-    color: #f59e0b;
-}
-
-.count-badge {
-    font-size: 0.74em;
-    font-variant-numeric: tabular-nums;
-    color: alpha(@window_fg_color, 0.5);
-    padding: 0px 6px;
-    border-radius: 8px;
-    background-color: alpha(@window_fg_color, 0.05);
-    border: 1px solid alpha(@window_fg_color, 0.06);
-    min-height: 18px;
-}
-
-.column-list row:selected .count-badge {
-    background-color: alpha(#f59e0b, 0.25);
-    color: #f59e0b;
-    border-color: alpha(#f59e0b, 0.35);
-}
-
-/* Divisores de paneles (Paned separators) */
-paned > separator {
-    background-color: alpha(@window_fg_color, 0.10);
-    min-width: 1px;
-    min-height: 1px;
-    transition: background-color 150ms ease;
-}
-
-paned > separator:hover {
-    background-color: alpha(#f59e0b, 0.5);
-}
-
-/* Panel inspector con borde izquierdo divisorio */
-.inspector-panel {
-    border-left: 1px solid alpha(@window_fg_color, 0.10);
-    background-color: alpha(@window_fg_color, 0.012);
-}
-
-/* Menú contextual de pista */
-.context-menu-box {
-    min-width: 220px;
-}
-
-.context-menu-item {
-    padding: 6px 10px;
-    border-radius: 6px;
-    font-size: 0.88em;
-}
-
-.context-menu-item:hover {
-    background-color: alpha(@window_fg_color, 0.08);
-}
-
-/* Botón y Popover de Cola de reproducción (A continuación) */
-.queue-btn {
-    border-radius: 9999px;
-    padding: 6px;
-}
-
-.queue-btn.accent {
-    color: #3584e4;
-    background-color: alpha(#3584e4, 0.15);
-}
-
-.queue-popover-box {
-    min-width: 320px;
-}
-
-.queue-row {
-    padding: 6px 8px;
-    border-radius: 6px;
-    transition: background-color 150ms ease;
-}
-
-.queue-row:hover {
-    background-color: alpha(@window_fg_color, 0.06);
-}
-
-/* Modo Mini-Reproductor (500x500) estilo Apple Music */
-.mini-player-window {
-    background-color: #0b0d10;
-    border-radius: 16px;
-}
-
-.mini-player-hud {
-    opacity: 0.0;
-    transition: opacity 280ms cubic-bezier(0.4, 0, 0.2, 1);
-    background: linear-gradient(
-        to bottom,
-        rgba(0, 0, 0, 0.55) 0%,
-        rgba(0, 0, 0, 0.20) 18%,
-        transparent 35%,
-        rgba(0, 0, 0, 0.40) 65%,
-        rgba(0, 0, 0, 0.78) 82%,
-        rgba(0, 0, 0, 0.90) 100%
-    );
-}
-
-.mini-player-hud.visible {
-    opacity: 1.0;
-}
-
-.mini-player-btn-circle {
-    border-radius: 9999px;
-    background-color: rgba(20, 20, 24, 0.55);
-    color: #ffffff;
-    padding: 7px;
-    transition: background-color 150ms ease, transform 120ms ease;
-}
+_CSS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "resources", "css")
+
+
+def _load_css(provider: Gtk.CssProvider, name: str) -> None:
+    """Carga una hoja de estilos de myflac/resources/css (base.css, light.css o dark.css)."""
+    provider.load_from_path(os.path.join(_CSS_DIR, name))
+
+
+# Tonos de cada tema. light.css y dark.css están escritos con los colores del tono por defecto
+# ("slate" y "obsidian"); los demás tonos los sustituyen al cargar la hoja. "backdrop" no aparece en
+# el CSS: es la base de la capa que oscurece o aclara la foto del artista tras la biblioteca.
+LIGHT_VARIANTS: dict[str, dict[str, str]] = {
+    "slate": {"window": "#ebeef3", "view": "#f7f9fb", "fg": "#242731"},      # Pizarra suave
+    "paper": {"window": "#e6e0d6", "view": "#efeae1", "fg": "#2b2620"},      # Papel cálido
+    "slate_mid": {"window": "#d8dce3", "view": "#e2e6ec", "fg": "#1f232b"},  # Pizarra media
+    "graphite": {"window": "#d6d6d3", "view": "#e1e1de", "fg": "#1e1e1e"},   # Grafito claro
+    "sage": {"window": "#dde3dc", "view": "#e7ece6", "fg": "#222822"},       # Salvia
+}
+DARK_VARIANTS: dict[str, dict[str, str]] = {
+    "obsidian": {  # Obsidiana: carbón con un leve tinte azul
+        "window": "#111215", "view": "#16181d", "card": "#191c23", "popover": "#181a20",
+        "dialog": "#14161b", "bar": "#0f1013", "fg": "#f1f5f9", "backdrop": "#0c0d11",
+    },
+    "midnight": {  # Medianoche: azul marino profundo
+        "window": "#0e1320", "view": "#121928", "card": "#172031", "popover": "#151d2d",
+        "dialog": "#101726", "bar": "#0b101b", "fg": "#e6ecf5", "backdrop": "#090d17",
+    },
+    "espresso": {  # Espresso: negro café, cálido
+        "window": "#15110d", "view": "#1b1612", "card": "#221c17", "popover": "#1f1914",
+        "dialog": "#18130f", "bar": "#110e0b", "fg": "#f3ece2", "backdrop": "#0f0c09",
+    },
+    "oled": {  # OLED: negro puro
+        "window": "#000000", "view": "#050505", "card": "#0e0e0e", "popover": "#0b0b0b",
+        "dialog": "#070707", "bar": "#010101", "fg": "#ececec", "backdrop": "#020202",
+    },
+    "graphite": {  # Grafito: gris oscuro suave, menos contraste
+        "window": "#242424", "view": "#2a2a2a", "card": "#313131", "popover": "#2e2e2e",
+        "dialog": "#272727", "bar": "#1f1f1f", "fg": "#f0f0f0", "backdrop": "#1b1b1b",
+    },
+}
+DEFAULT_LIGHT_VARIANT = "slate"
+DEFAULT_DARK_VARIANT = "obsidian"
+_variants = {"light": DEFAULT_LIGHT_VARIANT, "dark": DEFAULT_DARK_VARIANT}
+_palette_listeners: list = []
+
+
+def variants_for(mode: str) -> dict[str, dict[str, str]]:
+    return DARK_VARIANTS if mode == "dark" else LIGHT_VARIANTS
+
+
+def current_variant(mode: str) -> str:
+    return _variants[mode]
+
+
+def _hex_rgb(hex_color: str) -> tuple[int, int, int]:
+    return tuple(int(hex_color[i:i + 2], 16) for i in (1, 3, 5))
+
+
+def light_base_rgb() -> tuple[int, int, int]:
+    """Fondo del tema claro activo, en RGB (base de la capa sobre la foto del artista)."""
+    return _hex_rgb(LIGHT_VARIANTS[_variants["light"]]["window"])
+
+
+def dark_base_rgb() -> tuple[int, int, int]:
+    """Base oscura de la capa sobre la foto del artista para el tono oscuro activo."""
+    return _hex_rgb(DARK_VARIANTS[_variants["dark"]]["backdrop"])
+
+
+def add_palette_listener(callback) -> None:
+    """Avisa cuando cambia el tono de alguno de los temas."""
+    _palette_listeners.append(callback)
+
+
+def set_theme_variant(mode: str, name: str) -> None:
+    """Cambia el tono del tema claro u oscuro al instante (si ese tema está activo, se recarga)."""
+    global _light_theme_provider, _dark_theme_provider
+    variants = variants_for(mode)
+    default = DEFAULT_DARK_VARIANT if mode == "dark" else DEFAULT_LIGHT_VARIANT
+    name = name if name in variants else default
+    if name == _variants[mode]:
+        return
+    _variants[mode] = name
+    display = Gdk.Display.get_default()
+    provider = _dark_theme_provider if mode == "dark" else _light_theme_provider
+    if provider is not None and display is not None:
+        Gtk.StyleContext.remove_provider_for_display(display, provider)
+        if mode == "dark":
+            _dark_theme_provider = None
+        else:
+            _light_theme_provider = None
+        _update_theme_palette()
+    for callback in list(_palette_listeners):
+        try:
+            callback()
+        except Exception:
+            pass
+
+
+def set_light_variant(name: str) -> None:
+    set_theme_variant("light", name)
+
 
-.mini-player-btn-circle:hover {
-    background-color: rgba(255, 255, 255, 0.22);
-    transform: scale(1.06);
-}
-
-.mini-player-title {
-    font-weight: 700;
-    font-size: 1.20em;
-    color: #ffffff;
-    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.75);
-    letter-spacing: -0.01em;
-}
-
-.mini-player-sub {
-    font-size: 0.90em;
-    font-weight: 500;
-    color: rgba(255, 255, 255, 0.78);
-    text-shadow: 0 1px 5px rgba(0, 0, 0, 0.65);
-}
-
-.mini-player-time {
-    font-size: 0.80em;
-    font-weight: 600;
-    color: rgba(255, 255, 255, 0.75);
-    font-variant-numeric: tabular-nums;
-    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.65);
-    min-width: 36px;
-}
-
-.mini-player-scale trough {
-    min-height: 4px;
-    border-radius: 2px;
-    background-color: rgba(255, 255, 255, 0.28);
-}
-
-.mini-player-scale highlight {
-    border-radius: 2px;
-    background-color: #ffffff;
-}
-
-.mini-player-scale slider {
-    min-width: 10px;
-    min-height: 10px;
-    border-radius: 9999px;
-    background-color: #ffffff;
-    margin: -3px;
-    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.45);
-}
-
-.mini-player-play-btn {
-    border-radius: 9999px;
-    min-width: 50px;
-    min-height: 50px;
-    padding: 0;
-    color: #ffffff;
-    background-color: rgba(255, 255, 255, 0.22);
-    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
-    transition: background-color 150ms ease, transform 120ms ease;
-}
-
-.mini-player-play-btn:hover {
-    background-color: rgba(255, 255, 255, 0.35);
-    transform: scale(1.06);
-}
-
-.mini-player-skip-btn {
-    border-radius: 9999px;
-    min-width: 38px;
-    min-height: 38px;
-    padding: 0;
-    color: rgba(255, 255, 255, 0.90);
-    background: transparent;
-    transition: color 150ms ease, transform 120ms ease;
-}
-
-.mini-player-skip-btn:hover {
-    color: #ffffff;
-    transform: scale(1.12);
-}
-
-.mini-player-aux-btn {
-    border-radius: 9999px;
-    min-width: 32px;
-    min-height: 32px;
-    padding: 0;
-    color: rgba(255, 255, 255, 0.65);
-    background: transparent;
-}
-
-.mini-player-aux-btn:hover {
-    color: #ffffff;
-}
-
-.mini-player-aux-btn.active {
-    color: #f59e0b;
-}
-
-.mini-player-window.fullscreen-mode {
-    border-radius: 0px;
-    background-color: #000000;
-}
-
-/* =========================================================================
-   Super-Reproductor a Pantalla Completa (Hi-Fi Ambient Canvas)
-   ========================================================================= */
-
-.super-player-ambient-bg {
-    background: radial-gradient(
-        circle at 28% 46%,
-        rgba(30, 48, 80, 0.45) 0%,
-        rgba(15, 22, 36, 0.70) 50%,
-        #07080b 85%
-    );
-    transition: background 600ms cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.super-player-wallpaper-picture {
-    opacity: 0.70;
-    transition: opacity 800ms ease-in-out;
-}
-
-.super-player-wallpaper-scrim {
-    background:
-        radial-gradient(
-            circle at center,
-            rgba(5, 6, 10, 0.10) 0%,
-            rgba(5, 6, 10, 0.38) 70%,
-            rgba(5, 6, 10, 0.65) 100%
-        ),
-        linear-gradient(
-            to bottom,
-            rgba(5, 6, 10, 0.30) 0%,
-            rgba(5, 6, 10, 0.05) 30%,
-            rgba(5, 6, 10, 0.45) 100%
-        );
-}
-
-.super-player-lyrics-glass-panel {
-    background-color: rgba(10, 13, 20, 0.58);
-    border: 1px solid rgba(255, 255, 255, 0.10);
-    border-radius: 22px;
-    padding: 22px 28px;
-    box-shadow:
-        0 20px 50px -10px rgba(0, 0, 0, 0.55),
-        0 0 0 1px rgba(255, 255, 255, 0.04);
-}
-
-.super-player-info-tabs {
-    font-size: 0.95em;
-    font-weight: 600;
-    margin-bottom: 6px;
-}
-
-.super-player-info-tabs toggle {
-    padding: 6px 14px;
-}
-
-.super-player-container {
-    padding: 36px 64px;
-}
-
-.super-player-art-frame {
-    border-radius: 28px;
-    box-shadow:
-        0 30px 80px -15px rgba(0, 0, 0, 0.85),
-        0 0 70px -10px rgba(0, 180, 255, 0.20),
-        0 0 0 1px rgba(255, 255, 255, 0.12);
-    background-color: #0d0f14;
-    transition: box-shadow 400ms ease, transform 300ms ease;
-}
-
-.super-player-art-frame:hover {
-    box-shadow:
-        0 36px 90px -10px rgba(0, 0, 0, 0.90),
-        0 0 90px -5px rgba(0, 200, 255, 0.30),
-        0 0 0 1px rgba(255, 255, 255, 0.18);
-}
-
-.super-player-controls-panel {
-    background: rgba(18, 20, 26, 0.68);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 20px;
-    padding: 16px 24px;
-    opacity: 0.0;
-    transition: opacity 300ms cubic-bezier(0.4, 0, 0.2, 1);
-    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.40);
-}
-
-.super-player-controls-panel.visible {
-    opacity: 1.0;
-}
-
-.super-player-btn-restore {
-    border-radius: 9999px;
-    background: rgba(255, 255, 255, 0.09);
-    border: 1px solid rgba(255, 255, 255, 0.16);
-    color: #ffffff;
-    padding: 10px;
-    min-width: 46px;
-    min-height: 46px;
-    transition: background 180ms ease, transform 150ms ease, box-shadow 180ms ease, opacity 250ms ease;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.30);
-}
-
-.super-player-btn-restore:hover {
-    background: rgba(255, 255, 255, 0.22);
-    transform: scale(1.08);
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
-}
-
-.super-player-title {
-    font-size: 2.80em;
-    font-weight: 800;
-    color: #ffffff;
-    letter-spacing: -0.025em;
-    text-shadow: 0 3px 14px rgba(0, 0, 0, 0.75);
-}
-
-.super-player-artist {
-    font-size: 1.75em;
-    font-weight: 600;
-    color: #f59e0b;
-    letter-spacing: -0.01em;
-    text-shadow: 0 2px 10px rgba(0, 0, 0, 0.65);
-}
-
-.super-player-album {
-    font-size: 1.30em;
-    font-weight: 500;
-    color: rgba(255, 255, 255, 0.65);
-}
-
-.super-player-hi-res-pill {
-    background: linear-gradient(135deg, rgba(56, 189, 248, 0.14) 0%, rgba(245, 158, 11, 0.14) 100%);
-    border: 1px solid rgba(56, 189, 248, 0.35);
-    border-radius: 9999px;
-    padding: 6px 18px;
-    font-size: 0.95em;
-    font-weight: 700;
-    color: #ffffff;
-    letter-spacing: 0.04em;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
-}
-
-.super-player-lyrics-header {
-    font-size: 0.90em;
-    font-weight: 800;
-    text-transform: uppercase;
-    letter-spacing: 0.16em;
-    color: #38bdf8;
-}
-
-.super-player-lyrics-scroll {
-    background: transparent;
-    border: none;
-    outline: none;
-    box-shadow: none;
-}
-
-.super-player-lyrics-scroll viewport {
-    background: transparent;
-    border: none;
-}
-
-.super-player-lyrics-scroll scrollbar {
-    background: transparent;
-    opacity: 0.30;
-}
-
-.super-player-lyrics-scroll scrollbar:hover {
-    opacity: 0.85;
-}
-
-.super-player-lyrics-text {
-    font-size: 1.80em;
-    line-height: 2.05;
-    color: rgba(255, 255, 255, 0.96);
-    font-weight: 700;
-    letter-spacing: 0.015em;
-    text-shadow: 0 2px 16px rgba(0, 0, 0, 0.80);
-}
-
-/* Letra sincronizada (Super-Reproductor e inspector): la línea cantada se resalta en color,
-   las cantadas se atenúan y las siguientes quedan en segundo plano */
-.lyrics-view,
-.lyrics-view viewport {
-    background: transparent;
-}
-
-.lyrics-line {
-    transition: color 350ms ease, opacity 350ms ease;
-}
-
-.lyrics-line-upcoming {
-    opacity: 0.55;
-}
-
-.lyrics-line-past {
-    opacity: 0.30;
-}
-
-.lyrics-line-active {
-    opacity: 1.0;
-    color: #38bdf8;
-}
-
-.lyrics-line-past:hover,
-.lyrics-line-upcoming:hover {
-    opacity: 0.90;
-}
-
-.super-player-lyrics-text.lyrics-line {
-    line-height: 1.35;
-    padding: 9px 0;
-}
-
-.super-player-lyrics-text.lyrics-line-active {
-    text-shadow: 0 0 22px rgba(56, 189, 248, 0.55), 0 2px 16px rgba(0, 0, 0, 0.80);
-}
-
-.inspector-lyrics-text {
-    font-size: 1.02em;
-    font-weight: 600;
-    line-height: 1.3;
-}
-
-.inspector-lyrics-text.lyrics-line {
-    padding: 4px 0;
-}
-
-.inspector-info-tabs {
-    font-size: 0.86em;
-    margin-bottom: 2px;
-}
-
-.inspector-notes-text {
-    font-size: 0.98em;
-    line-height: 1.45;
-}
-
-.tray-player-cover {
-    border-radius: 12px;
-    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
-}
-
-.tray-player-play {
-    min-width: 52px;
-    min-height: 52px;
-}
+def set_dark_variant(name: str) -> None:
+    set_theme_variant("dark", name)
 
-.notes-image {
-    border-radius: 10px;
-}
-
-.notes-title {
-    font-weight: 800;
-    font-size: 1.15em;
-}
-
-.notes-description {
-    font-style: italic;
-    opacity: 0.65;
-    margin-top: -4px;
-}
-
-.notes-notice {
-    font-size: 0.85em;
-    padding: 6px 9px;
-    border-radius: 8px;
-    color: @warning_fg_color;
-    background-color: alpha(@warning_bg_color, 0.85);
-}
-
-.inspector-lyrics-card {
-    padding-right: 4px;
-}
-
-.super-player-play-btn {
-    border-radius: 9999px;
-    min-width: 64px;
-    min-height: 64px;
-    padding: 0;
-    color: #ffffff;
-    background: linear-gradient(135deg, #0284c7 0%, #38bdf8 100%);
-    box-shadow: 0 6px 20px rgba(56, 189, 248, 0.40);
-    transition: transform 140ms ease, box-shadow 140ms ease;
-}
-
-.super-player-play-btn:hover {
-    transform: scale(1.08);
-    box-shadow: 0 8px 26px rgba(56, 189, 248, 0.55);
-}
-
-.super-player-vol-scale {
-    min-width: 90px;
-}
-
-.super-player-vol-scale highlight {
-    background: #38bdf8;
-    border-radius: 9999px;
-}
 
-.super-player-vol-scale slider {
-    min-width: 16px;
-    min-height: 16px;
-    margin: 0;
-    padding: 0;
-    background: #ffffff;
-    border-radius: 9999px;
-}
-
-.super-player-instrumental-badge {
-    background: rgba(245, 158, 11, 0.14);
-    border: 1px solid rgba(245, 158, 11, 0.35);
-    border-radius: 16px;
-    padding: 24px 36px;
-    font-size: 1.4em;
-    font-weight: 700;
-    color: #f59e0b;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
-}
-"""
-
-
-LIGHT_THEME_CSS = """
-/* ==========================================================================
-   Paleta Libadwaita Slate Soft (Opción 1) — Confort visual y descanso ocular
-   Sustituye el blanco puro cegador (#ffffff) por tonos pizarra y piedra caliza.
-   ========================================================================== */
-@define-color window_bg_color #ebeef3;
-@define-color window_fg_color #242731;
-@define-color view_bg_color #f7f9fb;
-@define-color view_fg_color #242731;
-@define-color headerbar_bg_color #ebeef3;
-@define-color headerbar_fg_color #242731;
-@define-color card_bg_color #f7f9fb;
-@define-color card_fg_color #242731;
-@define-color popover_bg_color #f7f9fb;
-@define-color popover_fg_color #242731;
-@define-color secondary_sidebar_bg_color #ebeef3;
-@define-color secondary_sidebar_fg_color #242731;
-@define-color dialog_bg_color #ebeef3;
-@define-color dialog_fg_color #242731;
-
-columnview, listview, .column-list {
-    background-color: @view_bg_color;
-    color: @view_fg_color;
-}
-
-.column-browser-pane {
-    background-color: @window_bg_color;
-    border-bottom: 1px solid alpha(#242731, 0.08);
-}
+def theme_css(mode: str, variant: str) -> str:
+    """Hoja del tema claro u oscuro con los colores del tono indicado."""
+    variants = variants_for(mode)
+    default = variants[DEFAULT_DARK_VARIANT if mode == "dark" else DEFAULT_LIGHT_VARIANT]
+    with open(os.path.join(_CSS_DIR, "dark.css" if mode == "dark" else "light.css"), encoding="utf-8") as f:
+        css = f.read()
+    for role, new in variants[variant].items():
+        if role != "backdrop":
+            css = css.replace(default[role], new)
+    return css
 
-.column-header-box {
-    background-color: alpha(#242731, 0.035);
-    border-bottom: 1px solid alpha(#242731, 0.07);
-}
-
-.column-header-title {
-    color: alpha(#242731, 0.75);
-}
-
-.count-badge {
-    background-color: alpha(#242731, 0.05);
-    border-color: alpha(#242731, 0.07);
-    color: alpha(#242731, 0.60);
-}
-
-.player-bar {
-    background-color: alpha(#ebeef3, 0.95);
-    border-top: 1px solid alpha(#242731, 0.08);
-}
 
-.inspector-panel {
-    background-color: alpha(#242731, 0.015);
-    border-left: 1px solid alpha(#242731, 0.08);
-}
+def light_css(variant: str) -> str:
+    return theme_css("light", variant)
 
-.audiophile-card {
-    background-color: alpha(#242731, 0.035);
-    border-color: alpha(#242731, 0.07);
-}
-"""
 
 _light_theme_provider: Gtk.CssProvider | None = None
+_dark_theme_provider: Gtk.CssProvider | None = None
 _style_manager_connected: bool = False
 
 
 def _update_theme_palette() -> None:
-    """Aplica o retira el proveedor de tema claro Libadwaita Slate Soft según el modo activo."""
-    global _light_theme_provider
+    """Aplica el proveedor de tema claro (Slate Soft) u oscuro (Obsidian Dark) según el modo activo."""
+    global _light_theme_provider, _dark_theme_provider
     style_manager = Adw.StyleManager.get_default()
     display = Gdk.Display.get_default()
     if style_manager is None or display is None:
@@ -973,10 +153,24 @@ def _update_theme_palette() -> None:
             except Exception:
                 pass
             _light_theme_provider = None
+
+        if _dark_theme_provider is None:
+            _dark_theme_provider = Gtk.CssProvider()
+            _dark_theme_provider.load_from_string(theme_css("dark", _variants["dark"]))
+            Gtk.StyleContext.add_provider_for_display(
+                display, _dark_theme_provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION + 1
+            )
     else:
+        if _dark_theme_provider is not None:
+            try:
+                Gtk.StyleContext.remove_provider_for_display(display, _dark_theme_provider)
+            except Exception:
+                pass
+            _dark_theme_provider = None
+
         if _light_theme_provider is None:
             _light_theme_provider = Gtk.CssProvider()
-            _light_theme_provider.load_from_string(LIGHT_THEME_CSS)
+            _light_theme_provider.load_from_string(theme_css("light", _variants["light"]))
             Gtk.StyleContext.add_provider_for_display(
                 display, _light_theme_provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION + 1
             )
@@ -985,7 +179,7 @@ def _update_theme_palette() -> None:
 def load_extra_css() -> None:
     global _style_manager_connected
     provider = Gtk.CssProvider()
-    provider.load_from_string(EXTRA_CSS)
+    _load_css(provider, "base.css")
     display = Gdk.Display.get_default()
     if display:
         Gtk.StyleContext.add_provider_for_display(

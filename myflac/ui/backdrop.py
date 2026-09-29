@@ -14,6 +14,7 @@ from PIL import Image, ImageFilter
 
 from ..artist_art import ArtistArtService
 from ..logger import get_logger
+from .style import add_palette_listener, dark_base_rgb, light_base_rgb
 
 log = get_logger("ui.backdrop")
 
@@ -31,8 +32,8 @@ LIGHT_SCRIM_EXTRA = 0.04
 # Proporción del color de la foto en la capa de oscurecimiento (el tinte)
 TINT_AMOUNT_DARK = 0.12
 TINT_AMOUNT_LIGHT = 0.08
-BASE_DARK = (12, 13, 17)
-BASE_LIGHT = (235, 238, 243)  # Paleta Libadwaita Slate Soft (#ebeef3)
+BASE_DARK = (12, 13, 17)  # Obsidiana (#0c0d11); con otro tono se usa dark_base_rgb()
+BASE_LIGHT = (235, 238, 243)  # Pizarra suave (#ebeef3); con otro tono se usa light_base_rgb()
 MAX_CACHED_TEXTURES = 8
 
 
@@ -59,7 +60,7 @@ def scrim_opacity(intensity: int, dark: bool) -> float:
 
 def scrim_color(average: tuple[int, int, int] | None, dark: bool, intensity: int = DEFAULT_INTENSITY) -> str:
     """Color de la capa de oscurecimiento: base del tema teñida con el color medio de la foto."""
-    base = BASE_DARK if dark else BASE_LIGHT
+    base = dark_base_rgb() if dark else light_base_rgb()
     amount = TINT_AMOUNT_DARK if dark else TINT_AMOUNT_LIGHT
     opacity = scrim_opacity(intensity, dark)
     if average is None:
@@ -115,6 +116,7 @@ class ArtistBackdrop(Gtk.Overlay):
             )
         self._style_manager = Adw.StyleManager.get_default()
         self._style_manager.connect("notify::dark", lambda *_: self._update_scrim())
+        add_palette_listener(self._update_scrim)
         self._show(None, None)
 
     def set_enabled(self, enabled: bool):

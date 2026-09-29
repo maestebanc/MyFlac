@@ -51,6 +51,7 @@ class InspectorPanel(Gtk.Box):
         # Cargar modo visualizador persistente (0: Portada+Osciloscopio [por defecto], 1: Portada limpia)
         cfg = load_config()
         self.visualizer_mode: int = cfg.get("visualizer_mode", 0) % 2
+        self._oscilloscope_enabled: bool = cfg.get("oscilloscope_enabled", True)
 
         self._build_ui()
         self._apply_visualizer_mode(self.visualizer_mode)
@@ -421,6 +422,11 @@ class InspectorPanel(Gtk.Box):
         if self.on_visualizer_mode_changed:
             self.on_visualizer_mode_changed(self.visualizer_mode)
 
+    def set_oscilloscope_enabled(self, enabled: bool):
+        """Activa o desactiva el osciloscopio externamente (desde Preferencias)."""
+        self._oscilloscope_enabled = enabled
+        self._apply_visualizer_mode(self.visualizer_mode)
+
     def set_visualizer_mode(self, mode: int):
         """Aplica un modo visualizador externamente (ej. sincronizado desde MiniPlayerWindow)."""
         mode = mode % 2
@@ -438,13 +444,14 @@ class InspectorPanel(Gtk.Box):
                 dot.remove_css_class("active")
 
         # Configurar visibilidad y estado de cada modo
-        if mode == 0:
-            # Modo 0: Portada + Osciloscopio superpuesto (en pausa o parado, portada limpia)
+        is_scope = (mode == 0) and getattr(self, "_oscilloscope_enabled", True)
+        if is_scope:
+            # Modo 0 con osciloscopio habilitado: superpuesto (en pausa o parado, portada limpia)
             self.scope_widget.set_active(True)
             self.scope_widget.set_playing(self._is_playing)
             self.scope_widget.set_visible(self._is_playing)
         else:
-            # Modo 1: Foto del artista (sin osciloscopio); sin foto disponible, la portada
+            # Osciloscopio desactivado o Modo 1: oculto, portada limpia
             self.scope_widget.set_active(False)
             self.scope_widget.set_playing(False)
             self.scope_widget.set_visible(False)
@@ -506,20 +513,21 @@ class InspectorPanel(Gtk.Box):
             self._engine.add_position_listener(self._on_position_updated)
             is_playing = (self._engine.state == PlaybackState.PLAYING)
             self._is_playing = is_playing
-            self.scope_widget.set_playing(is_playing)
-            if self.visualizer_mode == 0:
-                self.scope_widget.set_visible(is_playing)
+            is_scope = (self.visualizer_mode == 0) and getattr(self, "_oscilloscope_enabled", True)
+            self.scope_widget.set_playing(is_playing and is_scope)
+            self.scope_widget.set_visible(is_playing and is_scope)
 
     def _on_audio_level(self, rms: list[float], peak: list[float]):
-        if self.visualizer_mode == 0 and self._is_playing:
+        is_scope = (self.visualizer_mode == 0) and getattr(self, "_oscilloscope_enabled", True)
+        if is_scope and self._is_playing:
             self.scope_widget.update_levels(rms, peak)
 
     def _on_playback_state_changed(self, state: PlaybackState):
         is_playing = (state == PlaybackState.PLAYING)
         self._is_playing = is_playing
-        self.scope_widget.set_playing(is_playing)
-        if self.visualizer_mode == 0:
-            self.scope_widget.set_visible(is_playing)
+        is_scope = (self.visualizer_mode == 0) and getattr(self, "_oscilloscope_enabled", True)
+        self.scope_widget.set_playing(is_playing and is_scope)
+        self.scope_widget.set_visible(is_playing and is_scope)
 
     def _load_placeholder_image(self):
         """Carga el diseño estético de carátula MyFlac cuando no hay carátula activa."""
@@ -594,7 +602,7 @@ class InspectorPanel(Gtk.Box):
         self._load_notes(self.info_tabs.get_active_name())
 
         # Carátula escalada con Gtk.Picture
-        cover_info = track.get_cover_image_bytes()
+        cover_info = track.cached_cover()
         if cover_info:
             try:
                 data, _mime = cover_info

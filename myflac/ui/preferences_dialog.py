@@ -9,14 +9,13 @@ gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
 from gi.repository import Adw, Gio, GLib, Gtk
 
-from ..audio.devices import AudioDevice, get_available_devices
 from ..config import save_config
 from ..library.db import LibraryDB
 from ..library.scanner import LibraryScanner
 from ..logger import get_logger
 from .. import i18n
 from .backdrop import DEFAULT_INTENSITY, MAX_INTENSITY, MIN_INTENSITY
-from .style import apply_theme, apply_ui_scale
+from .style import apply_theme, apply_ui_scale, set_theme_variant, variants_for
 
 log = get_logger("ui.preferences")
 
@@ -42,12 +41,12 @@ class PreferencesDialog(Adw.PreferencesWindow):
         self.on_library_updated = on_library_updated
 
         self.set_title(i18n.t("prefs.title"))
-        self.set_default_size(620, 540)
+        # Cada pestaña cabe entera sin desplazarse (General, Apariencia y Biblioteca)
+        self.set_default_size(640, 600)
         self.set_modal(True)
         if parent:
             self.set_transient_for(parent)
 
-        self._available_devices = get_available_devices()
         self._backdrop_save_id = 0
         self._build_ui()
 
@@ -63,12 +62,10 @@ class PreferencesDialog(Adw.PreferencesWindow):
         self.page_general.set_icon_name("preferences-system-symbolic")
 
         # Grupo: Idioma de la interfaz
-        self.group_lang = Adw.PreferencesGroup(
-            title=i18n.t("prefs.language"),
-            description=i18n.t("prefs.language_desc"),
-        )
+        self.group_lang = Adw.PreferencesGroup(title=i18n.t("prefs.language"))
         self.lang_row = Adw.ComboRow()
         self.lang_row.set_title(i18n.t("prefs.language"))
+        self.lang_row.set_subtitle(i18n.t("prefs.language_desc"))
         self.lang_row.set_model(Gtk.StringList.new(LANG_LABELS))
 
         curr_lang = i18n.get_language()
@@ -81,28 +78,6 @@ class PreferencesDialog(Adw.PreferencesWindow):
         self.group_lang.add(self.lang_row)
         self.page_general.add(self.group_lang)
 
-        # Grupo: Dispositivo de Salida de Audio
-        self.group_audio = Adw.PreferencesGroup(
-            title=i18n.t("prefs.audio_group"),
-            description=i18n.t("devices.group_desc"),
-        )
-        self.device_row = Adw.ComboRow()
-        self.device_row.set_title(i18n.t("prefs.audio_device"))
-
-        device_names = [d.name for d in self._available_devices]
-        self.device_row.set_model(Gtk.StringList.new(device_names))
-
-        curr_dev_id = self.cfg.get("audio_device_id", "default")
-        selected_idx = 0
-        for idx, dev in enumerate(self._available_devices):
-            if dev.id == curr_dev_id or (curr_dev_id in dev.id and curr_dev_id != "default"):
-                selected_idx = idx
-                break
-        self.device_row.set_selected(selected_idx)
-        self.device_row.connect("notify::selected", self._on_device_changed)
-        self.group_audio.add(self.device_row)
-        self.page_general.add(self.group_audio)
-
         # Grupo: Comportamiento al cerrar
         self.group_behavior = Adw.PreferencesGroup(title=i18n.t("prefs.behavior_group"))
         self.close_tray_row = Adw.SwitchRow()
@@ -112,6 +87,15 @@ class PreferencesDialog(Adw.PreferencesWindow):
         self.close_tray_row.connect("notify::active", self._on_close_to_tray_changed)
         self.group_behavior.add(self.close_tray_row)
         self.page_general.add(self.group_behavior)
+
+        self.add(self.page_general)
+
+        # =====================================================================
+        # PÁGINA 2: APARIENCIA
+        # =====================================================================
+        self.page_appearance = Adw.PreferencesPage()
+        self.page_appearance.set_title(i18n.t("prefs.appearance_page"))
+        self.page_appearance.set_icon_name("applications-graphics-symbolic")
 
         # Grupo: Apariencia e Interfaz
         self.group_ui = Adw.PreferencesGroup(title=i18n.t("prefs.ui_group"))
@@ -131,6 +115,21 @@ class PreferencesDialog(Adw.PreferencesWindow):
         self.theme_row.connect("notify::selected", self._on_theme_changed)
         self.group_ui.add(self.theme_row)
 
+        # Tono del tema claro: se aplica al instante para compararlos en vivo
+        # Tono: sus opciones son las del tema activo (claros u oscuros) y se aplican al instante
+        self._tone_mode = ""
+        self._tone_ids: list[str] = []
+        self._tone_updating = False
+        self.tone_row = Adw.ComboRow()
+        self.tone_row.set_title(i18n.t("prefs.tone"))
+        self.tone_row.connect("notify::selected", self._on_tone_changed)
+        self.group_ui.add(self.tone_row)
+        self._refresh_tone_row()
+        # Con el tema "Sistema", las opciones cambian si el escritorio pasa de claro a oscuro
+        self._dark_handler = Adw.StyleManager.get_default().connect(
+            "notify::dark", lambda *_: self._refresh_tone_row())
+        self.connect("close-request", self._on_close_request)
+
         self.scale_row = Adw.SpinRow.new_with_range(75, 150, 5)
         self.scale_row.set_title(i18n.t("prefs.scale"))
         self.scale_row.set_subtitle(i18n.t("prefs.scale_desc"))
@@ -138,16 +137,21 @@ class PreferencesDialog(Adw.PreferencesWindow):
         self.scale_row.connect("notify::value", self._on_ui_scale_changed)
         self.group_ui.add(self.scale_row)
 
-        self.page_general.add(self.group_ui)
+        self.oscilloscope_row = Adw.SwitchRow()
+        self.oscilloscope_row.set_title(i18n.t("prefs.oscilloscope_enabled"))
+        self.oscilloscope_row.set_subtitle(i18n.t("prefs.oscilloscope_desc"))
+        self.oscilloscope_row.set_active(self.cfg.get("oscilloscope_enabled", True))
+        self.oscilloscope_row.connect("notify::active", self._on_oscilloscope_changed)
+        self.group_ui.add(self.oscilloscope_row)
+
+        self.page_appearance.add(self.group_ui)
 
         # Grupo: Fondo del artista detrás de la biblioteca
-        self.group_backdrop = Adw.PreferencesGroup(
-            title=i18n.t("prefs.backdrop_group"),
-            description=i18n.t("prefs.backdrop_desc"),
-        )
+        self.group_backdrop = Adw.PreferencesGroup(title=i18n.t("prefs.backdrop_group"))
         self.backdrop_row = Adw.SwitchRow()
         self.backdrop_row.set_title(i18n.t("prefs.backdrop_enabled"))
-        self.backdrop_row.set_active(self.cfg.get("backdrop_enabled", True))
+        self.backdrop_row.set_subtitle(i18n.t("prefs.backdrop_desc"))
+        self.backdrop_row.set_active(self.cfg.get("backdrop_enabled", False))
         self.backdrop_row.connect("notify::active", self._on_backdrop_enabled_changed)
         self.group_backdrop.add(self.backdrop_row)
 
@@ -169,12 +173,12 @@ class PreferencesDialog(Adw.PreferencesWindow):
         self.backdrop_intensity_row.set_sensitive(self.backdrop_row.get_active())
         self.group_backdrop.add(self.backdrop_intensity_row)
 
-        self.page_general.add(self.group_backdrop)
+        self.page_appearance.add(self.group_backdrop)
 
-        self.add(self.page_general)
+        self.add(self.page_appearance)
 
         # =====================================================================
-        # PÁGINA 2: BIBLIOTECA MUSICAL
+        # PÁGINA 3: BIBLIOTECA MUSICAL
         # =====================================================================
         self.page_library = Adw.PreferencesPage()
         self.page_library.set_title(i18n.t("prefs.library_page"))
@@ -351,6 +355,38 @@ class PreferencesDialog(Adw.PreferencesWindow):
         if self.on_library_updated:
             self.on_library_updated()
 
+    def _active_tone_mode(self) -> str:
+        theme = self.cfg.get("theme", "system")
+        if theme in ("light", "dark"):
+            return theme
+        return "dark" if Adw.StyleManager.get_default().get_dark() else "light"
+
+    def _refresh_tone_row(self, force: bool = False):
+        """Rellena el desplegable con los tonos del tema activo y marca el guardado."""
+        mode = self._active_tone_mode()
+        if mode == self._tone_mode and not force:
+            return
+        self._tone_mode = mode
+        self._tone_ids = list(variants_for(mode))
+        self._tone_updating = True
+        self.tone_row.set_model(Gtk.StringList.new([i18n.t(f"prefs.tone_{mode}_{v}") for v in self._tone_ids]))
+        saved = self.cfg.get(f"{mode}_variant", self._tone_ids[0])
+        self.tone_row.set_selected(self._tone_ids.index(saved) if saved in self._tone_ids else 0)
+        self._tone_updating = False
+
+    def _on_tone_changed(self, row: Adw.ComboRow, _param):
+        idx = row.get_selected()
+        if self._tone_updating or not 0 <= idx < len(self._tone_ids):
+            return
+        variant = self._tone_ids[idx]
+        self.cfg[f"{self._tone_mode}_variant"] = variant
+        set_theme_variant(self._tone_mode, variant)
+        save_config(self.cfg)
+
+    def _on_close_request(self, *_args) -> bool:
+        Adw.StyleManager.get_default().disconnect(self._dark_handler)
+        return False
+
     def _update_theme_model(self):
         theme_names = [
             i18n.t("prefs.theme_system"),
@@ -361,19 +397,16 @@ class PreferencesDialog(Adw.PreferencesWindow):
 
     def _on_language_changed(self, _lang: str):
         self.group_backdrop.set_title(i18n.t("prefs.backdrop_group"))
-        self.group_backdrop.set_description(i18n.t("prefs.backdrop_desc"))
         self.backdrop_row.set_title(i18n.t("prefs.backdrop_enabled"))
+        self.backdrop_row.set_subtitle(i18n.t("prefs.backdrop_desc"))
         self.backdrop_intensity_row.set_title(i18n.t("prefs.backdrop_intensity"))
         self.backdrop_intensity_row.set_subtitle(i18n.t("prefs.backdrop_intensity_desc"))
         self.set_title(i18n.t("prefs.title"))
         self.page_general.set_title(i18n.t("prefs.general"))
+        self.page_appearance.set_title(i18n.t("prefs.appearance_page"))
         self.group_lang.set_title(i18n.t("prefs.language"))
-        self.group_lang.set_description(i18n.t("prefs.language_desc"))
         self.lang_row.set_title(i18n.t("prefs.language"))
-
-        self.group_audio.set_title(i18n.t("prefs.audio_group"))
-        self.group_audio.set_description(i18n.t("devices.group_desc"))
-        self.device_row.set_title(i18n.t("prefs.audio_device"))
+        self.lang_row.set_subtitle(i18n.t("prefs.language_desc"))
 
         self.group_behavior.set_title(i18n.t("prefs.behavior_group"))
         self.close_tray_row.set_title(i18n.t("prefs.close_to_tray"))
@@ -381,8 +414,11 @@ class PreferencesDialog(Adw.PreferencesWindow):
 
         self.group_ui.set_title(i18n.t("prefs.ui_group"))
         self.theme_row.set_title(i18n.t("prefs.theme"))
+        self.tone_row.set_title(i18n.t("prefs.tone"))
         self.scale_row.set_title(i18n.t("prefs.scale"))
         self.scale_row.set_subtitle(i18n.t("prefs.scale_desc"))
+        self.oscilloscope_row.set_title(i18n.t("prefs.oscilloscope_enabled"))
+        self.oscilloscope_row.set_subtitle(i18n.t("prefs.oscilloscope_desc"))
 
         self.page_library.set_title(i18n.t("prefs.library_page"))
         self.group_folders.set_title(i18n.t("prefs.library_folders_group"))
@@ -397,6 +433,7 @@ class PreferencesDialog(Adw.PreferencesWindow):
         sel = self.theme_row.get_selected()
         self._update_theme_model()
         self.theme_row.set_selected(sel)
+        self._refresh_tone_row(force=True)
 
     def _on_lang_changed(self, row: Adw.ComboRow, _param):
         idx = row.get_selected()
@@ -405,15 +442,6 @@ class PreferencesDialog(Adw.PreferencesWindow):
             self.cfg["language"] = lang_code
             save_config(self.cfg)
             i18n.set_language(lang_code)
-            if self.on_config_changed:
-                self.on_config_changed(self.cfg)
-
-    def _on_device_changed(self, row: Adw.ComboRow, _param):
-        idx = row.get_selected()
-        if 0 <= idx < len(self._available_devices):
-            dev = self._available_devices[idx]
-            self.cfg["audio_device_id"] = dev.id
-            save_config(self.cfg)
             if self.on_config_changed:
                 self.on_config_changed(self.cfg)
 
@@ -429,6 +457,7 @@ class PreferencesDialog(Adw.PreferencesWindow):
         theme = "system" if idx == 0 else ("light" if idx == 1 else "dark")
         self.cfg["theme"] = theme
         apply_theme(theme)
+        self._refresh_tone_row()
         save_config(self.cfg)
         if self.on_config_changed:
             self.on_config_changed(self.cfg)
@@ -462,6 +491,13 @@ class PreferencesDialog(Adw.PreferencesWindow):
         val = int(row.get_value())
         self.cfg["ui_scale"] = val
         apply_ui_scale(val)
+        save_config(self.cfg)
+        if self.on_config_changed:
+            self.on_config_changed(self.cfg)
+
+    def _on_oscilloscope_changed(self, row: Adw.SwitchRow, _param):
+        active = row.get_active()
+        self.cfg["oscilloscope_enabled"] = active
         save_config(self.cfg)
         if self.on_config_changed:
             self.on_config_changed(self.cfg)

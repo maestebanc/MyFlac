@@ -18,7 +18,7 @@ from .ui.main_window import MainWindow
 from .ui.shortcuts import register_app_shortcuts
 from .ui.tray import TrayIcon
 from .ui.preferences_dialog import PreferencesDialog
-from .ui.style import apply_theme, apply_ui_scale, load_extra_css, register_icon_theme
+from .ui.style import apply_theme, apply_ui_scale, load_extra_css, register_icon_theme, set_dark_variant, set_light_variant
 
 log = get_logger("app")
 
@@ -85,6 +85,8 @@ class MyFlacApplication(Adw.Application):
             cfg = config.load_config()
             log.info("Configuración cargada: %s", {k: v for k, v in cfg.items() if k != "last_directory"})
             apply_ui_scale(cfg.get("ui_scale", 100))
+            set_light_variant(cfg.get("light_variant", "slate"))
+            set_dark_variant(cfg.get("dark_variant", "obsidian"))
             apply_theme(cfg.get("theme", "system"))
 
             self.window = MainWindow(self, cfg)
@@ -102,6 +104,9 @@ class MyFlacApplication(Adw.Application):
         if not self.window:
             return
         log.info("Abriendo diálogo de preferencias")
+        cfg = self.window.cfg
+        self._last_prefs = {k: cfg.get(k) for k in
+                            ("audio_device_id", "language", "oscilloscope_enabled", "backdrop_enabled", "backdrop_intensity")}
         dlg = PreferencesDialog(
             cfg=self.window.cfg,
             db=self.window.db,
@@ -113,18 +118,37 @@ class MyFlacApplication(Adw.Application):
         dlg.present()
 
     def _on_preferences_changed(self, cfg: dict):
-        if self.window:
-            log.info(
-                "Preferencias modificadas: audio_device_id=%s, language=%s, theme=%s, close_to_tray=%s",
-                cfg.get("audio_device_id"),
-                cfg.get("language"),
-                cfg.get("theme"),
-                cfg.get("close_to_tray"),
-            )
-            target_device = cfg.get("audio_device_id", "default")
-            self.window.engine.set_device(target_device)
+        """Aplica solo lo que ha cambiado: el diálogo avisa en cada paso de un deslizador."""
+        if not self.window:
+            return
+        keys = ("audio_device_id", "language", "oscilloscope_enabled", "backdrop_enabled", "backdrop_intensity")
+        current = {k: cfg.get(k) for k in keys}
+        previous = getattr(self, "_last_prefs", {})
+        changed = {k for k in keys if current[k] != previous.get(k)}
+        self._last_prefs = current
+        if not changed:
+            return
+
+        if changed - {"backdrop_intensity"}:
+            log.info("Preferencias modificadas: %s", ", ".join(f"{k}={current[k]}" for k in sorted(changed)))
+
+        if "audio_device_id" in changed:
+            target_device = current["audio_device_id"] or "default"
+            if target_device != self.window.engine.device_id:
+                self.window._on_device_selected(target_device)
+        if changed & {"audio_device_id", "language"}:
             self.window._update_output_status()
+
+        if changed & {"backdrop_enabled", "backdrop_intensity"}:
             self.window.apply_backdrop_settings()
+
+        if "oscilloscope_enabled" in changed:
+            oscilloscope_enabled = current["oscilloscope_enabled"] if current["oscilloscope_enabled"] is not None else True
+            self.window.engine.set_levels_enabled(oscilloscope_enabled)
+            if self.window.inspector:
+                self.window.inspector.set_oscilloscope_enabled(oscilloscope_enabled)
+            if self.window.mini_player:
+                self.window.mini_player.set_oscilloscope_enabled(oscilloscope_enabled)
 
     def _open_log_file(self):
         log_path = get_log_path()
@@ -145,6 +169,8 @@ def main():
     GLib.set_prgname(APP_ID)
     GLib.set_application_name(APP_NAME)
     setup_logging(debug=True)
+    from . import watchdog
+    watchdog.install()
     log.info("Iniciando bucle de aplicación GTK4...")
     app = MyFlacApplication()
     ret = app.run(sys.argv)

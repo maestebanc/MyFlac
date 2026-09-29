@@ -14,9 +14,9 @@ from ..audio.devices import (
     find_device_by_id,
     get_available_devices,
     get_default_device,
-    resolve_hardware_device,
 )
 from ..audio.engine import AudioEngine, PlaybackState
+from .output_status import format_device_subtitle, output_status, volume_tooltip
 from ..audio.track import AudioTrack
 from .. import i18n
 
@@ -40,6 +40,10 @@ class AdaptiveCoverFrame(Gtk.AspectFrame):
             return (0, 0, -1, -1)
 
 
+_OUTPUT_SELECTOR_WIDTH = 236
+_OUTPUT_POPOVER_WIDTH = 340
+
+
 class PlayerBar(Gtk.Box):
     def __init__(self, engine: AudioEngine, on_device_click: Callable[[], None] | None = None):
         super().__init__(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
@@ -61,6 +65,8 @@ class PlayerBar(Gtk.Box):
         self.on_queue_track_removed: Callable[[int], None] | None = None
         self.on_clear_queue_clicked: Callable[[], None] | None = None
         self.on_device_selected: Callable[[AudioDevice], None] | None = None
+        self.on_device_exclusive_toggled: Callable[[AudioDevice, bool], None] | None = None
+        self.is_device_exclusive_enabled_cb: Callable[[AudioDevice], bool] | None = None
         self.on_exclusive_toggled: Callable[[bool], None] | None = None
         self.on_cover_clicked: Callable[[], None] | None = None
 
@@ -229,36 +235,51 @@ class PlayerBar(Gtk.Box):
         right_box.set_halign(Gtk.Align.END)
         right_box.set_valign(Gtk.Align.CENTER)
 
-        # Botón selector de dispositivo de audio en una sola línea elegante
+        # Selector de salida: ancho fijo para que ni el botón ni el desplegable se muevan
+        # según la longitud del nombre del dispositivo o el estado bit-perfect
         self.device_btn = Gtk.Button()
         self.device_btn.add_css_class("flat")
-        self.device_btn.add_css_class("audiophile-device-pill")
+        self.device_btn.add_css_class("output-selector")
+        self.device_btn.set_size_request(_OUTPUT_SELECTOR_WIDTH, -1)
+        self.device_btn.set_hexpand(False)
 
-        btn_content = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        btn_content = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
         btn_content.set_valign(Gtk.Align.CENTER)
 
         self.device_icon = Gtk.Image.new_from_icon_name("audio-card-symbolic")
         self.device_icon.set_pixel_size(16)
-        self.device_icon.add_css_class("accent")
+        self.device_icon.add_css_class("output-icon")
         btn_content.append(self.device_icon)
 
+        text_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+        text_box.set_hexpand(True)
+        text_box.set_valign(Gtk.Align.CENTER)
+
         self.device_label = Gtk.Label(label="", xalign=0.0)
-        self.device_label.add_css_class("device-name-label")
+        self.device_label.add_css_class("output-name")
         self.device_label.set_ellipsize(Pango.EllipsizeMode.END)
-        self.device_label.set_max_width_chars(22)
-        btn_content.append(self.device_label)
+        self.device_label.set_max_width_chars(1)  # El ancho lo fija el botón, no el texto
+        self.device_label.set_hexpand(True)
+        text_box.append(self.device_label)
 
-        # Píldora de transporte bit-perfect (visible solo con el modo exclusivo activo)
-        self.bitperfect_pill = Gtk.Label(label="⚡ BIT-PERFECT")
-        self.bitperfect_pill.add_css_class("bitperfect-pill")
-        self.bitperfect_pill.set_valign(Gtk.Align.CENTER)
-        self.bitperfect_pill.set_visible(False)
-        btn_content.append(self.bitperfect_pill)
+        status_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=5)
+        self.output_dot = Gtk.Box()
+        self.output_dot.add_css_class("output-dot")
+        self.output_dot.set_valign(Gtk.Align.CENTER)
+        status_box.append(self.output_dot)
+        self.output_status_label = Gtk.Label(label="", xalign=0.0)
+        self.output_status_label.add_css_class("output-status")
+        self.output_status_label.set_ellipsize(Pango.EllipsizeMode.END)
+        self.output_status_label.set_max_width_chars(1)
+        self.output_status_label.set_hexpand(True)
+        status_box.append(self.output_status_label)
+        text_box.append(status_box)
 
-        # Flecha indicadora de menú hacia arriba
+        btn_content.append(text_box)
+
         self.device_chevron = Gtk.Image.new_from_icon_name("pan-up-symbolic")
         self.device_chevron.set_pixel_size(12)
-        self.device_chevron.set_opacity(0.6)
+        self.device_chevron.add_css_class("output-chevron")
         self.device_chevron.set_valign(Gtk.Align.CENTER)
         btn_content.append(self.device_chevron)
 
@@ -266,8 +287,10 @@ class PlayerBar(Gtk.Box):
 
         # Popover desplegable hacia arriba para seleccionar dispositivo de audio
         self.device_popover = Gtk.Popover()
+        self.device_popover.add_css_class("output-popover")
         self.device_popover.set_parent(self.device_btn)
         self.device_popover.set_position(Gtk.PositionType.TOP)
+        self.device_popover.set_has_arrow(False)
         self.device_popover.set_autohide(True)
         self.device_btn.connect("clicked", self._toggle_device_popover)
         right_box.append(self.device_btn)
@@ -317,6 +340,7 @@ class PlayerBar(Gtk.Box):
         self.engine.add_state_listener(self._on_state_changed)
         self.engine.on_track_changed = self._on_track_changed
         self.engine.on_position_updated = self._on_position_updated
+        self.engine.add_output_listener(self.update_active_device)
 
     def _handle_play_click(self):
         if self.on_play_pause_clicked:
@@ -325,22 +349,51 @@ class PlayerBar(Gtk.Box):
             self.engine.toggle_play_pause()
 
     def update_active_device(self):
-        """Actualiza el texto e icono del botón de dispositivo de audio en una sola línea."""
-        dev = self.engine.hw_device or find_device_by_id(self.engine.device_id) \
-            or get_default_device(self.engine.device_id)
-        self.device_label.set_text(dev.name)
-        self.device_icon.set_from_icon_name(dev.icon_name or "audio-card-symbolic")
-        self.device_btn.set_tooltip_text(i18n.t("player.active_device", name=dev.name))
+        """Actualiza nombre, icono y estado de transporte del selector de salida."""
+        dev_id = self.engine.device_id
+        found = self.engine.hw_device or find_device_by_id(dev_id)
+        missing = found is None and dev_id not in ("default", "")
+        dev = found or get_default_device(dev_id)
+        if found is not None and dev_id not in ("default", ""):
+            self._last_device_name = dev.name
 
-        # En modo exclusivo el volumen queda fijo a 0 dB: se controla en el DAC o amplificador
-        exclusive = self.engine.exclusive_active
-        self.bitperfect_pill.set_visible(exclusive)
-        self.vol_btn.set_sensitive(not exclusive)
-        self.vol_btn.set_tooltip_text(i18n.t("player.volume_locked") if exclusive else i18n.t("player.volume"))
-        if exclusive:
-            self.vol_btn.set_icon_name("audio-volume-high-symbolic")
+        if missing:
+            # La salida elegida no está publicada: el audio va a la predeterminada del sistema
+            name = getattr(self, "_last_device_name", "") or dev_id
+            self.device_label.set_text(name)
+            self.device_icon.set_from_icon_name("dialog-warning-symbolic")
+            status, level, tooltip = (i18n.t("devices.unavailable"), "warn",
+                                      i18n.t("devices.wireplumber_lost", name=name))
+            self.output_status_label.set_text(status)
+            for cls in ("ok", "warn"):
+                self.output_dot.remove_css_class(cls)
+            self.output_dot.add_css_class(level)
+            self.device_btn.set_tooltip_text(tooltip)
         else:
-            self._on_volume_changed(self.vol_scale)
+            self.device_label.set_text(dev.name)
+            self.device_icon.set_from_icon_name(dev.icon_name or "audio-card-symbolic")
+            self._update_output_status_line(dev)
+
+        # En exclusivo la señal va a 0 dB: el volumen solo se ajusta si el DAC tiene control propio
+        self.vol_btn.set_sensitive(self.engine.volume_adjustable)
+        self.vol_btn.set_tooltip_text(volume_tooltip(self.engine))
+        if self.engine.volume_adjustable:
+            vol = self.engine.volume
+            if abs(self.vol_scale.get_value() - vol) > 0.001:
+                self.vol_scale.set_value(vol)  # Emite value-changed: actualiza el icono
+            else:
+                self._update_vol_icon(vol)
+        else:
+            self.vol_btn.set_icon_name("audio-volume-high-symbolic")
+
+    def _update_output_status_line(self, dev: AudioDevice):
+        status, level, tooltip = output_status(self.engine)
+        self.output_status_label.set_text(status)
+        for cls in ("ok", "warn"):
+            self.output_dot.remove_css_class(cls)
+        if level:
+            self.output_dot.add_css_class(level)
+        self.device_btn.set_tooltip_text(f"{i18n.t('player.active_device', name=dev.name)}\n{tooltip}")
 
     def _on_state_changed(self, state: PlaybackState):
         if state == PlaybackState.PLAYING:
@@ -372,7 +425,7 @@ class PlayerBar(Gtk.Box):
             self.hires_badge_label.add_css_class("hires-cd-badge")
 
         # Mini carátula adaptativa: textura HD nítida ajustada al marco 1:1
-        cover_info = track.get_cover_image_bytes()
+        cover_info = track.cached_cover()
         if cover_info:
             try:
                 data, _ = cover_info
@@ -415,6 +468,9 @@ class PlayerBar(Gtk.Box):
     def _on_volume_changed(self, scale: Gtk.Scale):
         val = scale.get_value()
         self.engine.set_volume(val)
+        self._update_vol_icon(val)
+
+    def _update_vol_icon(self, val: float):
         if val == 0:
             self.vol_btn.set_icon_name("audio-volume-muted-symbolic")
         elif val < 0.35:
@@ -435,27 +491,22 @@ class PlayerBar(Gtk.Box):
         self.device_popover.popup()
 
     def _rebuild_device_popover(self):
-        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
-        box.set_margin_top(10)
-        box.set_margin_bottom(10)
-        box.set_margin_start(10)
-        box.set_margin_end(10)
-        box.set_size_request(340, -1)
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+        box.set_margin_top(12)
+        box.set_margin_bottom(12)
+        box.set_margin_start(12)
+        box.set_margin_end(12)
+        box.set_size_request(_OUTPUT_POPOVER_WIDTH - 24, -1)
 
-        # Cabecera
-        header = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
-        lbl_title = Gtk.Label(label=i18n.t("devices.title"), xalign=0.0)
-        lbl_title.add_css_class("heading")
-        lbl_title.set_hexpand(True)
-        header.append(lbl_title)
-        box.append(header)
+        lbl_title = Gtk.Label(label=i18n.t("devices.popover_title"), xalign=0.0)
+        lbl_title.add_css_class("output-popover-title")
+        lbl_title.set_margin_start(4)
+        box.append(lbl_title)
 
-        # Scrolled con la lista de dispositivos (propagate_natural_height evita corte de interfaz)
         scrolled = Gtk.ScrolledWindow()
         scrolled.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
         scrolled.set_propagate_natural_height(True)
-        scrolled.set_propagate_natural_width(True)
-        scrolled.set_max_content_height(340)
+        scrolled.set_max_content_height(320)
 
         list_box = Gtk.ListBox()
         list_box.add_css_class("boxed-list")
@@ -470,60 +521,90 @@ class PlayerBar(Gtk.Box):
         ):
             devices = devices + [hw_dev]
 
+        # La salida elegida no está publicada (p. ej. WirePlumber no ha recuperado la tarjeta):
+        # se muestra atenuada en lugar de desaparecer sin explicación
+        missing_current = current_id not in ("default", "") and not any(
+            d.id != "default" and base_node_name(d.id) == base_node_name(current_id) for d in devices
+        )
+
+        current_dev: AudioDevice | None = None
         for dev in devices:
-            is_active = (dev.id == current_id) or (current_id in ("default", "") and dev.id == "default") \
-                or (current_id not in ("default", "") and base_node_name(dev.id) == base_node_name(current_id))
+            if current_id in ("default", ""):
+                is_active = dev.id == "default"
+            else:
+                is_active = dev.id != "default" and base_node_name(dev.id) == base_node_name(current_id)
+            if is_active:
+                current_dev = dev
+
             row = Adw.ActionRow()
             row.set_title(dev.name)
+            row.set_title_lines(1)
+            row.set_subtitle(format_device_subtitle(dev))
+            row.set_subtitle_lines(1)
+            row.set_tooltip_text(dev.description or dev.name)
 
-            if dev.description and dev.description != dev.name:
-                row.set_subtitle(dev.description)
-
-            # Icono según dispositivo (DAC / tarjeta / HDMI / red, sin redundar con volumen)
-            icon_name = dev.icon_name or "audio-card-symbolic"
-            icon = Gtk.Image.new_from_icon_name(icon_name)
-            icon.set_pixel_size(18)
+            icon = Gtk.Image.new_from_icon_name(dev.icon_name or "audio-card-symbolic")
+            icon.set_pixel_size(16)
+            icon.add_css_class("output-row-icon")
             row.add_prefix(icon)
 
-            if is_active:
-                check_icon = Gtk.Image.new_from_icon_name("object-select-symbolic")
-                check_icon.add_css_class("accent")
-                check_icon.set_pixel_size(16)
-                row.add_suffix(check_icon)
+            check_icon = Gtk.Image.new_from_icon_name("object-select-symbolic")
+            check_icon.set_pixel_size(16)
+            check_icon.add_css_class("accent")
+            check_icon.set_opacity(1.0 if is_active else 0.0)
+            row.add_suffix(check_icon)
 
             row.set_activatable(True)
+            row.connect("activated", lambda _row, d=dev: self._select_device_from_popover(d))
+            list_box.append(row)
 
-            def make_handler(target_dev):
-                return lambda *_: self._select_device_from_popover(target_dev)
-
-            row.connect("activated", make_handler(dev))
+        if missing_current:
+            row = Adw.ActionRow()
+            row.set_title(self.device_label.get_text() or current_id)
+            row.set_title_lines(1)
+            row.set_subtitle(i18n.t("devices.unavailable"))
+            row.set_subtitle_lines(1)
+            icon = Gtk.Image.new_from_icon_name("dialog-warning-symbolic")
+            icon.set_pixel_size(16)
+            icon.add_css_class("output-row-icon")
+            row.add_prefix(icon)
+            row.set_sensitive(False)
             list_box.append(row)
 
         scrolled.set_child(list_box)
         box.append(scrolled)
 
-        # Interruptor del modo exclusivo bit-perfect (se recuerda entre sesiones)
-        exclusive_list = Gtk.ListBox()
-        exclusive_list.add_css_class("boxed-list")
-        exclusive_list.set_selection_mode(Gtk.SelectionMode.NONE)
+        # Un único interruptor para la salida activa (la preferencia se guarda por dispositivo)
+        bp_list = Gtk.ListBox()
+        bp_list.add_css_class("boxed-list")
+        bp_list.set_selection_mode(Gtk.SelectionMode.NONE)
+        bp_row = Adw.SwitchRow()
+        bp_row.set_title(i18n.t("devices.exclusive_title"))
+        bp_row.set_subtitle_lines(2)
+        can_exclusive = current_dev is not None and current_dev.id != "default" and current_dev.hw_path is not None
+        if can_exclusive:
+            bp_row.set_subtitle(i18n.t("devices.exclusive_subtitle_short"))
+            if self.is_device_exclusive_enabled_cb:
+                bp_row.set_active(self.is_device_exclusive_enabled_cb(current_dev))
+            else:
+                bp_row.set_active(self.engine.exclusive)
 
-        exclusive_row = Adw.SwitchRow()
-        exclusive_row.set_title(i18n.t("devices.exclusive_title"))
-        supported = hw_dev is not None or resolve_hardware_device(current_id) is not None
-        exclusive_row.set_subtitle(
-            i18n.t("devices.exclusive_subtitle") if supported else i18n.t("devices.exclusive_unavailable")
-        )
-        exclusive_row.set_active(self.engine.exclusive)
-        exclusive_row.set_sensitive(supported or self.engine.exclusive)
-        exclusive_row.connect("notify::active", self._on_exclusive_row_toggled)
-        exclusive_list.append(exclusive_row)
-        box.append(exclusive_list)
+            def _on_bp_toggled(row, _pspec, target_dev=current_dev):
+                if self.on_device_exclusive_toggled:
+                    self.on_device_exclusive_toggled(target_dev, row.get_active())
 
-        self.device_popover.set_child(box)
+            bp_row.connect("notify::active", _on_bp_toggled)
+        else:
+            bp_row.set_subtitle(i18n.t("devices.exclusive_unavailable_short"))
+            bp_row.set_sensitive(False)
+        bp_list.append(bp_row)
+        box.append(bp_list)
 
-    def _on_exclusive_row_toggled(self, row: Adw.SwitchRow, _param):
-        if self.on_exclusive_toggled and row.get_active() != self.engine.exclusive:
-            self.on_exclusive_toggled(row.get_active())
+        # Ancho fijo: set_size_request solo fija el mínimo; el Clamp impide que un nombre o
+        # subtítulo largo ensanche el desplegable (los textos se recortan con elipsis)
+        clamp = Adw.Clamp(maximum_size=_OUTPUT_POPOVER_WIDTH, tightening_threshold=_OUTPUT_POPOVER_WIDTH)
+        clamp.set_child(box)
+        self.device_popover.set_child(clamp)
 
     def _select_device_from_popover(self, dev: AudioDevice):
         if self.on_device_selected:
