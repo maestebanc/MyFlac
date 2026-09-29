@@ -44,7 +44,7 @@
       <a href="#" class="brand">
         <img src="assets/icon.svg" alt="MyFlac Logo" class="brand-icon" width="36" height="36">
         <span class="brand-name">MyFlac</span>
-        <span class="version-badge">v0.1.2</span>
+        <span class="version-badge">v0.2.0</span>
       </a>
 
       <nav class="nav-menu" id="navMenu">
@@ -104,7 +104,7 @@
       <div class="container hero-container">
         <div class="hero-badge">
           <span class="badge-dot"></span>
-          <span data-i18n="hero_badge">Diseñado nativamente para GNOME &amp; Linux • Audio Bit-Perfect</span>
+          <span data-i18n="hero_badge">Nuevo en v0.2.0 • DSD nativo, volumen del DAC y temas a tu gusto</span>
         </div>
 
         <h1 class="hero-title" data-i18n="hero_title">
@@ -224,9 +224,9 @@
                 <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
               </svg>
             </div>
-            <h3 class="feature-title" data-i18n="feat_bitperfect_title">Sonido Puro Bit-Perfect</h3>
+            <h3 class="feature-title" data-i18n="feat_bitperfect_title">Sonido Puro Bit-Perfect y DSD Nativo</h3>
             <p class="feature-desc" data-i18n="feat_bitperfect_desc">
-              Acceso directo por hardware a tu DAC mediante ALSA exclusivo y reserva D-Bus frente a PipeWire. Sin remuestreo forzado, sin dither y a 0 dB digitales. Tu música suena exactamente como se masterizó.
+              Acceso directo por hardware a tu DAC mediante ALSA exclusivo, negociado con PipeWire sin que el sistema pierda el dispositivo. Sin remuestreo ni dither, DSD nativo en DAC compatibles y volumen controlado en el propio DAC. El selector te dice en todo momento qué llega realmente.
             </p>
           </div>
 
@@ -254,9 +254,9 @@
                 <polyline points="21 15 16 10 5 21"></polyline>
               </svg>
             </div>
-            <h3 class="feature-title" data-i18n="feat_backdrop_title">Fondo Ambiental y Foto del Artista</h3>
+            <h3 class="feature-title" data-i18n="feat_backdrop_title">Temas Claros y Oscuros a tu Gusto</h3>
             <p class="feature-desc" data-i18n="feat_backdrop_desc">
-              La biblioteca cobra vida con la foto del artista desenfocada en segundo plano con tinte adaptativo. No estorba la lectura y aporta una atmósfera moderna y cálida.
+              Diez tonos para leer sin fatiga: Papel cálido y Obsidiana por defecto, más Pizarra, Grafito, Salvia, Medianoche, Espresso u OLED. Y, si quieres, la foto del artista desenfocada detrás de tu biblioteca.
             </p>
           </div>
 
@@ -321,7 +321,7 @@
         <div class="formats-pills">
           <span class="format-pill"><strong>FLAC</strong> (hasta 24-bit / 192 kHz)</span>
           <span class="format-pill"><strong>WAV</strong> &amp; <strong>AIFF</strong> (PCM sin compresión)</span>
-          <span class="format-pill"><strong>DSD</strong> (DSF / DFF — Bit-Perfect)</span>
+          <span class="format-pill"><strong>DSD</strong> (DSF / DFF — nativo en DAC compatibles)</span>
           <span class="format-pill"><strong>ALAC</strong> (Apple Lossless)</span>
           <span class="format-pill"><strong>MP3</strong> (VBR / 320 kbps)</span>
           <span class="format-pill"><strong>M4A / AAC</strong></span>
@@ -354,10 +354,10 @@
             </div>
             <p class="dl-desc">Instalación aislada, segura y con todas las dependencias integradas (GNOME 50 Platform).</p>
             <div class="code-box">
-              <code>flatpak install myflac-0.1.2.flatpak</code>
-              <button class="code-copy-btn" data-copy="flatpak install myflac-0.1.2.flatpak" title="Copiar comando">Copiar</button>
+              <code>flatpak install myflac-0.2.0.flatpak</code>
+              <button class="code-copy-btn" data-copy="flatpak install myflac-0.2.0.flatpak" title="Copiar comando">Copiar</button>
             </div>
-            <a href="https://github.com/maestebanc/MyFlac/releases/download/v0.1.2/myflac-0.1.2.flatpak" class="btn btn-primary btn-block">
+            <a href="https://github.com/maestebanc/MyFlac/releases/download/v0.2.0/myflac-0.2.0.flatpak" class="btn btn-primary btn-block">
               Descargar .flatpak (5.4 MB)
             </a>
           </div>
@@ -373,10 +373,10 @@
             </div>
             <p class="dl-desc">Integración completa con el sistema para Fedora 40/41/42+ y distribuciones RPM.</p>
             <div class="code-box">
-              <code>sudo dnf install ./myflac-0.1.2-1.noarch.rpm</code>
-              <button class="code-copy-btn" data-copy="sudo dnf install ./myflac-0.1.2-1.noarch.rpm" title="Copiar comando">Copiar</button>
+              <code>sudo dnf install ./myflac-0.2.0-1.noarch.rpm</code>
+              <button class="code-copy-btn" data-copy="sudo dnf install ./myflac-0.2.0-1.noarch.rpm" title="Copiar comando">Copiar</button>
             </div>
-            <a href="https://github.com/maestebanc/MyFlac/releases/download/v0.1.2/myflac-0.1.2-1.noarch.rpm" class="btn btn-secondary btn-block">
+            <a href="https://github.com/maestebanc/MyFlac/releases/download/v0.2.0/myflac-0.2.0-1.noarch.rpm" class="btn btn-secondary btn-block">
               Descargar .rpm (487 KB)
             </a>
           </div>
@@ -392,10 +392,10 @@
             </div>
             <p class="dl-desc">Paquete deb estándar con resolución de dependencias mediante apt.</p>
             <div class="code-box">
-              <code>sudo apt install ./myflac_0.1.2-1_all.deb</code>
-              <button class="code-copy-btn" data-copy="sudo apt install ./myflac_0.1.2-1_all.deb" title="Copiar comando">Copiar</button>
+              <code>sudo apt install ./myflac_0.2.0-1_all.deb</code>
+              <button class="code-copy-btn" data-copy="sudo apt install ./myflac_0.2.0-1_all.deb" title="Copiar comando">Copiar</button>
             </div>
-            <a href="https://github.com/maestebanc/MyFlac/releases/download/v0.1.2/myflac_0.1.2-1_all.deb" class="btn btn-secondary btn-block">
+            <a href="https://github.com/maestebanc/MyFlac/releases/download/v0.2.0/myflac_0.2.0-1_all.deb" class="btn btn-secondary btn-block">
               Descargar .deb (215 KB)
             </a>
           </div>
@@ -411,10 +411,10 @@
             </div>
             <p class="dl-desc">Paquete binario optimizado con compresión zstandard para pacman.</p>
             <div class="code-box">
-              <code>sudo pacman -U myflac-0.1.2-1-any.pkg.tar.zst</code>
-              <button class="code-copy-btn" data-copy="sudo pacman -U myflac-0.1.2-1-any.pkg.tar.zst" title="Copiar comando">Copiar</button>
+              <code>sudo pacman -U myflac-0.2.0-1-any.pkg.tar.zst</code>
+              <button class="code-copy-btn" data-copy="sudo pacman -U myflac-0.2.0-1-any.pkg.tar.zst" title="Copiar comando">Copiar</button>
             </div>
-            <a href="https://github.com/maestebanc/MyFlac/releases/download/v0.1.2/myflac-0.1.2-1-any.pkg.tar.zst" class="btn btn-secondary btn-block">
+            <a href="https://github.com/maestebanc/MyFlac/releases/download/v0.2.0/myflac-0.2.0-1-any.pkg.tar.zst" class="btn btn-secondary btn-block">
               Descargar .pkg.tar.zst (246 KB)
             </a>
           </div>

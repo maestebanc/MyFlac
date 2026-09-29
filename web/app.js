@@ -19,7 +19,7 @@ const translations = {
     nav_download: "Descargar",
 
     // Hero
-    hero_badge: "Diseñado nativamente para GNOME & Linux • Audio Bit-Perfect",
+    hero_badge: "Nuevo en v0.2.0 • DSD nativo, volumen del DAC y temas a tu gusto",
     hero_title: "Tu música en máxima fidelidad, sin rodeos",
     hero_subtitle: "Un reproductor audiófilo moderno, rápido y elegante para Linux. Envía el audio directo a tu DAC sin alteraciones, muestra letras sincronizadas en tiempo real y enriquece tu colección con fichas de Wikipedia y Discogs.",
     btn_download: "Descargar para Linux",
@@ -36,14 +36,14 @@ const translations = {
     about_title: "Por qué MyFlac",
     about_subtitle: "Diseñado pensando en quien ama escuchar música con calma, apreciar cada instrumento y disfrutar de una experiencia visual a la altura de su equipo.",
 
-    feat_bitperfect_title: "Sonido Puro Bit-Perfect",
-    feat_bitperfect_desc: "Acceso directo por hardware a tu DAC mediante ALSA exclusivo y reserva D-Bus frente a PipeWire. Sin remuestreo forzado, sin dither y a 0 dB digitales. Tu música suena exactamente como se masterizó.",
+    feat_bitperfect_title: "Sonido Puro Bit-Perfect y DSD Nativo",
+    feat_bitperfect_desc: "Acceso directo por hardware a tu DAC mediante ALSA exclusivo, negociado con PipeWire sin que el sistema pierda el dispositivo. Sin remuestreo ni dither, DSD nativo en DAC compatibles y volumen controlado en el propio DAC. El selector te dice en todo momento qué llega realmente.",
 
     feat_lyrics_title: "Letras Sincronizadas estilo Roon",
     feat_lyrics_desc: "Descarga automática de letras sincronizadas (LRC). El texto avanza verso a verso centrado en pantalla, se atenúa al pasar y puedes hacer clic en cualquier línea para saltar a ese segundo exacto.",
 
-    feat_backdrop_title: "Fondo Ambiental y Foto del Artista",
-    feat_backdrop_desc: "La biblioteca cobra vida con la foto del artista desenfocada en segundo plano con tinte adaptativo. No estorba la lectura y aporta una atmósfera moderna y cálida.",
+    feat_backdrop_title: "Temas Claros y Oscuros a tu Gusto",
+    feat_backdrop_desc: "Diez tonos para leer sin fatiga: Papel cálido y Obsidiana por defecto, más Pizarra, Grafito, Salvia, Medianoche, Espresso u OLED. Y, si quieres, la foto del artista desenfocada detrás de tu biblioteca.",
 
     feat_info_title: "Fichas de Wikipedia y Discogs",
     feat_info_desc: "Pestañas integradas para explorar la historia del tema, el disco y el artista: año, sello, créditos de músicos y productores, y notas de edición, traducidas automáticamente a tu idioma.",
@@ -87,7 +87,7 @@ const translations = {
     nav_download: "Download",
 
     // Hero
-    hero_badge: "Natively designed for GNOME & Linux • Bit-Perfect Audio",
+    hero_badge: "New in v0.2.0 • Native DSD, DAC hardware volume and themes your way",
     hero_title: "Your music in pristine fidelity, with zero fuss",
     hero_subtitle: "A modern, fast, and elegant audiophile player for Linux. Sends audio straight to your DAC untouched, displays real-time synchronized lyrics, and enriches your library with Wikipedia and Discogs metadata.",
     btn_download: "Download for Linux",
@@ -104,14 +104,14 @@ const translations = {
     about_title: "Why MyFlac",
     about_subtitle: "Created for those who love mindful listening, savoring every instrument, and enjoying a visual experience that honors their audio gear.",
 
-    feat_bitperfect_title: "Pure Bit-Perfect Audio",
-    feat_bitperfect_desc: "Direct hardware output to your DAC via exclusive ALSA with D-Bus device reservation against PipeWire. No forced resampling, no digital dither, and fixed 0 dB volume.",
+    feat_bitperfect_title: "Pure Bit-Perfect Audio & Native DSD",
+    feat_bitperfect_desc: "Direct hardware output to your DAC via exclusive ALSA, negotiated with PipeWire so the system never loses the device. No resampling or dither, native DSD on capable DACs and volume handled by the DAC itself. The output selector always shows what really reaches it.",
 
     feat_lyrics_title: "Roon-Style Synced Lyrics",
     feat_lyrics_desc: "Automatic real-time lyrics (LRC). Lines scroll smoothly centered on screen, past lyrics dim gently, and clicking any line jumps immediately to that exact second.",
 
-    feat_backdrop_title: "Ambient Backdrop & Artist Art",
-    feat_backdrop_desc: "Your library comes alive with an enlarged, softly blurred artist photo tinted to match the colors. Keeps text crystal clear while providing a warm, modern feel.",
+    feat_backdrop_title: "Light & Dark Themes Your Way",
+    feat_backdrop_desc: "Ten easy-on-the-eyes tones: Warm Paper and Obsidian by default, plus Slate, Graphite, Sage, Midnight, Espresso or OLED. And, if you like, the blurred artist photo behind your library.",
 
     feat_info_title: "Wikipedia & Discogs Insights",
     feat_info_desc: "Integrated tabs exploring the story behind the song, album, and artist: release year, label, musicians and producers credits, and liner notes, auto-translated to your language.",
@@ -155,7 +155,7 @@ const translations = {
     nav_download: "Descarregar",
 
     // Hero
-    hero_badge: "Dissenyat nativament per a GNOME & Linux • Àudio Bit-Perfect",
+    hero_badge: "Nou a la v0.2.0 • DSD natiu, volum del DAC i temes al teu gust",
     hero_title: "La teva música amb la màxima fidelitat, sense dreceres",
     hero_subtitle: "Un reproductor audiòfil modern, ràpid i elegant per a Linux. Envia l'àudio directe al teu DAC sense alteracions, mostra lletres sincronitzades en temps real i enriqueix la teva col·lecció amb fitxes de Wikipedia i Discogs.",
     btn_download: "Descarregar per a Linux",
@@ -172,14 +172,14 @@ const translations = {
     about_title: "Per què MyFlac",
     about_subtitle: "Dissenyat pensant en qui estima escoltar música amb calma, apreciar cada instrument i gaudir d'una experiència visual a l'alçada del seu equip.",
 
-    feat_bitperfect_title: "So Pur Bit-Perfect",
-    feat_bitperfect_desc: "Accés directe per maquinari al teu DAC mitjançant ALSA exclusiu i reserva D-Bus davant de PipeWire. Sense remostreig forçat, sense dither i a 0 dB digitals. La teva música sona exactament com es va masteritzar.",
+    feat_bitperfect_title: "So Pur Bit-Perfect i DSD Natiu",
+    feat_bitperfect_desc: "Accés directe per maquinari al teu DAC mitjançant ALSA exclusiu, negociat amb PipeWire sense que el sistema perdi el dispositiu. Sense remostreig ni dither, DSD natiu als DAC compatibles i volum controlat al mateix DAC. El selector et diu en tot moment què hi arriba realment.",
 
     feat_lyrics_title: "Lletres Sincronitzades estil Roon",
     feat_lyrics_desc: "Descàrrega automàtica de lletres sincronitzades (LRC). El text avança vers a vers centrat en pantalla, s'atenua en passar i pots fer clic en qualsevol línia per saltar a aquell segon exacte.",
 
-    feat_backdrop_title: "Fons Ambiental i Foto de l'Artista",
-    feat_backdrop_desc: "La biblioteca pren vida amb la foto de l'artista desenfocada en segon pla amb tint adaptatiu. No molesta la lectura i aporta una atmosfera moderna i càlida.",
+    feat_backdrop_title: "Temes Clars i Foscos al teu Gust",
+    feat_backdrop_desc: "Deu tons per llegir sense fatiga: Paper càlid i Obsidiana per defecte, més Pissarra, Grafit, Sàlvia, Mitjanit, Espresso o OLED. I, si vols, la foto de l'artista desenfocada darrere la teva biblioteca.",
 
     feat_info_title: "Fitxes de Wikipedia i Discogs",
     feat_info_desc: "Pestanyes integrades per explorar la història del tema, el disc i l'artista: any, segell, crèdits de músics i productors, i notes d'edició, traduïdes automàticament al teu idioma.",
