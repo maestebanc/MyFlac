@@ -350,7 +350,7 @@ function initCarousel() {
     if (!isLightboxActive) {
       carouselAutoplayTimer = setInterval(() => {
         updateSlide(currentSlideIndex + 1, false);
-      }, 5000);
+      }, 3000);
     }
   }
 
