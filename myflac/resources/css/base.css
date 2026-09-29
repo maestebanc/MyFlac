@@ -573,7 +573,10 @@ paned > separator:hover {
    Super-Reproductor a Pantalla Completa (Hi-Fi Ambient Canvas)
    ========================================================================= */
 
+/* El super-reproductor siempre tiene fondo oscuro: su texto es claro con cualquier tema. Sin esto,
+   con el tema claro las pestañas, las fichas y "Letra sincronizada" heredaban texto oscuro. */
 .super-player-ambient-bg {
+    color: #f1f5f9;
     background: radial-gradient(
         circle at 28% 46%,
         rgba(30, 48, 80, 0.45) 0%,
@@ -622,6 +625,31 @@ paned > separator:hover {
 
 .super-player-info-tabs toggle {
     padding: 6px 14px;
+}
+
+/* Pestañas translúcidas pensadas para el fondo oscuro, iguales en tema claro y oscuro */
+.super-player-info-tabs {
+    background-color: rgba(255, 255, 255, 0.07);
+    color: rgba(241, 245, 249, 0.72);
+}
+
+.super-player-info-tabs toggle {
+    color: inherit;
+}
+
+.super-player-info-tabs toggle:hover:not(:checked) {
+    background-color: rgba(255, 255, 255, 0.06);
+    color: #f1f5f9;
+}
+
+.super-player-info-tabs toggle:checked {
+    background-color: rgba(255, 255, 255, 0.16);
+    color: #ffffff;
+    box-shadow: none;
+}
+
+.super-player-info-tabs separator {
+    background-color: rgba(255, 255, 255, 0.10);
 }
 
 .super-player-container {
