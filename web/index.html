@@ -4,7 +4,53 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>MyFlac — Reproductor de música Hi-Res y Bit-Perfect para Linux</title>
-  <meta name="description" content="MyFlac es un reproductor audiófilo nativo para GNOME y Linux con sonido bit-perfect, letras sincronizadas, fichas de Wikipedia y Discogs, y diseño GTK4 / Libadwaita.">
+  <meta name="description" content="MyFlac es un reproductor de música audiófilo y gratuito para Linux y GNOME: sonido bit-perfect, DSD nativo, volumen del DAC, letras sincronizadas y fichas de Wikipedia y Discogs.">
+  <!-- Buscadores: dirección canónica, versiones por idioma y ficha de aplicación -->
+  <link rel="canonical" href="https://maestebanc.github.io/MyFlac/">
+  <link rel="alternate" hreflang="es" href="https://maestebanc.github.io/MyFlac/">
+  <link rel="alternate" hreflang="en" href="https://maestebanc.github.io/MyFlac/en/">
+  <link rel="alternate" hreflang="ca" href="https://maestebanc.github.io/MyFlac/ca/">
+  <link rel="alternate" hreflang="x-default" href="https://maestebanc.github.io/MyFlac/en/">
+  <meta name="keywords" content="reproductor de música Linux, bit-perfect, DSD nativo, FLAC, Hi-Res, audiófilo, DAC, GNOME, GTK4, Libadwaita, Flatpak, PipeWire, ALSA">
+  <meta name="author" content="Miguel Angel Esteban">
+  <meta name="robots" content="index, follow">
+  <script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "MyFlac",
+  "description": "Reproductor de música audiófilo para Linux y GNOME: sonido bit-perfect por ALSA exclusivo, DSD nativo, volumen por hardware del DAC, letras sincronizadas y fichas de Wikipedia y Discogs.",
+  "applicationCategory": "MultimediaApplication",
+  "applicationSubCategory": "Music player",
+  "operatingSystem": "Linux",
+  "softwareVersion": "0.2.0",
+  "url": "https://maestebanc.github.io/MyFlac/",
+  "downloadUrl": "https://maestebanc.github.io/MyFlac/myflac.flatpakref",
+  "installUrl": "https://maestebanc.github.io/MyFlac/myflac.flatpakref",
+  "screenshot": [
+    "https://maestebanc.github.io/MyFlac/assets/main-window-dark.webp",
+    "https://maestebanc.github.io/MyFlac/assets/super-player-dark.webp",
+    "https://maestebanc.github.io/MyFlac/assets/mini-player-dark.webp"
+  ],
+  "image": "https://maestebanc.github.io/MyFlac/assets/og-preview.jpg",
+  "license": "https://www.gnu.org/licenses/gpl-3.0.html",
+  "isAccessibleForFree": true,
+  "offers": {
+    "@type": "Offer",
+    "price": "0",
+    "priceCurrency": "EUR"
+  },
+  "author": {
+    "@type": "Person",
+    "name": "Miguel Angel Esteban"
+  },
+  "sameAs": [
+    "https://github.com/maestebanc/MyFlac"
+  ],
+  "inLanguage": "es"
+}
+  </script>
+
   <link rel="icon" type="image/svg+xml" href="assets/icon.svg">
   <link rel="alternate icon" type="image/png" href="assets/icon-512.png">
   <script>
@@ -21,9 +67,11 @@
   
   <!-- Open Graph / WhatsApp / Facebook -->
   <meta property="og:type" content="website">
+  <meta property="og:locale" content="es_ES">
+  <meta property="og:site_name" content="MyFlac">
   <meta property="og:url" content="https://maestebanc.github.io/MyFlac/">
   <meta property="og:title" content="MyFlac — Reproductor de música Hi-Res y Bit-Perfect para Linux">
-  <meta property="og:description" content="Reproductor audiófilo nativo GTK4/Libadwaita con sonido bit-perfect, letras sincronizadas y fondo ambiental.">
+  <meta property="og:description" content="Reproductor audiófilo nativo GTK4/Libadwaita con sonido bit-perfect, DSD nativo, volumen del DAC y letras sincronizadas.">
   <meta property="og:image" content="https://maestebanc.github.io/MyFlac/assets/og-preview.jpg">
   <meta property="og:image:secure_url" content="https://maestebanc.github.io/MyFlac/assets/og-preview.jpg">
   <meta property="og:image:type" content="image/jpeg">
@@ -34,7 +82,7 @@
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:url" content="https://maestebanc.github.io/MyFlac/">
   <meta name="twitter:title" content="MyFlac — Reproductor de música Hi-Res y Bit-Perfect para Linux">
-  <meta name="twitter:description" content="Reproductor audiófilo nativo GTK4/Libadwaita con sonido bit-perfect, letras sincronizadas y fondo ambiental.">
+  <meta name="twitter:description" content="Reproductor audiófilo nativo GTK4/Libadwaita con sonido bit-perfect, DSD nativo, volumen del DAC y letras sincronizadas.">
   <meta name="twitter:image" content="https://maestebanc.github.io/MyFlac/assets/og-preview.jpg">
 </head>
 <body>
@@ -67,9 +115,9 @@
       <div class="header-actions">
         <!-- Selector Trilingüe -->
         <div class="lang-switcher" role="group" aria-label="Selector de idioma">
-          <button class="lang-btn" data-lang="es" title="Español">ES</button>
-          <button class="lang-btn" data-lang="en" title="English">EN</button>
-          <button class="lang-btn" data-lang="ca" title="Català">CA</button>
+          <a class="lang-btn" data-lang="es" href="./" hreflang="es" lang="es" title="Español">ES</a>
+          <a class="lang-btn" data-lang="en" href="en/" hreflang="en" lang="en" title="English">EN</a>
+          <a class="lang-btn" data-lang="ca" href="ca/" hreflang="ca" lang="ca" title="Català">CA</a>
         </div>
 
         <!-- Selector de Tema -->
@@ -333,9 +381,9 @@
         </div>
 
         <div class="formats-pills">
-          <span class="format-pill"><strong>FLAC</strong> (hasta 24-bit / 192 kHz)</span>
-          <span class="format-pill"><strong>WAV</strong> &amp; <strong>AIFF</strong> (PCM sin compresión)</span>
-          <span class="format-pill"><strong>DSD</strong> (DSF / DFF — nativo en DAC compatibles)</span>
+          <span class="format-pill"><strong>FLAC</strong> <span data-i18n="fmt_flac">(hasta 24-bit / 384 kHz)</span></span>
+          <span class="format-pill"><strong>WAV</strong> &amp; <strong>AIFF</strong> <span data-i18n="fmt_wav">(PCM sin compresión)</span></span>
+          <span class="format-pill"><strong>DSD</strong> <span data-i18n="fmt_dsd">(DSF / DFF — nativo en DAC compatibles)</span></span>
           <span class="format-pill"><strong>ALAC</strong> (Apple Lossless)</span>
           <span class="format-pill"><strong>MP3</strong> (VBR / 320 kbps)</span>
           <span class="format-pill"><strong>M4A / AAC</strong></span>
@@ -358,18 +406,18 @@
         <div class="download-grid">
           <!-- Flatpak Card -->
           <div class="download-card featured">
-            <div class="dl-badge">Recomendado</div>
+            <div class="dl-badge" data-i18n="dl_recommended">Recomendado</div>
             <div class="dl-header">
               <div class="dl-icon">📦</div>
               <div>
                 <h3 class="dl-name">Flatpak</h3>
-                <span class="dl-distro">Cualquier distribución Linux</span>
+                <span class="dl-distro" data-i18n="dl_any_distro">Cualquier distribución Linux</span>
               </div>
             </div>
             <p class="dl-desc" data-i18n="dl_flatpak_desc">Instalación aislada y segura, con actualizaciones automáticas desde GNOME Software o Discover.</p>
             <div class="code-box">
               <code>flatpak install --from https://maestebanc.github.io/MyFlac/myflac.flatpakref</code>
-              <button class="code-copy-btn" data-copy="flatpak install --from https://maestebanc.github.io/MyFlac/myflac.flatpakref" title="Copiar comando">Copiar</button>
+              <button class="code-copy-btn" data-copy="flatpak install --from https://maestebanc.github.io/MyFlac/myflac.flatpakref" title="Copiar comando" data-i18n="copy_btn">Copiar</button>
             </div>
             <a href="myflac.flatpakref" type="application/vnd.flatpak.ref" class="btn btn-primary btn-block" data-i18n="dl_flatpak_install">
               Instalar con actualizaciones automáticas
@@ -385,16 +433,16 @@
               <div class="dl-icon">🎩</div>
               <div>
                 <h3 class="dl-name">Fedora / RHEL</h3>
-                <span class="dl-distro">Paquete RPM nativo</span>
+                <span class="dl-distro" data-i18n="dl_rpm_type">Paquete RPM nativo</span>
               </div>
             </div>
-            <p class="dl-desc">Integración completa con el sistema para Fedora 40/41/42+ y distribuciones RPM.</p>
+            <p class="dl-desc" data-i18n="dl_rpm_desc">Integración completa con el sistema para Fedora 40/41/42+ y distribuciones RPM.</p>
             <div class="code-box">
               <code>sudo dnf install ./myflac-0.2.0-1.noarch.rpm</code>
-              <button class="code-copy-btn" data-copy="sudo dnf install ./myflac-0.2.0-1.noarch.rpm" title="Copiar comando">Copiar</button>
+              <button class="code-copy-btn" data-copy="sudo dnf install ./myflac-0.2.0-1.noarch.rpm" title="Copiar comando" data-i18n="copy_btn">Copiar</button>
             </div>
-            <a href="https://github.com/maestebanc/MyFlac/releases/download/v0.2.0/myflac-0.2.0-1.noarch.rpm" class="btn btn-secondary btn-block">
-              Descargar .rpm (487 KB)
+            <a href="https://github.com/maestebanc/MyFlac/releases/download/v0.2.0/myflac-0.2.0-1.noarch.rpm" class="btn btn-secondary btn-block" data-i18n="dl_rpm_btn">
+              Descargar .rpm (536 KB)
             </a>
           </div>
 
@@ -407,13 +455,13 @@
                 <span class="dl-distro">Ubuntu 24.04+, Debian 13+</span>
               </div>
             </div>
-            <p class="dl-desc">Paquete deb estándar con resolución de dependencias mediante apt.</p>
+            <p class="dl-desc" data-i18n="dl_deb_desc">Paquete deb estándar con resolución de dependencias mediante apt.</p>
             <div class="code-box">
               <code>sudo apt install ./myflac_0.2.0-1_all.deb</code>
-              <button class="code-copy-btn" data-copy="sudo apt install ./myflac_0.2.0-1_all.deb" title="Copiar comando">Copiar</button>
+              <button class="code-copy-btn" data-copy="sudo apt install ./myflac_0.2.0-1_all.deb" title="Copiar comando" data-i18n="copy_btn">Copiar</button>
             </div>
-            <a href="https://github.com/maestebanc/MyFlac/releases/download/v0.2.0/myflac_0.2.0-1_all.deb" class="btn btn-secondary btn-block">
-              Descargar .deb (215 KB)
+            <a href="https://github.com/maestebanc/MyFlac/releases/download/v0.2.0/myflac_0.2.0-1_all.deb" class="btn btn-secondary btn-block" data-i18n="dl_deb_btn">
+              Descargar .deb (231 KB)
             </a>
           </div>
 
@@ -426,13 +474,13 @@
                 <span class="dl-distro">Arch, Manjaro, EndeavourOS</span>
               </div>
             </div>
-            <p class="dl-desc">Paquete binario optimizado con compresión zstandard para pacman.</p>
+            <p class="dl-desc" data-i18n="dl_arch_desc">Paquete binario optimizado con compresión zstandard para pacman.</p>
             <div class="code-box">
               <code>sudo pacman -U myflac-0.2.0-1-any.pkg.tar.zst</code>
-              <button class="code-copy-btn" data-copy="sudo pacman -U myflac-0.2.0-1-any.pkg.tar.zst" title="Copiar comando">Copiar</button>
+              <button class="code-copy-btn" data-copy="sudo pacman -U myflac-0.2.0-1-any.pkg.tar.zst" title="Copiar comando" data-i18n="copy_btn">Copiar</button>
             </div>
-            <a href="https://github.com/maestebanc/MyFlac/releases/download/v0.2.0/myflac-0.2.0-1-any.pkg.tar.zst" class="btn btn-secondary btn-block">
-              Descargar .pkg.tar.zst (246 KB)
+            <a href="https://github.com/maestebanc/MyFlac/releases/download/v0.2.0/myflac-0.2.0-1-any.pkg.tar.zst" class="btn btn-secondary btn-block" data-i18n="dl_arch_btn">
+              Descargar .pkg.tar.zst (268 KB)
             </a>
           </div>
         </div>
@@ -472,7 +520,7 @@
       <div class="footer-brand">
         <img src="assets/icon.svg" alt="MyFlac" width="28" height="28">
         <span>MyFlac</span>
-        <span class="footer-tagline">— Creado con pasión por Miguel Ángel Esteban</span>
+        <span class="footer-tagline" data-i18n="footer_tagline">— Creado con pasión por Miguel Ángel Esteban</span>
       </div>
       <div class="footer-links">
         <a href="https://maestebanc.github.io/MyTag/" target="_blank" rel="noopener noreferrer">Suite: MyTag</a>

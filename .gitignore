@@ -16,3 +16,8 @@ repo/
 *.flatpak
 packaging/build/
 packaging/dist/
+
+# Generados por tools/build_web_languages.py en el despliegue de la web
+web/en/
+web/ca/
+web/sitemap.xml

@@ -8,6 +8,20 @@
 // ==========================================
 const translations = {
   es: {
+    fmt_flac: "(hasta 24-bit / 384 kHz)",
+    fmt_wav: "(PCM sin compresión)",
+    fmt_dsd: "(DSF / DFF — nativo en DAC compatibles)",
+    dl_recommended: "Recomendado",
+    dl_any_distro: "Cualquier distribución Linux",
+    dl_rpm_type: "Paquete RPM nativo",
+    dl_rpm_desc: "Integración completa con el sistema para Fedora 40/41/42+ y distribuciones RPM.",
+    dl_deb_desc: "Paquete deb estándar con resolución de dependencias mediante apt.",
+    dl_arch_desc: "Paquete binario optimizado con compresión zstandard para pacman.",
+    dl_rpm_btn: "Descargar .rpm (536 KB)",
+    dl_deb_btn: "Descargar .deb (231 KB)",
+    dl_arch_btn: "Descargar .pkg.tar.zst (268 KB)",
+    footer_tagline: "— Creado con pasión por Miguel Ángel Esteban",
+    meta_description: "MyFlac es un reproductor de música audiófilo y gratuito para Linux y GNOME: sonido bit-perfect, DSD nativo, volumen del DAC, letras sincronizadas y fichas de Wikipedia y Discogs.",
     btn_install: "Instalar MyFlac",
     btn_install_sub: "Flatpak · actualizaciones automáticas",
     btn_other_packages: "Otros paquetes",
@@ -84,6 +98,20 @@ const translations = {
   },
 
   en: {
+    fmt_flac: "(up to 24-bit / 384 kHz)",
+    fmt_wav: "(uncompressed PCM)",
+    fmt_dsd: "(DSF / DFF — native on capable DACs)",
+    dl_recommended: "Recommended",
+    dl_any_distro: "Any Linux distribution",
+    dl_rpm_type: "Native RPM package",
+    dl_rpm_desc: "Full system integration for Fedora 40/41/42+ and RPM-based distributions.",
+    dl_deb_desc: "Standard deb package with dependency resolution through apt.",
+    dl_arch_desc: "Optimized binary package with zstandard compression for pacman.",
+    dl_rpm_btn: "Download .rpm (536 KB)",
+    dl_deb_btn: "Download .deb (231 KB)",
+    dl_arch_btn: "Download .pkg.tar.zst (268 KB)",
+    footer_tagline: "— Crafted with passion by Miguel Ángel Esteban",
+    meta_description: "MyFlac is a free audiophile music player for Linux and GNOME: bit-perfect playback, native DSD, DAC hardware volume, synchronized lyrics and Wikipedia & Discogs insights.",
     btn_install: "Install MyFlac",
     btn_install_sub: "Flatpak · automatic updates",
     btn_other_packages: "Other packages",
@@ -160,6 +188,20 @@ const translations = {
   },
 
   ca: {
+    fmt_flac: "(fins a 24-bit / 384 kHz)",
+    fmt_wav: "(PCM sense compressió)",
+    fmt_dsd: "(DSF / DFF — natiu en DAC compatibles)",
+    dl_recommended: "Recomanat",
+    dl_any_distro: "Qualsevol distribució Linux",
+    dl_rpm_type: "Paquet RPM natiu",
+    dl_rpm_desc: "Integració completa amb el sistema per a Fedora 40/41/42+ i distribucions RPM.",
+    dl_deb_desc: "Paquet deb estàndard amb resolució de dependències mitjançant apt.",
+    dl_arch_desc: "Paquet binari optimitzat amb compressió zstandard per a pacman.",
+    dl_rpm_btn: "Descarregar .rpm (536 KB)",
+    dl_deb_btn: "Descarregar .deb (231 KB)",
+    dl_arch_btn: "Descarregar .pkg.tar.zst (268 KB)",
+    footer_tagline: "— Creat amb passió per Miguel Ángel Esteban",
+    meta_description: "MyFlac és un reproductor de música audiòfil i gratuït per a Linux i GNOME: so bit-perfect, DSD natiu, volum del DAC, lletres sincronitzades i fitxes de Wikipedia i Discogs.",
     btn_install: "Instal·lar MyFlac",
     btn_install_sub: "Flatpak · actualitzacions automàtiques",
     btn_other_packages: "Altres paquets",
@@ -242,13 +284,22 @@ const translations = {
 let currentLang = "es";
 
 function detectLanguage() {
-  const saved = localStorage.getItem("myflac_lang");
-  if (saved && translations[saved]) return saved;
+  // Cada idioma es una página estática (/, /en/, /ca/) para que los buscadores indexen las tres
+  const pageLang = document.documentElement.getAttribute("lang");
+  return translations[pageLang] ? pageLang : "es";
+}
 
-  const browser = (navigator.language || navigator.userLanguage || "es").toLowerCase();
-  if (browser.startsWith("ca")) return "ca";
-  if (browser.startsWith("en")) return "en";
-  return "es";
+// Quien eligió otro idioma en una visita anterior vuelve a su página. Solo con una elección
+// explícita guardada: sin redirecciones por el idioma del navegador (los buscadores no las quieren).
+function redirectToPreferredLanguage() {
+  let saved = null;
+  try { saved = localStorage.getItem("myflac_lang_choice"); } catch (e) { return false; }
+  const pageLang = detectLanguage();
+  if (!saved || saved === pageLang || !translations[saved]) return false;
+  const link = document.querySelector(`.lang-btn[data-lang="${saved}"]`);
+  if (!link) return false;
+  window.location.replace(link.href + window.location.hash);
+  return true;
 }
 
 function setLanguage(lang) {
@@ -613,9 +664,16 @@ document.addEventListener("DOMContentLoaded", () => {
   initTheme();
   setLanguage(detectLanguage());
 
-  document.querySelectorAll(".lang-btn").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      setLanguage(btn.getAttribute("data-lang"));
+  if (redirectToPreferredLanguage()) return;
+
+  document.querySelectorAll(".lang-btn").forEach((link) => {
+    link.addEventListener("click", (event) => {
+      try { localStorage.setItem("myflac_lang_choice", link.getAttribute("data-lang")); } catch (e) {}
+      // Se conserva la sección en la que estaba el visitante
+      if (window.location.hash) {
+        event.preventDefault();
+        window.location.href = link.href + window.location.hash;
+      }
     });
   });
 

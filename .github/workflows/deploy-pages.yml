@@ -5,6 +5,7 @@ on:
     branches: ["master"]
     paths:
       - "web/**"
+      - "tools/build_web_languages.py"
       - ".github/workflows/deploy-pages.yml"
   # Cada versión publicada trae un repositorio Flatpak nuevo que hay que desplegar
   release:
@@ -43,6 +44,10 @@ jobs:
           gh release download --repo "${{ github.repository }}" --pattern myflac-flatpak-repo.tar.gz --output "$RUNNER_TEMP/repo.tar.gz"
           tar -xzf "$RUNNER_TEMP/repo.tar.gz" -C web/repo
           test -f web/repo/summary.idx.sig
+
+      # Páginas estáticas en inglés y catalán (/en/, /ca/) y sitemap.xml para los buscadores
+      - name: Build language pages and sitemap
+        run: python3 tools/build_web_languages.py
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
