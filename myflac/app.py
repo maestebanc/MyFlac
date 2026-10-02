@@ -11,7 +11,7 @@ gi.require_version("Adw", "1")
 from gi.repository import Adw, Gdk, Gio, GLib, Gtk
 
 from . import config
-from .constants import APP_ID, APP_NAME
+from .constants import APP_ID, APP_NAME, APP_WEBSITE
 from .logger import get_log_path, get_logger, setup_logging
 from .ui.about_dialog import build_about_dialog
 from .ui.main_window import MainWindow
@@ -53,6 +53,10 @@ class MyFlacApplication(Adw.Application):
         about_action = Gio.SimpleAction.new("about", None)
         about_action.connect("activate", lambda *_: self._open_about())
         self.add_action(about_action)
+
+        website_action = Gio.SimpleAction.new("website", None)
+        website_action.connect("activate", lambda *_: self._open_website())
+        self.add_action(website_action)
 
     quitting = False
 
@@ -166,6 +170,13 @@ class MyFlacApplication(Adw.Application):
         log.info("Abriendo diálogo Acerca de MyFlac")
         dlg = build_about_dialog()
         dlg.present(self.window)
+
+    def _open_website(self):
+        if not self.window:
+            return
+        log.info("Abriendo sitio web oficial: %s", APP_WEBSITE)
+        launcher = Gtk.UriLauncher.new(APP_WEBSITE)
+        launcher.launch(self.window, None, None)
 
 
 def main():

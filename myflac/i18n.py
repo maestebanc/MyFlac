@@ -501,6 +501,11 @@ STRINGS: dict[str, dict[str, str]] = {
         "en": "View Log",
         "ca": "Veure Registre (Log)",
     },
+    "menu.website": {
+        "es": "Sitio web oficial",
+        "en": "Official Website",
+        "ca": "Lloc web oficial",
+    },
     "menu.about": {
         "es": "Acerca de MyFlac",
         "en": "About MyFlac",

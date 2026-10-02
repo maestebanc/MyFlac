@@ -8,7 +8,7 @@ gi.require_version("Gtk", "4.0")
 from gi.repository import Adw, Gtk
 
 from .. import __version__
-from ..constants import APP_ID, APP_NAME
+from ..constants import APP_ID, APP_NAME, APP_REPOSITORY, APP_WEBSITE
 from .. import i18n
 
 
@@ -19,8 +19,11 @@ def build_about_dialog() -> Adw.AboutDialog:
         developer_name="Miguel Angel Esteban",
         version=__version__,
         comments=i18n.t("app.comment"),
-        developers=["Miguel Angel Esteban"],
+        website=APP_WEBSITE,
+        issue_url=f"{APP_REPOSITORY}/issues",
+        support_url=APP_REPOSITORY,
         copyright="© 2026 Miguel Angel Esteban",
         license_type=Gtk.License.GPL_3_0,
     )
+    dialog.add_link("GitHub", APP_REPOSITORY)
     return dialog

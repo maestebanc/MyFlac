@@ -472,6 +472,7 @@ class MainWindow(Adw.ApplicationWindow):
         menu = Gio.Menu()
         menu.append(i18n.t("menu.preferences"), "app.preferences")
         menu.append(i18n.t("menu.shortcuts"), "app.shortcuts")
+        menu.append(i18n.t("menu.website"), "app.website")
         menu.append(i18n.t("menu.about"), "app.about")
         self.menu_btn.set_menu_model(menu)
 
