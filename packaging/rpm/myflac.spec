@@ -2,7 +2,7 @@
 %define pysitelib %(python3 -c "import sys; print(f'/usr/lib/python{sys.version_info.major}.{sys.version_info.minor}/site-packages')")
 
 Name:           myflac
-Version:        0.2.0
+Version:        0.2.1
 Release:        1%{?dist}
 Summary:        Bit-perfect Hi-Res audio player for GNOME
 License:        GPL-3.0-or-later
@@ -56,6 +56,8 @@ mkdir -p %{buildroot}/usr/share/icons/hicolor/scalable/apps
 cp %{srcdir}/data/icons/hicolor/scalable/apps/com.maestebanc.MyFlac.svg %{buildroot}/usr/share/icons/hicolor/scalable/apps/
 mkdir -p %{buildroot}/usr/share/icons/hicolor/symbolic/apps
 cp %{srcdir}/data/icons/hicolor/symbolic/apps/com.maestebanc.MyFlac-symbolic.svg %{buildroot}/usr/share/icons/hicolor/symbolic/apps/
+mkdir -p %{buildroot}/usr/share/icons/hicolor/symbolic/actions
+cp %{srcdir}/data/icons/hicolor/symbolic/actions/*.svg %{buildroot}/usr/share/icons/hicolor/symbolic/actions/
 
 %files
 %{pysitelib}/myflac
@@ -65,12 +67,19 @@ cp %{srcdir}/data/icons/hicolor/symbolic/apps/com.maestebanc.MyFlac-symbolic.svg
 /usr/share/icons/hicolor/*/apps/com.maestebanc.MyFlac.png
 /usr/share/icons/hicolor/scalable/apps/com.maestebanc.MyFlac.svg
 /usr/share/icons/hicolor/symbolic/apps/com.maestebanc.MyFlac-symbolic.svg
+/usr/share/icons/hicolor/symbolic/actions/*.svg
 
 %post
 update-desktop-database -q /usr/share/applications &>/dev/null || :
 gtk-update-icon-cache -q /usr/share/icons/hicolor &>/dev/null || :
 
 %changelog
+* Fri Oct 02 2026 Miguel Angel Esteban <maestebanc@gmail.com> - 0.2.1-1
+- Oscilloscope relocated to bottom-left mini-cover in main window to keep main artwork clear.
+- Compact oscilloscope bottom strip with gentle alpha fade in Mini Player and Super Player.
+- Active lyrics line zoom, bold emphasis, text glow, and silky smooth organic scrolling.
+- Bundled window-pop-out-symbolic icon for Ubuntu/Yaru compatibility.
+
 * Tue Sep 29 2026 Miguel Angel Esteban <maestebanc@gmail.com> - 0.2.0-1
 - Safe exclusive mode negotiation with WirePlumber (the DAC no longer disappears from the system).
 - Native DSD playback on DSD-capable DACs; DSD128+ converted to 352.8 kHz PCM in exclusive mode.

@@ -17,7 +17,7 @@ from ..logger import get_logger
 from ..artist_art import ArtistArtService
 from ..music_info import KINDS, MusicInfoService
 from ..lyrics import LyricsService, SyncedLyrics
-from ..ui.visualizers import OscilloscopeWidget
+
 from .lyrics_view import SyncedLyricsView
 from .info_view import InfoView
 
@@ -52,6 +52,9 @@ class InspectorPanel(Gtk.Box):
         cfg = load_config()
         self.visualizer_mode: int = cfg.get("visualizer_mode", 0) % 2
         self._oscilloscope_enabled: bool = cfg.get("oscilloscope_enabled", True)
+
+        # Referencia a la PlayerBar: el scope vive en la mini-portada inferior, no aquí
+        self._player_bar = None  # se asigna desde main_window tras construir la barra
 
         self._build_ui()
         self._apply_visualizer_mode(self.visualizer_mode)
@@ -131,13 +134,6 @@ class InspectorPanel(Gtk.Box):
         self._artist_requested: str | None = None
 
         self.art_overlay.set_child(self.cover_stack)
-
-        # Osciloscopio en tiempo real superpuesto a la carátula
-        self.scope_widget = OscilloscopeWidget()
-        self.scope_widget.set_can_target(False)
-        self.scope_widget.set_visible(False)
-        self.art_overlay.add_overlay(self.scope_widget)
-
         self.frame_overlay.set_child(self.art_overlay)
 
         # Indicador de modo en la base de la carátula (cápsula con 2 puntos: Osciloscopio / Limpio)
@@ -443,20 +439,12 @@ class InspectorPanel(Gtk.Box):
             else:
                 dot.remove_css_class("active")
 
-        # Configurar visibilidad y estado de cada modo
+        # El scope vive ahora en la mini-portada de la barra — solo propagamos el modo
         is_scope = (mode == 0) and getattr(self, "_oscilloscope_enabled", True)
-        if is_scope:
-            # Modo 0 con osciloscopio habilitado: superpuesto (en pausa o parado, portada limpia)
-            self.scope_widget.set_active(True)
-            self.scope_widget.set_playing(self._is_playing)
-            self.scope_widget.set_visible(self._is_playing)
-        else:
-            # Osciloscopio desactivado o Modo 1: oculto, portada limpia
-            self.scope_widget.set_active(False)
-            self.scope_widget.set_playing(False)
-            self.scope_widget.set_visible(False)
-        self._refresh_cover_view()
+        if self._player_bar is not None:
+            self._player_bar.set_bar_oscilloscope_enabled(is_scope)
 
+        self._refresh_cover_view()
         self._update_mode_tooltip()
 
     def _set_cover_child(self, name: str):
@@ -513,21 +501,25 @@ class InspectorPanel(Gtk.Box):
             self._engine.add_position_listener(self._on_position_updated)
             is_playing = (self._engine.state == PlaybackState.PLAYING)
             self._is_playing = is_playing
+            # Inicializar estado del scope en la barra
             is_scope = (self.visualizer_mode == 0) and getattr(self, "_oscilloscope_enabled", True)
-            self.scope_widget.set_playing(is_playing and is_scope)
-            self.scope_widget.set_visible(is_playing and is_scope)
+            if self._player_bar is not None:
+                self._player_bar.bar_scope.set_playing(is_playing and is_scope)
+                self._player_bar.bar_scope.set_visible(is_playing and is_scope)
 
     def _on_audio_level(self, rms: list[float], peak: list[float]):
+        """Reenvía los niveles al scope de la mini-portada en la barra."""
         is_scope = (self.visualizer_mode == 0) and getattr(self, "_oscilloscope_enabled", True)
-        if is_scope and self._is_playing:
-            self.scope_widget.update_levels(rms, peak)
+        if is_scope and self._is_playing and self._player_bar is not None:
+            self._player_bar.update_bar_scope_level(rms, peak)
 
     def _on_playback_state_changed(self, state: PlaybackState):
         is_playing = (state == PlaybackState.PLAYING)
         self._is_playing = is_playing
         is_scope = (self.visualizer_mode == 0) and getattr(self, "_oscilloscope_enabled", True)
-        self.scope_widget.set_playing(is_playing and is_scope)
-        self.scope_widget.set_visible(is_playing and is_scope)
+        if self._player_bar is not None:
+            self._player_bar.bar_scope.set_playing(is_playing and is_scope)
+            self._player_bar.bar_scope.set_visible(is_playing and is_scope)
 
     def _load_placeholder_image(self):
         """Carga el diseño estético de carátula MyFlac cuando no hay carátula activa."""

@@ -179,12 +179,16 @@ class SuperPlayerMixin:
 
         self.super_art_overlay.set_child(self.super_cover_stack)
 
-        # Osciloscopio en el super-reproductor a 60 FPS
+        # Osciloscopio en el super-reproductor a 60 FPS (franja compacta en la base para no tapar la carátula)
         self.super_scope = OscilloscopeWidget()
-        self.super_scope.set_size_request(620, 620)
+        self.super_scope.set_valign(Gtk.Align.END)
+        self.super_scope.set_halign(Gtk.Align.FILL)
+        self.super_scope.set_size_request(620, 68)
+        self.super_scope.set_can_target(False)
         self.super_scope.set_active(True)
         self.super_scope.set_visible(False)
         self.super_art_overlay.add_overlay(self.super_scope)
+        self.super_art_overlay.set_overflow(Gtk.Overflow.HIDDEN)
 
         left_box.append(self.super_art_overlay)
 

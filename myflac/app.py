@@ -147,6 +147,9 @@ class MyFlacApplication(Adw.Application):
             self.window.engine.set_levels_enabled(oscilloscope_enabled)
             if self.window.inspector:
                 self.window.inspector.set_oscilloscope_enabled(oscilloscope_enabled)
+            if hasattr(self.window, "player_bar") and self.window.player_bar:
+                is_scope = oscilloscope_enabled and (self.window.inspector.visualizer_mode == 0 if self.window.inspector else True)
+                self.window.player_bar.set_bar_oscilloscope_enabled(is_scope)
             if self.window.mini_player:
                 self.window.mini_player.set_oscilloscope_enabled(oscilloscope_enabled)
 

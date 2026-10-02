@@ -41,7 +41,7 @@ const translations = {
     nav_download: "Descargar",
 
     // Hero
-    hero_badge: "Nuevo en v0.2.0 • DSD nativo, volumen del DAC y temas a tu gusto",
+    hero_badge: "Nuevo en v0.2.1 • Scroll suave y zoom en letras, osciloscopios compactos",
     hero_title: "Tu música en máxima fidelidad, sin rodeos",
     hero_subtitle: "Un reproductor audiófilo moderno, rápido y elegante para Linux. Envía el audio directo a tu DAC sin alteraciones, muestra letras sincronizadas en tiempo real y enriquece tu colección con fichas de Wikipedia y Discogs.",
     btn_download: "Descargar para Linux",
@@ -131,7 +131,7 @@ const translations = {
     nav_download: "Download",
 
     // Hero
-    hero_badge: "New in v0.2.0 • Native DSD, DAC hardware volume and themes your way",
+    hero_badge: "New in v0.2.1 • Smooth lyrics scroll and zoom, compact visualizers",
     hero_title: "Your music in pristine fidelity, with zero fuss",
     hero_subtitle: "A modern, fast, and elegant audiophile player for Linux. Sends audio straight to your DAC untouched, displays real-time synchronized lyrics, and enriches your library with Wikipedia and Discogs metadata.",
     btn_download: "Download for Linux",
@@ -221,7 +221,7 @@ const translations = {
     nav_download: "Descarregar",
 
     // Hero
-    hero_badge: "Nou a la v0.2.0 • DSD natiu, volum del DAC i temes al teu gust",
+    hero_badge: "Nou a la v0.2.1 • Desplaçament suau i zoom a les lletres, oscil·loscopis compactes",
     hero_title: "La teva música amb la màxima fidelitat, sense dreceres",
     hero_subtitle: "Un reproductor audiòfil modern, ràpid i elegant per a Linux. Envia l'àudio directe al teu DAC sense alteracions, mostra lletres sincronitzades en temps real i enriqueix la teva col·lecció amb fitxes de Wikipedia i Discogs.",
     btn_download: "Descarregar per a Linux",

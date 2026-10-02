@@ -1,5 +1,6 @@
 import logging
 import os
+from .visualizers import OscilloscopeWidget
 from typing import Callable
 
 import gi
@@ -128,7 +129,22 @@ class PlayerBar(Gtk.Box):
         self.cover_stack.add_named(placeholder, "placeholder")
         self.cover_stack.set_visible_child_name("placeholder")
 
-        self.cover_frame.append(self.cover_stack)
+        # Overlay para superponer el osciloscopio a la mini-portada
+        self._cover_overlay = Gtk.Overlay()
+        self._cover_overlay.set_vexpand(True)
+        self._cover_overlay.set_valign(Gtk.Align.FILL)
+        self._cover_overlay.set_child(self.cover_stack)
+
+        # Scope sobre la mini-portada (toda la superficie, pequeño por diseño)
+        self.bar_scope = OscilloscopeWidget()
+        self.bar_scope.set_can_target(False)
+        self.bar_scope.set_active(True)
+        self.bar_scope.set_visible(False)
+        self._cover_overlay.add_overlay(self.bar_scope)
+
+        self._bar_scope_enabled: bool = True
+
+        self.cover_frame.append(self._cover_overlay)
         self.aspect_frame.set_child(self.cover_frame)
         left_box.append(self.aspect_frame)
 
@@ -341,6 +357,7 @@ class PlayerBar(Gtk.Box):
         self.engine.on_track_changed = self._on_track_changed
         self.engine.on_position_updated = self._on_position_updated
         self.engine.add_output_listener(self.update_active_device)
+        self.engine.add_level_listener(self._on_audio_level)
 
     def _handle_play_click(self):
         if self.on_play_pause_clicked:
@@ -396,10 +413,35 @@ class PlayerBar(Gtk.Box):
         self.device_btn.set_tooltip_text(f"{i18n.t('player.active_device', name=dev.name)}\n{tooltip}")
 
     def _on_state_changed(self, state: PlaybackState):
-        if state == PlaybackState.PLAYING:
+        is_playing = (state == PlaybackState.PLAYING)
+        if is_playing:
             self.play_btn.set_icon_name("media-playback-pause-symbolic")
         else:
             self.play_btn.set_icon_name("media-playback-start-symbolic")
+        # Actualizar scope de la mini-portada
+        scope_on = is_playing and self._bar_scope_enabled
+        self.bar_scope.set_playing(is_playing)
+        self.bar_scope.set_visible(scope_on)
+
+    def set_bar_oscilloscope_enabled(self, enabled: bool):
+        """Activa o desactiva el osciloscopio en la mini-portada de la barra."""
+        self._bar_scope_enabled = enabled
+        is_playing = (self.engine.state == PlaybackState.PLAYING)
+        scope_on = is_playing and enabled
+        self.bar_scope.set_active(enabled)
+        self.bar_scope.set_playing(is_playing and enabled)
+        self.bar_scope.set_visible(scope_on)
+
+    def _on_audio_level(self, rms: list[float], peak: list[float]):
+        """Callback del motor de audio: alimenta los niveles al osciloscopio de la mini-portada."""
+        if self._bar_scope_enabled and (self.engine.state == PlaybackState.PLAYING):
+            self.bar_scope.update_levels(rms, peak)
+
+    def update_bar_scope_level(self, rms: list[float], peak: list[float]):
+        """Alimenta los niveles de audio al scope de la mini-portada."""
+        if self._bar_scope_enabled:
+            self.bar_scope.update_levels(rms, peak)
+
 
     def _on_track_changed(self, track: AudioTrack):
         self.title_label.set_text(track.title)

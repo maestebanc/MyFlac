@@ -54,6 +54,9 @@ LAUNCHER
     mkdir -p "$WORK/usr/share/icons/hicolor/symbolic/apps"
     cp "$REPO_ROOT/data/icons/hicolor/symbolic/apps/com.maestebanc.MyFlac-symbolic.svg" \
        "$WORK/usr/share/icons/hicolor/symbolic/apps/"
+    mkdir -p "$WORK/usr/share/icons/hicolor/symbolic/actions"
+    cp "$REPO_ROOT/data/icons/hicolor/symbolic/actions/"*.svg \
+       "$WORK/usr/share/icons/hicolor/symbolic/actions/"
 
     INSTALLED_SIZE=$(find "$WORK/usr" -type f -exec stat -c %s {} + | awk '{s+=$1} END {print s}')
     BUILD_DATE=$(date +%s)

@@ -243,6 +243,11 @@ class MainWindow(Adw.ApplicationWindow):
         self.player_bar.on_exclusive_toggled = self._on_exclusive_toggled
         self.player_bar.on_cover_clicked = self._toggle_cover_popup
 
+        # Vincular el osciloscopio de la mini-portada al panel inspector
+        self.inspector._player_bar = self.player_bar
+        is_scope = (self.inspector.visualizer_mode == 0) and getattr(self.inspector, "_oscilloscope_enabled", True)
+        self.player_bar.set_bar_oscilloscope_enabled(is_scope)
+
         # Contenedor inferior: Barra de progreso azul no obstructiva + Barra del reproductor
         self.bottom_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
 
@@ -900,6 +905,9 @@ class MainWindow(Adw.ApplicationWindow):
     def _on_visualizer_mode_changed(self, mode: int):
         """Sincroniza el cambio de modo de osciloscopio del inspector con el mini-reproductor y configuración."""
         self.cfg["visualizer_mode"] = mode
+        if hasattr(self, "player_bar") and self.player_bar:
+            is_scope = (mode == 0) and self.cfg.get("oscilloscope_enabled", True)
+            self.player_bar.set_bar_oscilloscope_enabled(is_scope)
         if self.mini_player:
             self.mini_player.set_visualizer_mode(mode, save=False)
 

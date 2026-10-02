@@ -34,6 +34,19 @@
   </developer>
   <content_rating type="oars-1.1" />
   <releases>
+    <release version="0.2.1" date="2026-10-02">
+      <description>
+        <p>Unobstructed artwork: the oscilloscope in the main window now sits on the bottom-left mini-cover, leaving the main album art completely clear.</p>
+        <p>Compact visualizers: in Mini Player and fullscreen Super Player, the oscilloscope is now a sleek bottom strip with a subtle fade that preserves album art visibility.</p>
+        <p>Enhanced synchronized lyrics: active lines now feature a gentle zoom, bold typography, ambient glow and silky smooth organic scrolling.</p>
+        <p>System compatibility: bundled missing symbolic icons for flawless appearance on Ubuntu/Yaru and other desktop distributions.</p>
+        <p xml:lang="es">Carátulas despejadas: el osciloscopio en la ventana principal se ubica ahora en la mini-portada inferior izquierda, manteniendo la carátula principal completamente limpia.</p>
+        <p xml:lang="es">Visualizadores compactos: en el Mini-Reproductor y Super-Reproductor el osciloscopio pasa a ser una franja inferior con degradado suave que no tapa la portada.</p>
+        <p xml:lang="es">Letras sincronizadas mejoradas: la frase activa cuenta con ligero zoom, tipografía destacada en negrita, sutil resplandor y desplazamiento suave y fluido.</p>
+        <p xml:lang="es">Compatibilidad del sistema: iconos simbólicos empaquetados para una integración perfecta en Ubuntu/Yaru y otras distribuciones.</p>
+        <p xml:lang="ca">Caràtules clares amb oscil·loscopi compacte a la mini-portada i franja inferior, lletres sincronitzades amb zoom i desplaçament suau, i compatibilitat d'icones a Ubuntu.</p>
+      </description>
+    </release>
     <release version="0.2.0" date="2026-09-29">
       <description>
         <p>Safe exclusive mode: the DAC is negotiated with PipeWire/WirePlumber following the ReserveDevice1 protocol, so it no longer disappears from the system after using bit-perfect mode.</p>

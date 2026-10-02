@@ -100,39 +100,67 @@ class OscilloscopeWidget(Gtk.DrawingArea):
         if not self._active or not self._is_playing or w <= 0 or h <= 0:
             return
 
-        # 1. Tinte oscuro semitransparente con viñeta para contraste supremo sobre la carátula
-        vig = cairo.RadialGradient(w / 2, h / 2, 20, w / 2, h / 2, max(w, h) * 0.72)
-        vig.add_color_stop_rgba(0.0, 0.02, 0.03, 0.05, 0.50)
-        vig.add_color_stop_rgba(1.0, 0.01, 0.02, 0.03, 0.82)
-        cr.set_source(vig)
-        cr.rectangle(0, 0, w, h)
-        cr.fill()
+        # 1. Fondo adaptativo: nunca tapa la carátula
+        if h <= 100 and w > 120:
+            # Franja inferior compacta (mini-reproductor y super-reproductor):
+            # Degradado vertical que nace completamente transparente arriba para fundirse con la carátula
+            grad = cairo.LinearGradient(0, 0, 0, h)
+            grad.add_color_stop_rgba(0.0, 0.02, 0.03, 0.05, 0.0)
+            grad.add_color_stop_rgba(0.4, 0.02, 0.03, 0.05, 0.22)
+            grad.add_color_stop_rgba(1.0, 0.01, 0.02, 0.03, 0.55)
+            cr.set_source(grad)
+            cr.rectangle(0, 0, w, h)
+            cr.fill()
+        elif w <= 120 and h <= 120:
+            # Mini-portada de la barra del reproductor (pequeña): velo suave para no oscurecer la carátula
+            vig = cairo.RadialGradient(w / 2, h / 2, 5, w / 2, h / 2, max(w, h) * 0.72)
+            vig.add_color_stop_rgba(0.0, 0.02, 0.03, 0.05, 0.18)
+            vig.add_color_stop_rgba(1.0, 0.01, 0.02, 0.03, 0.42)
+            cr.set_source(vig)
+            cr.rectangle(0, 0, w, h)
+            cr.fill()
+        else:
+            # Modo completo grande
+            vig = cairo.RadialGradient(w / 2, h / 2, 20, w / 2, h / 2, max(w, h) * 0.72)
+            vig.add_color_stop_rgba(0.0, 0.02, 0.03, 0.05, 0.50)
+            vig.add_color_stop_rgba(1.0, 0.01, 0.02, 0.03, 0.82)
+            cr.set_source(vig)
+            cr.rectangle(0, 0, w, h)
+            cr.fill()
 
-        # 2. Retícula milimétrica estilo osciloscopio CRT audiófilo
-        cr.set_source_rgba(0.0, 0.85, 1.0, 0.08)
-        cr.set_line_width(0.75)
-        step = max(24, int(min(w, h) / 10))
-        for x in range(step, w, step):
-            cr.move_to(x, 0)
-            cr.line_to(x, h)
-        for y in range(step, h, step):
-            cr.move_to(0, y)
-            cr.line_to(w, y)
-        cr.stroke()
+        # 2. Retícula / eje central adaptativo
+        if h > 100:
+            cr.set_source_rgba(0.0, 0.85, 1.0, 0.08)
+            cr.set_line_width(0.75)
+            step = max(24, int(min(w, h) / 10))
+            for x in range(step, w, step):
+                cr.move_to(x, 0)
+                cr.line_to(x, h)
+            for y in range(step, h, step):
+                cr.move_to(0, y)
+                cr.line_to(w, y)
+            cr.stroke()
 
-        # Eje central con mayor presencia
-        cr.set_source_rgba(0.0, 0.85, 1.0, 0.20)
-        cr.set_line_width(1.0)
-        cr.move_to(w / 2, 0)
-        cr.line_to(w / 2, h)
-        cr.move_to(0, h / 2)
-        cr.line_to(w, h / 2)
-        cr.stroke()
+            # Eje central con mayor presencia
+            cr.set_source_rgba(0.0, 0.85, 1.0, 0.20)
+            cr.set_line_width(1.0)
+            cr.move_to(w / 2, 0)
+            cr.line_to(w / 2, h)
+            cr.move_to(0, h / 2)
+            cr.line_to(w, h / 2)
+            cr.stroke()
+        else:
+            # Línea base central sutil y limpia en formato compacto
+            cr.set_source_rgba(0.0, 0.85, 1.0, 0.14)
+            cr.set_line_width(0.75)
+            cr.move_to(0, h / 2)
+            cr.line_to(w, h / 2)
+            cr.stroke()
 
         # 3. Puntos de la forma de onda optimizados (paso adaptativo ~350 puntos máx)
         step_x = max(1, w // 350)
         pts = []
-        amp_scale = self._amplitude * (h * 0.34)
+        amp_scale = self._amplitude * (h * 0.35)
         for x in range(0, w + step_x, step_x):
             cx = min(x, w)
             nx = cx / float(w)
@@ -149,6 +177,11 @@ class OscilloscopeWidget(Gtk.DrawingArea):
         if not pts:
             return
 
+        # Anchos de trazo escalados según el alto disponible
+        glow_w = 3.5 if h <= 80 else (5.0 if h <= 120 else 7.5)
+        mid_w = 1.6 if h <= 80 else (2.2 if h <= 120 else 3.0)
+        core_w = 0.8 if h <= 80 else (1.0 if h <= 120 else 1.2)
+
         # Trazado multicapa ultra-rápido usando stroke_preserve
         cr.new_sub_path()
         cr.set_line_join(cairo.LINE_JOIN_ROUND)
@@ -159,22 +192,24 @@ class OscilloscopeWidget(Gtk.DrawingArea):
 
         # Capa 1: Resplandor cian amplio (Wide Glow)
         cr.set_source_rgba(0.0, 0.90, 1.0, 0.20)
-        cr.set_line_width(7.5)
+        cr.set_line_width(glow_w)
         cr.stroke_preserve()
 
         # Capa 2: Resplandor medio (Medium Glow)
         cr.set_source_rgba(0.0, 0.95, 1.0, 0.60)
-        cr.set_line_width(3.0)
+        cr.set_line_width(mid_w)
         cr.stroke_preserve()
 
         # Capa 3: Núcleo brillante ultra nítido (Crisp Core)
         cr.set_source_rgba(0.92, 1.0, 1.0, 0.95)
-        cr.set_line_width(1.2)
+        cr.set_line_width(core_w)
         cr.stroke()
 
-        # 4. HUD audiófilo discreto en esquina superior izquierda
-        cr.select_font_face("Monospace", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_BOLD)
-        cr.set_font_size(9)
-        cr.set_source_rgba(0.0, 0.95, 1.0, 0.75)
-        cr.move_to(14, 20)
-        cr.show_text("OSC · 20Hz-48kHz · CH L+R")
+        # 4. HUD audiófilo solo si hay suficiente espacio
+        if w >= 260 and h >= 160:
+            cr.select_font_face("Monospace", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_BOLD)
+            cr.set_font_size(9)
+            cr.set_source_rgba(0.0, 0.95, 1.0, 0.75)
+            cr.move_to(14, 20)
+            cr.show_text("OSC · 20Hz-48kHz · CH L+R")
+

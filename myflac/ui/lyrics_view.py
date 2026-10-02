@@ -10,7 +10,7 @@ import gi
 gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
 gi.require_version("Graphene", "1.0")
-from gi.repository import Adw, Graphene, Gtk, Pango
+from gi.repository import Adw, GLib, Graphene, Gtk, Pango
 
 from ..lyrics import SyncedLyrics
 
@@ -18,11 +18,11 @@ from ..lyrics import SyncedLyrics
 LEAD_SECONDS = 0.15
 # Tras un scroll manual, el seguimiento automático de la letra se pausa este tiempo
 MANUAL_SCROLL_PAUSE = 4.0
-SCROLL_DURATION_MS = 450
+SCROLL_DURATION_MS = 680
 # Un cambio de posición mayor que este entre dos actualizaciones se considera un salto (seek)
 SEEK_THRESHOLD_SECONDS = 1.5
 # Por encima de estas líneas de distancia, el scroll es inmediato en lugar de animado
-MAX_ANIMATED_LINES = 3
+MAX_ANIMATED_LINES = 10
 
 
 class SyncedLyricsView(Gtk.ScrolledWindow):
@@ -49,6 +49,12 @@ class SyncedLyricsView(Gtk.ScrolledWindow):
         self._manual_scroll_until = 0.0
         self._needs_recenter = False
         self._recenter_tick_id = 0
+        self._scroll_idle_id = 0
+
+        # Atributos Pango para resaltar la frase cantada con un ligero zoom y tipografía destacada
+        self._active_attrs = Pango.AttrList.new()
+        self._active_attrs.insert(Pango.attr_scale_new(1.15))
+        self._active_attrs.insert(Pango.attr_weight_new(Pango.Weight.BOLD))
 
         self.add_css_class("lyrics-view")
         self.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
@@ -67,7 +73,7 @@ class SyncedLyricsView(Gtk.ScrolledWindow):
         vadj = self.get_vadjustment()
         target = Adw.CallbackAnimationTarget.new(lambda value: vadj.set_value(value))
         self._animation = Adw.TimedAnimation.new(self, 0.0, 0.0, SCROLL_DURATION_MS, target)
-        self._animation.set_easing(Adw.Easing.EASE_OUT_CUBIC)
+        self._animation.set_easing(Adw.Easing.EASE_IN_OUT_CUBIC)
 
         # Mientras está oculto no tiene geometría: se recoloca al mostrarse o redimensionarse
         self.connect("map", lambda *_: self._on_map())
@@ -78,10 +84,17 @@ class SyncedLyricsView(Gtk.ScrolledWindow):
         return bool(self._synced)
 
     def clear(self):
+        if self._scroll_idle_id:
+            GLib.source_remove(self._scroll_idle_id)
+            self._scroll_idle_id = 0
         self.set_content("", None)
 
     def set_content(self, plain: str, synced: SyncedLyrics | None, position: float = 0.0):
         """Crea una etiqueta por línea; con letra sincronizada cada línea sabe cuándo se canta."""
+        if self._scroll_idle_id:
+            GLib.source_remove(self._scroll_idle_id)
+            self._scroll_idle_id = 0
+
         child = self._box.get_first_child()
         while child:
             self._box.remove(child)
@@ -141,7 +154,17 @@ class SyncedLyricsView(Gtk.ScrolledWindow):
             jump = abs(index - self._active_index) > MAX_ANIMATED_LINES
             self._active_index = index
             self._apply_line_states()
-            self._scroll_to_active(animate=not (jump or seeked))
+
+            # Despachar el desplazamiento en el siguiente ciclo tras asimilar la nueva geometría del zoom
+            if self._scroll_idle_id:
+                GLib.source_remove(self._scroll_idle_id)
+
+            def _do_scroll():
+                self._scroll_idle_id = 0
+                self._scroll_to_active(animate=not (jump or seeked))
+                return False
+
+            self._scroll_idle_id = GLib.idle_add(_do_scroll)
         elif seeked or self._needs_recenter:
             self._scroll_to_active(animate=False)
 
@@ -151,10 +174,13 @@ class SyncedLyricsView(Gtk.ScrolledWindow):
                 label.remove_css_class(css)
             if i == self._active_index:
                 label.add_css_class("lyrics-line-active")
+                label.set_attributes(self._active_attrs)
             elif i < self._active_index:
                 label.add_css_class("lyrics-line-past")
+                label.set_attributes(None)
             else:
                 label.add_css_class("lyrics-line-upcoming")
+                label.set_attributes(None)
 
     def _on_map(self):
         if self._synced and self.position_provider:
@@ -193,8 +219,15 @@ class SyncedLyricsView(Gtk.ScrolledWindow):
         target = point.y + label.get_height() / 2 - page * 0.4
         target = max(vadj.get_lower(), min(target, vadj.get_upper() - page))
 
+        dist = abs(target - vadj.get_value())
+        if dist < 1.0:
+            return
+
         self._animation.pause()
         if animate:
+            # Duración suave y fluida (620ms a 780ms según la distancia)
+            duration = min(780, max(600, int(560 + dist * 0.8)))
+            self._animation.set_duration(duration)
             self._animation.set_value_from(vadj.get_value())
             self._animation.set_value_to(target)
             self._animation.play()

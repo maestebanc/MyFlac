@@ -71,18 +71,18 @@ Install from the official MyFlac repository and get automatic updates through GN
 flatpak install --from https://maestebanc.github.io/MyFlac/myflac.flatpakref
 ```
 
-Or click **Install MyFlac** on the [official website](https://maestebanc.github.io/MyFlac/). The standalone `myflac-0.2.0.flatpak` bundle from the releases page also receives updates from the repository.
+Or click **Install MyFlac** on the [official website](https://maestebanc.github.io/MyFlac/). The standalone `myflac-0.2.1.flatpak` bundle from the releases page also receives updates from the repository.
 
 ### Fedora / RHEL (RPM)
 
 ```bash
-sudo dnf install ./myflac-0.2.0-1.noarch.rpm
+sudo dnf install ./myflac-0.2.1-1.noarch.rpm
 ```
 
 ### Debian / Ubuntu (24.04 LTS+, Debian 13+)
 
 ```bash
-sudo apt install ./myflac_0.2.0-1_all.deb
+sudo apt install ./myflac_0.2.1-1_all.deb
 ```
 
 ### Arch Linux
@@ -90,7 +90,7 @@ sudo apt install ./myflac_0.2.0-1_all.deb
 Install the pre-built package with `pacman`:
 
 ```bash
-sudo pacman -U myflac-0.2.0-1-any.pkg.tar.zst
+sudo pacman -U myflac-0.2.1-1-any.pkg.tar.zst
 ```
 
 Or build from source using the included `PKGBUILD`:

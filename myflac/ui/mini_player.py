@@ -155,9 +155,12 @@ class MiniPlayerWindow(SuperPlayerMixin, Adw.Window):
 
         root_overlay.set_child(self.mini_cover_stack)
 
-        # 1.2 Capa de Osciloscopio Superpuesto
+        # 1.2 Capa de Osciloscopio Superpuesto (franja sutil en la base para no tapar la portada)
         self.mini_scope = OscilloscopeWidget()
-        self.mini_scope.set_size_request(500, 500)
+        self.mini_scope.set_valign(Gtk.Align.END)
+        self.mini_scope.set_halign(Gtk.Align.FILL)
+        self.mini_scope.set_size_request(500, 68)
+        self.mini_scope.set_can_target(False)
         self.mini_scope.set_active(True)
         self.mini_scope.set_visible(False)
         root_overlay.add_overlay(self.mini_scope)
@@ -415,7 +418,7 @@ class MiniPlayerWindow(SuperPlayerMixin, Adw.Window):
             self.super_art_overlay.set_size_request(art_size, art_size)
             self.super_cover_stack.set_size_request(art_size, art_size)
             self.super_cover_picture.set_size_request(art_size, art_size)
-            self.super_scope.set_size_request(art_size, art_size)
+            self.super_scope.set_size_request(art_size, 68)
             self.super_controls_panel.set_size_request(art_size, -1)
 
             # Lateral derecho: 80% de la altura de la pantalla
@@ -441,6 +444,7 @@ class MiniPlayerWindow(SuperPlayerMixin, Adw.Window):
             self.remove_css_class("super-player-window")
             self.set_title("MyFlac - Mini Reproductor")
 
+            self.mini_scope.set_size_request(500, 68)
             self.mini_scope.set_active(scope_active)
             self.mini_scope.set_playing(is_playing)
             self.mini_scope.set_visible(scope_on)

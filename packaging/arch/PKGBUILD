@@ -1,6 +1,6 @@
 # Maintainer: Miguel Angel Esteban <maestebanc@gmail.com>
 pkgname=myflac
-pkgver=0.2.0
+pkgver=0.2.1
 pkgrel=1
 pkgdesc="Bit-perfect Hi-Res audio player for GNOME"
 arch=('any')
@@ -59,4 +59,7 @@ EOF
     mkdir -p "$pkgdir/usr/share/icons/hicolor/symbolic/apps"
     cp data/icons/hicolor/symbolic/apps/com.maestebanc.MyFlac-symbolic.svg \
        "$pkgdir/usr/share/icons/hicolor/symbolic/apps/"
+    mkdir -p "$pkgdir/usr/share/icons/hicolor/symbolic/actions"
+    cp data/icons/hicolor/symbolic/actions/*.svg \
+       "$pkgdir/usr/share/icons/hicolor/symbolic/actions/"
 }

@@ -825,6 +825,10 @@ paned > separator:hover {
     padding: 4px 0;
 }
 
+.inspector-lyrics-text.lyrics-line-active {
+    text-shadow: 0 0 16px rgba(56, 189, 248, 0.45);
+}
+
 .inspector-info-tabs {
     font-size: 0.86em;
     margin-bottom: 2px;
