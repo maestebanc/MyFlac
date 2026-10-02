@@ -33,6 +33,26 @@
     <name>Miguel Angel Esteban</name>
   </developer>
   <content_rating type="oars-1.1" />
+  <screenshots>
+    <screenshot type="default">
+      <image>https://raw.githubusercontent.com/maestebanc/MyFlac/master/screenshots/main-window-dark.png</image>
+      <caption>MyFlac main window with music library and audio visualizer</caption>
+      <caption xml:lang="es">Ventana principal de MyFlac con biblioteca musical y visualizador de audio</caption>
+      <caption xml:lang="ca">Finestra principal de MyFlac amb biblioteca musical i visualitzador d'àudio</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/maestebanc/MyFlac/master/screenshots/super-player-dark.png</image>
+      <caption>Full-screen Super Player with synchronized lyrics and dynamic glow</caption>
+      <caption xml:lang="es">Super-Reproductor a pantalla completa con letras sincronizadas y resplandor dinámico</caption>
+      <caption xml:lang="ca">Super-Reproductor a pantalla completa amb lletres sincronitzades i resplendor dinàmica</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/maestebanc/MyFlac/master/screenshots/mini-player-dark.png</image>
+      <caption>Compact Mini Player with album art and unobtrusive visualizer</caption>
+      <caption xml:lang="es">Mini-Reproductor compacto con carátula y visualizador sutil</caption>
+      <caption xml:lang="ca">Mini-Reproductor compacte amb caràtula i visualitzador subtil</caption>
+    </screenshot>
+  </screenshots>
   <releases>
     <release version="0.2.1" date="2026-10-02">
       <description>
