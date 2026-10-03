@@ -16,6 +16,7 @@ from ..audio.mpris import MprisServer
 from ..config import is_device_exclusive_enabled, save_config, set_device_exclusive_enabled
 from ..hires_cover import HiResCoverService
 from ..music_info import MusicInfoService
+from .. import __version__
 from ..constants import APP_ID, APP_NAME
 from ..library.db import LibraryDB
 from ..library.scanner import LibraryScanner
@@ -43,7 +44,7 @@ log = get_logger("ui.main_window")
 class MainWindow(Adw.ApplicationWindow):
     def __init__(self, app: Adw.Application, cfg: dict):
         super().__init__(application=app)
-        self.set_title(APP_NAME)
+        self.set_title(f"{APP_NAME} {__version__}")
         self.set_icon_name(APP_ID)
         w = max(1200, cfg.get("window_width", 1280))
         h = max(800, cfg.get("window_height", 850))
@@ -135,10 +136,9 @@ class MainWindow(Adw.ApplicationWindow):
 
         self.header_bar.pack_start(scan_box)
 
-        # Título limpio en el centro
+        # Título limpio en el centro con versión y sin subtítulo
         self.window_title = Adw.WindowTitle(
-            title=APP_NAME,
-            subtitle=i18n.t("app.subtitle"),
+            title=f"{APP_NAME} {__version__}",
         )
         self.header_bar.set_title_widget(self.window_title)
 
@@ -473,6 +473,7 @@ class MainWindow(Adw.ApplicationWindow):
         menu.append(i18n.t("menu.preferences"), "app.preferences")
         menu.append(i18n.t("menu.shortcuts"), "app.shortcuts")
         menu.append(i18n.t("menu.website"), "app.website")
+        menu.append(i18n.t("menu.donate"), "app.donate")
         menu.append(i18n.t("menu.about"), "app.about")
         self.menu_btn.set_menu_model(menu)
 
@@ -484,7 +485,6 @@ class MainWindow(Adw.ApplicationWindow):
         self.btn_mini_player.set_tooltip_text(i18n.t("header.mini_player"))
         self.btn_fullscreen.set_tooltip_text(i18n.t("header.super_player"))
         self.search_entry.set_placeholder_text(i18n.t("header.search_placeholder"))
-        self.window_title.set_subtitle(i18n.t("app.subtitle"))
         self._rebuild_menu()
         self._update_output_status()
         self.browser.refresh_i18n()

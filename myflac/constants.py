@@ -4,6 +4,7 @@ APP_ID = "com.maestebanc.MyFlac"
 APP_NAME = "MyFlac"
 APP_WEBSITE = "https://maestebanc.github.io/MyFlac/"
 APP_REPOSITORY = "https://github.com/maestebanc/MyFlac"
+KOFI_URL = "https://ko-fi.com/marianitu"
 
 SUPPORTED_EXTENSIONS = (
     ".flac",

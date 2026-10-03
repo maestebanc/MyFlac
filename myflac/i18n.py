@@ -506,6 +506,16 @@ STRINGS: dict[str, dict[str, str]] = {
         "en": "Official Website",
         "ca": "Lloc web oficial",
     },
+    "menu.donate": {
+        "es": "¡Dame argo! (Ko-fi)",
+        "en": "Buy Me a Coffee (Ko-fi)",
+        "ca": "Dona'm argo! (Ko-fi)",
+    },
+    "about.donate": {
+        "es": "¡Dame argo! (Ko-fi)",
+        "en": "Buy Me a Coffee (Ko-fi)",
+        "ca": "Dona'm argo! (Ko-fi)",
+    },
     "menu.about": {
         "es": "Acerca de MyFlac",
         "en": "About MyFlac",
@@ -556,14 +566,14 @@ STRINGS: dict[str, dict[str, str]] = {
         "ca": "{count} pistes · {duration}",
     },
     "footer.hires_album": {
-        "es": "⭐ Álbum Hi-Res ({rates})",
-        "en": "⭐ Hi-Res Album ({rates})",
-        "ca": "⭐ Àlbum Hi-Res ({rates})",
+        "es": "◆ Álbum Hi-Res ({rates})",
+        "en": "◆ Hi-Res Album ({rates})",
+        "ca": "◆ Àlbum Hi-Res ({rates})",
     },
     "footer.hires_partial": {
-        "es": "★ {hires} de {total} pistas en Hi-Res ({pct}%)",
-        "en": "★ {hires} of {total} tracks in Hi-Res ({pct}%)",
-        "ca": "★ {hires} de {total} pistes en Hi-Res ({pct}%)",
+        "es": "◆ {hires} de {total} pistas en Hi-Res ({pct}%)",
+        "en": "◆ {hires} of {total} tracks in Hi-Res ({pct}%)",
+        "ca": "◆ {hires} de {total} pistes en Hi-Res ({pct}%)",
     },
     "footer.standard_quality": {
         "es": "Calidad Estándar CD",

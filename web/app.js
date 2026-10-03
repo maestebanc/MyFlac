@@ -21,6 +21,7 @@ const translations = {
     dl_deb_btn: "Descargar .deb (231 KB)",
     dl_arch_btn: "Descargar .pkg.tar.zst (268 KB)",
     footer_tagline: "— Creado con pasión por Miguel Ángel Esteban",
+    footer_kofi: "☕ ¡Dame argo! (Ko-fi)",
     meta_description: "MyFlac es un reproductor de música audiófilo y gratuito para Linux y GNOME: sonido bit-perfect, DSD nativo, volumen del DAC, letras sincronizadas y fichas de Wikipedia y Discogs.",
     btn_install: "Instalar MyFlac",
     btn_install_sub: "Flatpak · actualizaciones automáticas",
@@ -39,6 +40,7 @@ const translations = {
     nav_screenshots: "Capturas",
     nav_formats: "Formatos",
     nav_download: "Descargar",
+    nav_kofi: "¡Dame argo!",
 
     // Hero
     hero_badge: "Nuevo en v0.2.1 • Scroll suave y zoom en letras, osciloscopios compactos",
@@ -111,6 +113,7 @@ const translations = {
     dl_deb_btn: "Download .deb (231 KB)",
     dl_arch_btn: "Download .pkg.tar.zst (268 KB)",
     footer_tagline: "— Crafted with passion by Miguel Ángel Esteban",
+    footer_kofi: "☕ Buy Me a Coffee (Ko-fi)",
     meta_description: "MyFlac is a free audiophile music player for Linux and GNOME: bit-perfect playback, native DSD, DAC hardware volume, synchronized lyrics and Wikipedia & Discogs insights.",
     btn_install: "Install MyFlac",
     btn_install_sub: "Flatpak · automatic updates",
@@ -129,6 +132,7 @@ const translations = {
     nav_screenshots: "Screenshots",
     nav_formats: "Formats",
     nav_download: "Download",
+    nav_kofi: "Buy Me a Coffee",
 
     // Hero
     hero_badge: "New in v0.2.1 • Smooth lyrics scroll and zoom, compact visualizers",
@@ -201,6 +205,7 @@ const translations = {
     dl_deb_btn: "Descarregar .deb (231 KB)",
     dl_arch_btn: "Descarregar .pkg.tar.zst (268 KB)",
     footer_tagline: "— Creat amb passió per Miguel Ángel Esteban",
+    footer_kofi: "☕ Dona'm argo! (Ko-fi)",
     meta_description: "MyFlac és un reproductor de música audiòfil i gratuït per a Linux i GNOME: so bit-perfect, DSD natiu, volum del DAC, lletres sincronitzades i fitxes de Wikipedia i Discogs.",
     btn_install: "Instal·lar MyFlac",
     btn_install_sub: "Flatpak · actualitzacions automàtiques",
@@ -219,6 +224,7 @@ const translations = {
     nav_screenshots: "Captures",
     nav_formats: "Formats",
     nav_download: "Descarregar",
+    nav_kofi: "Dona'm argo!",
 
     // Hero
     hero_badge: "Nou a la v0.2.1 • Desplaçament suau i zoom a les lletres, oscil·loscopis compactes",

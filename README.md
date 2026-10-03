@@ -1,5 +1,8 @@
 # MyFlac
 
+[![Ko-fi](https://img.shields.io/badge/Ko--fi-¡Dame_argo!-ff5e5b?logo=kofi&logoColor=white)](https://ko-fi.com/marianitu)
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
+
 **A clean, bit-perfect Hi-Res music player and library browser for the Linux desktop.**
 
 MyFlac is designed for those who want to listen to their music collection in pristine audiophile quality, with zero unnecessary bloat, a modern GNOME/Libadwaita interface, and rich contextual information about every song, album, and artist.
@@ -150,6 +153,14 @@ cd MyFlac
 | <kbd>Ctrl</kbd> + <kbd>,</kbd> | Open Preferences |
 | <kbd>Ctrl</kbd> + <kbd>?</kbd> / <kbd>F1</kbd> | Keyboard Shortcuts cheat-sheet |
 | <kbd>Ctrl</kbd> + <kbd>Q</kbd> | Quit MyFlac |
+
+---
+
+## Support / Donaciones
+
+Si te gusta MyFlac y quieres apoyar su desarrollo o invitar a un café:
+
+[![Ko-fi](https://img.shields.io/badge/Ko--fi-¡Dame_argo!-ff5e5b?logo=kofi&logoColor=white)](https://ko-fi.com/marianitu)
 
 ---
 

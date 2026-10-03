@@ -11,7 +11,7 @@ gi.require_version("Adw", "1")
 from gi.repository import Adw, Gdk, Gio, GLib, Gtk
 
 from . import config
-from .constants import APP_ID, APP_NAME, APP_WEBSITE
+from .constants import APP_ID, APP_NAME, APP_WEBSITE, KOFI_URL
 from .logger import get_log_path, get_logger, setup_logging
 from .ui.about_dialog import build_about_dialog
 from .ui.main_window import MainWindow
@@ -57,6 +57,10 @@ class MyFlacApplication(Adw.Application):
         website_action = Gio.SimpleAction.new("website", None)
         website_action.connect("activate", lambda *_: self._open_website())
         self.add_action(website_action)
+
+        donate_action = Gio.SimpleAction.new("donate", None)
+        donate_action.connect("activate", lambda *_: self._open_donate())
+        self.add_action(donate_action)
 
     quitting = False
 
@@ -176,6 +180,13 @@ class MyFlacApplication(Adw.Application):
             return
         log.info("Abriendo sitio web oficial: %s", APP_WEBSITE)
         launcher = Gtk.UriLauncher.new(APP_WEBSITE)
+        launcher.launch(self.window, None, None)
+
+    def _open_donate(self):
+        if not self.window:
+            return
+        log.info("Abriendo enlace de apoyo Ko-fi: %s", KOFI_URL)
+        launcher = Gtk.UriLauncher.new(KOFI_URL)
         launcher.launch(self.window, None, None)
 
 
