@@ -628,7 +628,7 @@ class PlayerBar(Gtk.Box):
     def _toggle_device_popover(self, *_):
         self._rebuild_device_popover()
         self.device_popover.popup()
-        # Busca renderers de red (WiiM...) y refresca la lista si aparece alguno nuevo
+        # Busca renderers de red (UPnP/DLNA) y refresca la lista si aparece alguno nuevo
         before = {d.udn for d in upnp.known_devices()}
 
         def on_found(devs):

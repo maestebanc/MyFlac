@@ -1,4 +1,4 @@
-"""Salidas de red UPnP/DLNA (WiiM, Linkplay y otros MediaRenderer) para MyFlac.
+"""Salidas de red UPnP/DLNA (receptores, amplificadores, streamers y otros MediaRenderer) para MyFlac.
 
 El dispositivo de red descarga el archivo directamente (la URL firmada de Qobuz o un archivo local
 servido por HTTP desde este equipo) y lo decodifica él mismo: sin recodificación, hasta 24 bit / 192 kHz.
@@ -551,7 +551,7 @@ def has_advanced(reported_uri: str, next_uri: str, prev_pos: float, new_pos: flo
     """
     ¿El renderer ha pasado solo a la pista encadenada (SetNextAVTransportURI)?
 
-    La posición tiene que haber vuelto al principio: el WiiM y otros Linkplay informan de la URI
+    La posición tiene que haber vuelto al principio: ciertos renderers informan de la URI
     siguiente en cuanto terminan de descargar la actual, mucho antes de que empiece a sonar.
     """
     if not next_uri:

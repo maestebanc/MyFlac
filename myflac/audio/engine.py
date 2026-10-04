@@ -125,7 +125,7 @@ class AudioEngine:
         self.on_track_finished: Callable[[], None] | None = None
         self.on_error: Callable[[str], None] | None = None
         self._output_listeners: list[Callable[[], None]] = []
-        # Renderer UPnP/DLNA activo (WiiM...): si no es None, el audio no pasa por GStreamer
+        # Renderer UPnP/DLNA activo: si no es None, el audio no pasa por GStreamer
         self._remote: RemoteRenderer | None = None
         # Último reintento por URL de streaming caducada, por pista
         self._stream_retry_ts: dict[int, float] = {}

@@ -27,6 +27,8 @@ MyFlac and [MyTag](https://maestebanc.github.io/MyTag/) are designed as companio
 
 ## Key Features
 
+- **Official Qobuz Hi-Res Streaming**: Browse and stream millions of studio master FLAC albums up to 24-bit / 192 kHz directly inside MyFlac. Genre filters, editorial releases, and personal favorites with seamless one-click web login.
+- **UPnP / DLNA Network Streaming**: Cast your local music library and streaming playback to any UPnP / DLNA compliant network receiver, streamer, or amplifier in bit-perfect lossless quality with live transport control and real-time metadata.
 - **Pure Bit-Perfect Playback**: Direct hardware access to your DAC via exclusive ALSA (`hw:CARD=...,DEV=...`), negotiated with PipeWire/WirePlumber through the standard `org.freedesktop.ReserveDevice1` D-Bus protocol. No mixer, no digital volume (fixed at 0 dB), no dithering.
   - **Per-device**: enable *Bit-Perfect exclusive mode* for each DAC from the output selector; other outputs keep using the system mixer.
   - **Honest status**: the output selector shows what really reaches the DAC — `Bit-perfect · 192 kHz` when samples arrive untouched, *Resampled to 96 kHz* when the track exceeds the DAC's maximum rate, or *Reduced to 16 bits* if the DAC cannot take the track's bit depth.
@@ -74,18 +76,18 @@ Install from the official MyFlac repository and get automatic updates through GN
 flatpak install --from https://maestebanc.github.io/MyFlac/myflac.flatpakref
 ```
 
-Or click **Install MyFlac** on the [official website](https://maestebanc.github.io/MyFlac/). The standalone `myflac-0.2.1.flatpak` bundle from the releases page also receives updates from the repository.
+Or click **Install MyFlac** on the [official website](https://maestebanc.github.io/MyFlac/). The standalone `myflac-0.2.3.flatpak` bundle from the releases page also receives updates from the repository.
 
 ### Fedora / RHEL (RPM)
 
 ```bash
-sudo dnf install ./myflac-0.2.1-1.noarch.rpm
+sudo dnf install ./myflac-0.2.3-1.noarch.rpm
 ```
 
 ### Debian / Ubuntu (24.04 LTS+, Debian 13+)
 
 ```bash
-sudo apt install ./myflac_0.2.1-1_all.deb
+sudo apt install ./myflac_0.2.3-1_all.deb
 ```
 
 ### Arch Linux
@@ -93,7 +95,7 @@ sudo apt install ./myflac_0.2.1-1_all.deb
 Install the pre-built package with `pacman`:
 
 ```bash
-sudo pacman -U myflac-0.2.1-1-any.pkg.tar.zst
+sudo pacman -U myflac-0.2.3-1-any.pkg.tar.zst
 ```
 
 Or build from source using the included `PKGBUILD`:

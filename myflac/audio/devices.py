@@ -31,7 +31,7 @@ class AudioDevice:
     alsa_device: int | None = None
     max_sample_rate: int | None = None
     dsd_native: bool = False  # La tarjeta acepta DSD nativo en ALSA (DSD_U32_BE...), sin DoP
-    is_network: bool = False  # Renderer UPnP/DLNA (WiiM...): el audio no sale por el mezclador local
+    is_network: bool = False  # Renderer UPnP/DLNA (receptores y streamers de red): el audio no sale por el mezclador local
 
     @property
     def hw_path(self) -> str | None:
@@ -152,7 +152,7 @@ def _get_monitor() -> Gst.DeviceMonitor | None:
 
 
 def network_audio_devices() -> list[AudioDevice]:
-    """Renderers UPnP/DLNA ya descubiertos (WiiM, Linkplay...), como salidas de audio."""
+    """Renderers UPnP/DLNA ya descubiertos (receptores, amplificadores, streamers...), como salidas de audio."""
     from .upnp import known_devices
     return [
         AudioDevice(
