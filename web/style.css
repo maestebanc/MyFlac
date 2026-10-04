@@ -971,6 +971,39 @@ section {
   line-height: 1.62;
 }
 
+.card-tag-new {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: var(--radius-pill);
+  background: rgba(53, 132, 228, 0.14);
+  color: var(--blue-3);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 14px;
+  width: fit-content;
+  border: 1px solid rgba(53, 132, 228, 0.28);
+}
+
+.feature-card.highlight-qobuz {
+  border-color: rgba(53, 132, 228, 0.35);
+  background: linear-gradient(150deg, var(--bg-card) 0%, rgba(53, 132, 228, 0.06) 100%);
+  position: relative;
+}
+
+.feature-card.highlight-qobuz:hover {
+  border-color: var(--blue-3);
+  box-shadow: 0 8px 26px rgba(53, 132, 228, 0.16);
+}
+
+.format-pill.qobuz-pill {
+  border-color: rgba(53, 132, 228, 0.38);
+  background-color: rgba(53, 132, 228, 0.08);
+}
+
 
 
 /* --------------------------------------------------------------------------
