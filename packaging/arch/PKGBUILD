@@ -1,6 +1,6 @@
 # Maintainer: Miguel Angel Esteban <maestebanc@gmail.com>
 pkgname=myflac
-pkgver=0.2.1
+pkgver=0.2.3
 pkgrel=1
 pkgdesc="Bit-perfect Hi-Res audio player for GNOME"
 arch=('any')
@@ -21,6 +21,7 @@ optdepends=(
     'gst-plugins-ugly: Additional audio format decoders'
     'gst-plugin-pipewire: Native PipeWire audio output'
     'gst-libav: DSD (DSF) playback'
+    'webkitgtk-6.0: Qobuz web login (Google, Apple or Qobuz account)'
 )
 source=()
 

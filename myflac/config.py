@@ -64,7 +64,14 @@ DEFAULTS = {
     "last_album": "__ALL__",    # Último álbum seleccionado en el navegador
     "last_track_path": "",      # Ruta del último archivo reproducido
     "last_position": 0.0,       # Última posición en segundos
+    "qobuz_enabled": True,      # Pestaña de Qobuz visible
+    "tidal_enabled": False,     # Pestaña de TIDAL (desactivado por defecto hasta pase a producción)
+    "library_setup_dismissed": False,  # True si el usuario omitió o completó la configuración inicial
+    "last_view": "library",     # Última vista activa ("library", "qobuz", "tidal")
 }
+
+# Integración oficial de TIDAL: en nivel THIRD_PARTY por defecto; activable con MYFLAC_ENABLE_TIDAL=1
+TIDAL_AVAILABLE = bool(os.environ.get("MYFLAC_ENABLE_TIDAL"))
 
 
 # Ajustes de funciones retiradas (fichas con IA de Gemini, aviso al cerrar la ventana)

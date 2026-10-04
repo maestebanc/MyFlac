@@ -227,6 +227,8 @@ class LyricsService:
 
     def _get_embedded_lyrics(self, track: AudioTrack) -> str | None:
         """Intenta extraer letras guardadas dentro del propio archivo de audio."""
+        if track.is_stream or track.is_url:
+            return None  # Streaming: no hay archivo local que leer
         try:
             import mutagen
             mf = mutagen.File(track.filepath)

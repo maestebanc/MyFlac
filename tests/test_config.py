@@ -19,3 +19,18 @@ def test_default_output_never_exclusive():
     cfg = {"exclusive_devices": ["default"]}
     set_device_exclusive_enabled(cfg, "default", True)
     assert not is_device_exclusive_enabled(cfg, "default")
+
+
+def test_streaming_services_defaults():
+    """Qobuz activo por defecto; TIDAL condicionado hasta pase a producción."""
+    from myflac import config
+    assert config.DEFAULTS["qobuz_enabled"] is True
+    assert config.DEFAULTS["tidal_enabled"] is False
+    assert config.TIDAL_AVAILABLE is False
+
+
+def test_library_setup_defaults():
+    """Valores por defecto para la configuración inicial y vista."""
+    from myflac import config
+    assert config.DEFAULTS["library_setup_dismissed"] is False
+    assert config.DEFAULTS["last_view"] == "library"

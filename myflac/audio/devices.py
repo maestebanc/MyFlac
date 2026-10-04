@@ -31,6 +31,7 @@ class AudioDevice:
     alsa_device: int | None = None
     max_sample_rate: int | None = None
     dsd_native: bool = False  # La tarjeta acepta DSD nativo en ALSA (DSD_U32_BE...), sin DoP
+    is_network: bool = False  # Renderer UPnP/DLNA (WiiM...): el audio no sale por el mezclador local
 
     @property
     def hw_path(self) -> str | None:
@@ -150,6 +151,25 @@ def _get_monitor() -> Gst.DeviceMonitor | None:
     return _monitor
 
 
+def network_audio_devices() -> list[AudioDevice]:
+    """Renderers UPnP/DLNA ya descubiertos (WiiM, Linkplay...), como salidas de audio."""
+    from .upnp import known_devices
+    return [
+        AudioDevice(
+            id=d.id,
+            name=d.name,
+            description=d.description,
+            icon_name="network-wireless-symbolic",
+            is_network=True,
+        )
+        for d in known_devices()
+    ]
+
+
+def _with_network(devices: list[AudioDevice]) -> list[AudioDevice]:
+    return list(devices) + network_audio_devices()
+
+
 def get_available_devices(force_refresh: bool = False) -> list[AudioDevice]:
     """Obtiene la lista de dispositivos de salida a través del mezclador del sistema (PipeWire/Pulse)."""
     global _cached_devices, _last_scan_time, _last_logged_count
@@ -158,7 +178,7 @@ def get_available_devices(force_refresh: bool = False) -> list[AudioDevice]:
         # Actualizar textos del dispositivo por defecto según el idioma actual
         _cached_devices[0].name = i18n.t("devices.default_name")
         _cached_devices[0].description = i18n.t("devices.default_desc")
-        return list(_cached_devices)
+        return _with_network(_cached_devices)
 
     devices: list[AudioDevice] = []
 
@@ -243,7 +263,7 @@ def get_available_devices(force_refresh: bool = False) -> list[AudioDevice]:
     if len(devices) != _last_logged_count:
         _last_logged_count = len(devices)
         log.info("Dispositivos de salida del mezclador disponibles: %d", len(devices))
-    return devices
+    return _with_network(devices)
 
 
 def base_node_name(node_name: str) -> str:

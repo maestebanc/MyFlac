@@ -63,3 +63,156 @@ popover contents {
     border: 1px solid alpha(#242731, 0.10);
     box-shadow: 0 10px 28px alpha(black, 0.12), 0 3px 8px alpha(black, 0.06);
 }
+
+/* ==========================================================================
+   Relieve Hiper-Realista Hi-Fi para Botones de Reproducción (Tema Claro)
+   Inspirado en frontales de aluminio macizo pulido, platino y plata cepillada
+   ========================================================================== */
+
+.hifi-controls-dock {
+    background-color: transparent;
+    border: none;
+    box-shadow: none;
+}
+
+/* Botones secundarios (Paso de pista y modos en aluminio macizo) */
+.hifi-btn-step,
+.hifi-btn-sub {
+    background-image: linear-gradient(
+        180deg,
+        #ffffff 0%,
+        alpha(white, 0.85) 30%,
+        alpha(black, 0.01) 65%,
+        alpha(black, 0.08) 100%
+    ), linear-gradient(
+        180deg,
+        @card_bg_color 0%,
+        @window_bg_color 100%
+    );
+    color: alpha(#242731, 0.85);
+    border: none;
+    box-shadow: 0 1px 0 alpha(black, 0.14);
+}
+
+.hifi-btn-step:hover,
+.hifi-btn-sub:hover {
+    background-image: linear-gradient(
+        180deg,
+        #ffffff 0%,
+        alpha(white, 0.95) 30%,
+        alpha(black, 0.00) 65%,
+        alpha(black, 0.05) 100%
+    ), linear-gradient(
+        180deg,
+        @card_bg_color 0%,
+        @window_bg_color 100%
+    );
+    color: #242731;
+    border: none;
+    box-shadow: 0 1.5px 0 alpha(black, 0.18);
+}
+
+.hifi-btn-step:active,
+.hifi-btn-sub:active {
+    background-image: linear-gradient(
+        180deg,
+        alpha(black, 0.12) 0%,
+        alpha(black, 0.02) 50%,
+        alpha(white, 0.35) 100%
+    ), linear-gradient(
+        180deg,
+        @window_bg_color 0%,
+        @card_bg_color 100%
+    );
+    color: #242731;
+    border: none;
+    box-shadow: 0 0.5px 0 alpha(black, 0.10);
+}
+
+/* Modos activos (Shuffle / Repeat) en tema claro */
+.hifi-btn-sub.accent,
+.hifi-btn-sub:checked {
+    background-image: linear-gradient(
+        180deg,
+        alpha(#3584e4, 0.22) 0%,
+        alpha(#2563eb, 0.12) 60%,
+        alpha(black, 0.04) 100%
+    ), linear-gradient(
+        180deg,
+        @card_bg_color 0%,
+        @window_bg_color 100%
+    );
+    color: #1d4ed8;
+    border: none;
+    box-shadow: 0 1px 0 alpha(#1d4ed8, 0.35);
+}
+
+/* Botón Maestro Play/Pause en Tema Claro (Zafiro Real Esculpido) */
+.hifi-btn-play {
+    background-image: linear-gradient(
+        180deg,
+        alpha(white, 0.45) 0%,
+        alpha(white, 0.15) 28%,
+        alpha(black, 0.00) 55%,
+        alpha(black, 0.22) 100%
+    ), linear-gradient(
+        180deg,
+        #2563eb 0%,
+        #1d4ed8 50%,
+        #1e40af 100%
+    );
+    color: #ffffff;
+    border: none;
+    box-shadow: 0 1.5px 0 alpha(black, 0.22);
+}
+
+.hifi-btn-play:hover {
+    background-image: linear-gradient(
+        180deg,
+        alpha(white, 0.52) 0%,
+        alpha(white, 0.20) 28%,
+        alpha(black, 0.00) 55%,
+        alpha(black, 0.16) 100%
+    ), linear-gradient(
+        180deg,
+        #3b82f6 0%,
+        #2563eb 50%,
+        #1d4ed8 100%
+    );
+    border: none;
+    box-shadow: 0 2px 0 alpha(black, 0.26);
+}
+
+.hifi-btn-play:active {
+    background-image: linear-gradient(
+        180deg,
+        alpha(black, 0.25) 0%,
+        alpha(black, 0.05) 50%,
+        alpha(white, 0.12) 100%
+    ), linear-gradient(
+        180deg,
+        #1e3a8a 0%,
+        #1e40af 55%,
+        #1d4ed8 100%
+    );
+    border: none;
+    box-shadow: 0 1px 0 alpha(black, 0.15);
+}
+
+.hifi-btn-play.is-playing {
+    background-image: linear-gradient(
+        180deg,
+        alpha(white, 0.45) 0%,
+        alpha(white, 0.15) 28%,
+        alpha(black, 0.00) 55%,
+        alpha(black, 0.20) 100%
+    ), linear-gradient(
+        180deg,
+        #2563eb 0%,
+        #1d4ed8 50%,
+        #1e40af 100%
+    );
+    border: none;
+    box-shadow: 0 1.5px 0 alpha(black, 0.22);
+}
+

@@ -55,6 +55,17 @@
     </screenshot>
   </screenshots>
   <releases>
+    <release version="0.2.3" date="2026-10-03">
+      <description>
+        <p>Qobuz and TIDAL streaming integration: browse catalogue, user mixes, favorites, and stream Hi-Res lossless FLAC directly with bit-perfect ALSA output.</p>
+        <p>UPnP / DLNA network streaming: discovery and casting to WiiM, Linkplay and other network renderers with bit-perfect lossless quality.</p>
+        <p>Hi-Fi tactile volume controls: direct percentage indicator, mouse wheel and touchpad scroll with step controls.</p>
+        <p xml:lang="es">Integración de streaming Qobuz y TIDAL: catálogo, mezclas personales, favoritos y reproducción FLAC Hi-Res bit-perfect.</p>
+        <p xml:lang="es">Emisión de red UPnP / DLNA: descubrimiento y envío a streamers WiiM y receptores de red en calidad Bit-Perfect sin pérdidas.</p>
+        <p xml:lang="es">Controles de volumen táctiles Hi-Fi: indicador de porcentaje directo, desplazamiento por rueda de ratón y botones de ajuste fino.</p>
+        <p xml:lang="ca">Integració de streaming Qobuz i TIDAL, reproducció en xarxa UPnP/DLNA cap a dispositius WiiM i controls de volum tàctils d'alta fidelitat.</p>
+      </description>
+    </release>
     <release version="0.2.1" date="2026-10-02">
       <description>
         <p>Unobstructed artwork: the oscilloscope in the main window now sits on the bottom-left mini-cover, leaving the main album art completely clear.</p>

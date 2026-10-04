@@ -7,8 +7,9 @@ import gi
 
 gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
-from gi.repository import Adw, Gdk, GdkPixbuf, Gio, GLib, Gtk, Pango
+from gi.repository import Adw, Gdk, GLib, Gtk, Pango
 
+from ..audio import upnp
 from ..audio.devices import (
     AudioDevice,
     base_node_name,
@@ -22,6 +23,11 @@ from ..audio.track import AudioTrack
 from .. import i18n
 
 log = logging.getLogger(__name__)
+
+# Paso de los botones − / + del volumen (1 %)
+VOLUME_STEP = 0.01
+# Paso por cada «clic» de la rueda del ratón sobre el altavoz (2 %)
+VOLUME_SCROLL_STEP = 0.02
 
 
 class AdaptiveCoverFrame(Gtk.AspectFrame):
@@ -49,7 +55,7 @@ class PlayerBar(Gtk.Box):
     def __init__(self, engine: AudioEngine, on_device_click: Callable[[], None] | None = None):
         super().__init__(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
         self.add_css_class("player-bar")
-        self.set_size_request(-1, 64)
+        self.set_size_request(-1, 74)
         self.engine = engine
         self.on_device_click = on_device_click
 
@@ -178,44 +184,61 @@ class PlayerBar(Gtk.Box):
         # ==========================================
         # 2. CENTRO: Botones de transporte y barra de tiempo
         # ==========================================
-        center_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
-        center_box.set_hexpand(True)
-        center_box.set_halign(Gtk.Align.CENTER)
-        center_box.set_size_request(480, -1)
+        self.center_clamp = Adw.Clamp()
+        self.center_clamp.set_hexpand(True)
+        self.center_clamp.set_maximum_size(720)
+        self.center_clamp.set_tightening_threshold(540)
 
-        # Botones de control
-        controls_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        center_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5)
+        center_box.set_hexpand(True)
+        center_box.set_valign(Gtk.Align.CENTER)
+
+        # Botones de control con relieve táctil audiófilo
+        controls_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
         controls_box.set_halign(Gtk.Align.CENTER)
+        controls_box.set_valign(Gtk.Align.CENTER)
+        controls_box.set_margin_top(4)
+        controls_box.add_css_class("hifi-controls-dock")
 
         self.shuffle_btn = Gtk.ToggleButton()
         self.shuffle_btn.set_icon_name("media-playlist-shuffle-symbolic")
         self.shuffle_btn.set_tooltip_text(i18n.t("player.shuffle"))
-        self.shuffle_btn.add_css_class("flat")
+        self.shuffle_btn.set_valign(Gtk.Align.CENTER)
+        self.shuffle_btn.add_css_class("hifi-btn")
+        self.shuffle_btn.add_css_class("hifi-btn-sub")
         self.shuffle_btn.connect("toggled", self._on_shuffle_toggle)
         controls_box.append(self.shuffle_btn)
 
         self.prev_btn = Gtk.Button.new_from_icon_name("media-skip-backward-symbolic")
         self.prev_btn.set_tooltip_text(i18n.t("player.prev"))
-        self.prev_btn.add_css_class("flat")
+        self.prev_btn.set_valign(Gtk.Align.CENTER)
+        self.prev_btn.add_css_class("hifi-btn")
+        self.prev_btn.add_css_class("hifi-btn-step")
         self.prev_btn.connect("clicked", lambda *_: self.on_previous_clicked and self.on_previous_clicked())
         controls_box.append(self.prev_btn)
 
         self.play_btn = Gtk.Button.new_from_icon_name("media-playback-start-symbolic")
         self.play_btn.set_tooltip_text(i18n.t("player.play_pause"))
-        self.play_btn.add_css_class("suggested-action")
+        self.play_btn.set_valign(Gtk.Align.CENTER)
+        self.play_btn.add_css_class("hifi-btn")
+        self.play_btn.add_css_class("hifi-btn-play")
         self.play_btn.add_css_class("play-pause-btn")
         self.play_btn.connect("clicked", lambda *_: self._handle_play_click())
         controls_box.append(self.play_btn)
 
         self.next_btn = Gtk.Button.new_from_icon_name("media-skip-forward-symbolic")
         self.next_btn.set_tooltip_text(i18n.t("player.next"))
-        self.next_btn.add_css_class("flat")
+        self.next_btn.set_valign(Gtk.Align.CENTER)
+        self.next_btn.add_css_class("hifi-btn")
+        self.next_btn.add_css_class("hifi-btn-step")
         self.next_btn.connect("clicked", lambda *_: self.on_next_clicked and self.on_next_clicked())
         controls_box.append(self.next_btn)
 
         self.repeat_btn = Gtk.Button.new_from_icon_name("media-playlist-repeat-symbolic")
         self.repeat_btn.set_tooltip_text(i18n.t("player.repeat"))
-        self.repeat_btn.add_css_class("flat")
+        self.repeat_btn.set_valign(Gtk.Align.CENTER)
+        self.repeat_btn.add_css_class("hifi-btn")
+        self.repeat_btn.add_css_class("hifi-btn-sub")
         self.repeat_btn.connect("clicked", lambda *_: self.on_repeat_clicked and self.on_repeat_clicked())
         controls_box.append(self.repeat_btn)
 
@@ -241,7 +264,8 @@ class PlayerBar(Gtk.Box):
         seek_box.append(self.duration_label)
 
         center_box.append(seek_box)
-        self.append(center_box)
+        self.center_clamp.set_child(center_box)
+        self.append(self.center_clamp)
 
         # ==========================================
         # 3. DERECHA: Selector de Dispositivo Enriquecido + Volumen
@@ -326,29 +350,74 @@ class PlayerBar(Gtk.Box):
         self.queue_popover.set_has_arrow(True)
         self.queue_popover.set_position(Gtk.PositionType.TOP)
 
-        # Bloque de Volumen deslizante
-        vol_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
+        # Volumen: icono con el nivel en %, y en el desplegable − / deslizador / + para ajustes finos
         self.vol_btn = Gtk.MenuButton()
-        self.vol_btn.set_icon_name("audio-volume-high-symbolic")
         self.vol_btn.add_css_class("flat")
+        self.vol_btn.add_css_class("volume-btn")
         self.vol_btn.set_tooltip_text(i18n.t("player.volume"))
+        vol_btn_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
+        self.vol_icon = Gtk.Image.new_from_icon_name("audio-volume-high-symbolic")
+        vol_btn_box.append(self.vol_icon)
+        self.vol_btn_label = Gtk.Label(label="")
+        self.vol_btn_label.add_css_class("numeric")
+        self.vol_btn_label.add_css_class("caption")
+        # Ancho fijo para «100 %» y alineado a la derecha: el botón no se mueve al cambiar de cifra
+        self.vol_btn_label.set_width_chars(5)
+        self.vol_btn_label.set_max_width_chars(5)
+        self.vol_btn_label.set_xalign(1.0)
+        vol_btn_box.append(self.vol_btn_label)
+        self.vol_btn.set_child(vol_btn_box)
+
+        # Rueda del ratón sobre el altavoz: sube/baja sin abrir el desplegable
+        vol_scroll = Gtk.EventControllerScroll.new(Gtk.EventControllerScrollFlags.VERTICAL)
+        vol_scroll.connect("scroll", self._on_volume_scroll)
+        self.vol_btn.add_controller(vol_scroll)
+        self._scroll_accum = 0.0
 
         vol_popover = Gtk.Popover()
-        vol_content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
-        vol_content.set_margin_top(8)
-        vol_content.set_margin_bottom(8)
-        vol_content.set_margin_start(8)
-        vol_content.set_margin_end(8)
+        vol_content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        vol_content.set_margin_top(10)
+        vol_content.set_margin_bottom(10)
+        vol_content.set_margin_start(10)
+        vol_content.set_margin_end(10)
 
-        self.vol_scale = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 0.0, 1.0, 0.05)
+        self.vol_value_label = Gtk.Label(label="")
+        self.vol_value_label.add_css_class("title-2")
+        self.vol_value_label.add_css_class("numeric")
+        self.vol_value_label.set_width_chars(5)
+        vol_content.append(self.vol_value_label)
+
+        vol_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        self.vol_down_btn = Gtk.Button.new_from_icon_name("list-remove-symbolic")
+        self.vol_down_btn.add_css_class("circular")
+        self.vol_down_btn.add_css_class("flat")
+        self.vol_down_btn.set_valign(Gtk.Align.CENTER)
+        self.vol_down_btn.set_tooltip_text(i18n.t("player.volume_down"))
+        self.vol_down_btn.connect("clicked", lambda *_: self._step_volume(-VOLUME_STEP))
+        vol_row.append(self.vol_down_btn)
+
+        self.vol_scale = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 0.0, 1.0, VOLUME_STEP)
+        self.vol_scale.set_increments(VOLUME_STEP, 0.05)
+        self.vol_scale.set_round_digits(2)
         self.vol_scale.set_value(self.engine.volume)
-        self.vol_scale.set_size_request(140, -1)
+        self.vol_scale.set_size_request(170, -1)
+        self.vol_scale.set_hexpand(True)
         self.vol_scale.connect("value-changed", self._on_volume_changed)
-        vol_content.append(self.vol_scale)
+        vol_row.append(self.vol_scale)
+
+        self.vol_up_btn = Gtk.Button.new_from_icon_name("list-add-symbolic")
+        self.vol_up_btn.add_css_class("circular")
+        self.vol_up_btn.add_css_class("flat")
+        self.vol_up_btn.set_valign(Gtk.Align.CENTER)
+        self.vol_up_btn.set_tooltip_text(i18n.t("player.volume_up"))
+        self.vol_up_btn.connect("clicked", lambda *_: self._step_volume(VOLUME_STEP))
+        vol_row.append(self.vol_up_btn)
+        vol_content.append(vol_row)
 
         vol_popover.set_child(vol_content)
         self.vol_btn.set_popover(vol_popover)
         right_box.append(self.vol_btn)
+        self._update_vol_icon(self.engine.volume)
 
         self.append(right_box)
 
@@ -397,11 +466,14 @@ class PlayerBar(Gtk.Box):
         if self.engine.volume_adjustable:
             vol = self.engine.volume
             if abs(self.vol_scale.get_value() - vol) > 0.001:
-                self.vol_scale.set_value(vol)  # Emite value-changed: actualiza el icono
-            else:
-                self._update_vol_icon(vol)
+                self._syncing_volume = True  # Viene del motor o del equipo: no se reenvía
+                self.vol_scale.set_value(vol)
+                self._syncing_volume = False
+            self._update_vol_icon(vol)
         else:
-            self.vol_btn.set_icon_name("audio-volume-high-symbolic")
+            self.vol_icon.set_from_icon_name("audio-volume-high-symbolic")
+            self.vol_btn_label.set_label("0 dB")
+            self.vol_value_label.set_label("0 dB")
 
     def _update_output_status_line(self, dev: AudioDevice):
         status, level, tooltip = output_status(self.engine)
@@ -416,8 +488,10 @@ class PlayerBar(Gtk.Box):
         is_playing = (state == PlaybackState.PLAYING)
         if is_playing:
             self.play_btn.set_icon_name("media-playback-pause-symbolic")
+            self.play_btn.add_css_class("is-playing")
         else:
             self.play_btn.set_icon_name("media-playback-start-symbolic")
+            self.play_btn.remove_css_class("is-playing")
         # Actualizar scope de la mini-portada
         scope_on = is_playing and self._bar_scope_enabled
         self.bar_scope.set_playing(is_playing)
@@ -508,19 +582,42 @@ class PlayerBar(Gtk.Box):
             self.on_shuffle_toggled(btn.get_active())
 
     def _on_volume_changed(self, scale: Gtk.Scale):
-        val = scale.get_value()
-        self.engine.set_volume(val)
+        val = round(scale.get_value(), 2)
+        if not getattr(self, "_syncing_volume", False):
+            self.engine.set_volume(val)
         self._update_vol_icon(val)
 
+    def _on_volume_scroll(self, _controller, _dx: float, dy: float) -> bool:
+        """Rueda hacia arriba sube, hacia abajo baja. Los touchpads envían fracciones: se acumulan."""
+        if not self.engine.volume_adjustable:
+            return True  # Exclusivo sin volumen por hardware: fijo a 0 dB
+        self._scroll_accum += dy
+        steps = int(self._scroll_accum)
+        if steps:
+            self._scroll_accum -= steps
+            self._step_volume(-steps * VOLUME_SCROLL_STEP)
+        return True  # Que la rueda no desplace nada más
+
+    def _step_volume(self, delta: float):
+        """Botones − / +: un 1 % cada pulsación (el deslizador emite el cambio)."""
+        val = round(min(1.0, max(0.0, self.vol_scale.get_value() + delta)), 2)
+        self.vol_scale.set_value(val)
+
     def _update_vol_icon(self, val: float):
+        pct = int(round(val * 100))
+        self.vol_btn_label.set_label(f"{pct} %")
+        self.vol_value_label.set_label(f"{pct} %")
+        self.vol_down_btn.set_sensitive(pct > 0)
+        self.vol_up_btn.set_sensitive(pct < 100)
         if val == 0:
-            self.vol_btn.set_icon_name("audio-volume-muted-symbolic")
+            icon = "audio-volume-muted-symbolic"
         elif val < 0.35:
-            self.vol_btn.set_icon_name("audio-volume-low-symbolic")
+            icon = "audio-volume-low-symbolic"
         elif val < 0.7:
-            self.vol_btn.set_icon_name("audio-volume-medium-symbolic")
+            icon = "audio-volume-medium-symbolic"
         else:
-            self.vol_btn.set_icon_name("audio-volume-high-symbolic")
+            icon = "audio-volume-high-symbolic"
+        self.vol_icon.set_from_icon_name(icon)
 
     def _format_sec(self, seconds: float) -> str:
         s = int(round(max(0.0, seconds)))
@@ -531,6 +628,19 @@ class PlayerBar(Gtk.Box):
     def _toggle_device_popover(self, *_):
         self._rebuild_device_popover()
         self.device_popover.popup()
+        # Busca renderers de red (WiiM...) y refresca la lista si aparece alguno nuevo
+        before = {d.udn for d in upnp.known_devices()}
+
+        def on_found(devs):
+            if {d.udn for d in devs} != before:
+                GLib.idle_add(self._refresh_device_popover_if_open)
+
+        upnp.discover_async(on_found)
+
+    def _refresh_device_popover_if_open(self):
+        if self.device_popover.get_visible():
+            self._rebuild_device_popover()
+        return False
 
     def _rebuild_device_popover(self):
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)

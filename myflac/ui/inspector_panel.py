@@ -584,7 +584,7 @@ class InspectorPanel(Gtk.Box):
 
         # Ficha técnica de la fuente
         self.val_format.set_text(track.format_name)
-        self.val_rate.set_text(f"{track.sample_rate / 1000:g} kHz")
+        self.val_rate.set_text(f"{track.sample_rate / 1000:g} kHz" if track.sample_rate else "—")
         self.val_depth.set_text(f"{track.bits_per_sample} bits" if track.bits_per_sample > 1 else "1 bit (DSD)")
         channels_str = i18n.t("inspector.stereo") if track.channels == 2 else i18n.t("inspector.channels_n", n=track.channels)
         self.val_channels.set_text(channels_str)

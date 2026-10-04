@@ -22,6 +22,10 @@ from .ui.style import apply_theme, apply_ui_scale, load_extra_css, register_icon
 
 log = get_logger("app")
 
+# Preferencias que se aplican en vivo al cambiarlas en el diálogo
+LIVE_PREF_KEYS = ("audio_device_id", "language", "oscilloscope_enabled", "backdrop_enabled",
+                  "backdrop_intensity", "qobuz_enabled", "tidal_enabled")
+
 
 class MyFlacApplication(Adw.Application):
     def __init__(self):
@@ -113,8 +117,7 @@ class MyFlacApplication(Adw.Application):
             return
         log.info("Abriendo diálogo de preferencias")
         cfg = self.window.cfg
-        self._last_prefs = {k: cfg.get(k) for k in
-                            ("audio_device_id", "language", "oscilloscope_enabled", "backdrop_enabled", "backdrop_intensity")}
+        self._last_prefs = {k: cfg.get(k) for k in LIVE_PREF_KEYS}
         dlg = PreferencesDialog(
             cfg=self.window.cfg,
             db=self.window.db,
@@ -129,7 +132,7 @@ class MyFlacApplication(Adw.Application):
         """Aplica solo lo que ha cambiado: el diálogo avisa en cada paso de un deslizador."""
         if not self.window:
             return
-        keys = ("audio_device_id", "language", "oscilloscope_enabled", "backdrop_enabled", "backdrop_intensity")
+        keys = LIVE_PREF_KEYS
         current = {k: cfg.get(k) for k in keys}
         previous = getattr(self, "_last_prefs", {})
         changed = {k for k in keys if current[k] != previous.get(k)}
@@ -149,6 +152,9 @@ class MyFlacApplication(Adw.Application):
 
         if changed & {"backdrop_enabled", "backdrop_intensity"}:
             self.window.apply_backdrop_settings()
+
+        if changed & {"qobuz_enabled", "tidal_enabled"}:
+            self.window.apply_streaming_services()
 
         if "oscilloscope_enabled" in changed:
             oscilloscope_enabled = current["oscilloscope_enabled"] if current["oscilloscope_enabled"] is not None else True

@@ -86,6 +86,7 @@ optdepend = gst-plugins-bad: Additional audio format decoders
 optdepend = gst-plugins-ugly: Additional audio format decoders
 optdepend = gst-plugin-pipewire: Native PipeWire audio output
 optdepend = gst-libav: DSD (DSF) playback
+optdepend = webkitgtk-6.0: Qobuz web login (Google, Apple or Qobuz account)
 EOF
 
     RAW_VER="${VERSION%-1}"

@@ -2,7 +2,7 @@
 %define pysitelib %(python3 -c "import sys; print(f'/usr/lib/python{sys.version_info.major}.{sys.version_info.minor}/site-packages')")
 
 Name:           myflac
-Version:        0.2.1
+Version:        0.2.3
 Release:        1%{?dist}
 Summary:        Bit-perfect Hi-Res audio player for GNOME
 License:        GPL-3.0-or-later
@@ -19,6 +19,7 @@ Requires:       gstreamer1
 Requires:       gstreamer1-plugins-base
 Requires:       gstreamer1-plugins-good
 Recommends:     gstreamer1-plugin-libav
+Recommends:     webkitgtk6.0
 
 %description
 MyFlac is an audiophile, bit-perfect music player built specifically for GNOME

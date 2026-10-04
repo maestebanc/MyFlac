@@ -75,3 +75,156 @@ popover contents {
     border: 1px solid alpha(white, 0.08);
     box-shadow: 0 12px 32px alpha(black, 0.55), 0 4px 12px alpha(black, 0.35);
 }
+
+/* ==========================================================================
+   Relieve Hiper-Realista Hi-Fi para Botones de Reproducción (Tema Oscuro)
+   Inspirado en frontales audiófilos de titanio mecanizado y aluminio anodizado
+   ========================================================================== */
+
+.hifi-controls-dock {
+    background-color: transparent;
+    border: none;
+    box-shadow: none;
+}
+
+/* Botones secundarios (Paso de pista y modos en titanio / metal mecanizado) */
+.hifi-btn-step,
+.hifi-btn-sub {
+    background-image: linear-gradient(
+        180deg,
+        alpha(white, 0.18) 0%,
+        alpha(white, 0.05) 25%,
+        alpha(black, 0.02) 65%,
+        alpha(black, 0.22) 100%
+    ), linear-gradient(
+        180deg,
+        @card_bg_color 0%,
+        @window_bg_color 100%
+    );
+    color: alpha(#f1f5f9, 0.88);
+    border: 1px solid alpha(white, 0.13);
+    box-shadow: 0 1.5px 0 alpha(black, 0.60);
+}
+
+.hifi-btn-step:hover,
+.hifi-btn-sub:hover {
+    background-image: linear-gradient(
+        180deg,
+        alpha(white, 0.26) 0%,
+        alpha(white, 0.10) 25%,
+        alpha(black, 0.00) 65%,
+        alpha(black, 0.15) 100%
+    ), linear-gradient(
+        180deg,
+        @card_bg_color 0%,
+        @window_bg_color 100%
+    );
+    color: #ffffff;
+    border: 1px solid alpha(white, 0.24);
+    box-shadow: 0 2px 0 alpha(black, 0.70);
+}
+
+.hifi-btn-step:active,
+.hifi-btn-sub:active {
+    background-image: linear-gradient(
+        180deg,
+        alpha(black, 0.25) 0%,
+        alpha(black, 0.05) 50%,
+        alpha(white, 0.08) 100%
+    ), linear-gradient(
+        180deg,
+        @window_bg_color 0%,
+        @card_bg_color 100%
+    );
+    color: #ffffff;
+    border: 1px solid alpha(black, 0.60);
+    box-shadow: 0 0.5px 0 alpha(black, 0.30);
+}
+
+/* Modos activos (Shuffle / Repeat) iluminados con LED */
+.hifi-btn-sub.accent,
+.hifi-btn-sub:checked {
+    background-image: linear-gradient(
+        180deg,
+        alpha(#3584e4, 0.35) 0%,
+        alpha(#1d4ed8, 0.18) 60%,
+        alpha(black, 0.30) 100%
+    ), linear-gradient(
+        180deg,
+        @card_bg_color 0%,
+        @window_bg_color 100%
+    );
+    color: #60a5fa;
+    border: 1px solid alpha(#3584e4, 0.60);
+    box-shadow: 0 1.5px 0 alpha(black, 0.60);
+}
+
+/* Botón Maestro Play/Pause (Zafiro Cobalto Anodizado) */
+.hifi-btn-play {
+    background-image: linear-gradient(
+        180deg,
+        alpha(white, 0.42) 0%,
+        alpha(white, 0.14) 28%,
+        alpha(black, 0.00) 55%,
+        alpha(black, 0.28) 100%
+    ), linear-gradient(
+        180deg,
+        #3b82f6 0%,
+        #2563eb 45%,
+        #1d4ed8 100%
+    );
+    color: #ffffff;
+    border: 1px solid alpha(#bfdbfe, 0.45);
+    box-shadow: 0 2px 0 alpha(black, 0.70);
+}
+
+.hifi-btn-play:hover {
+    background-image: linear-gradient(
+        180deg,
+        alpha(white, 0.50) 0%,
+        alpha(white, 0.20) 28%,
+        alpha(black, 0.00) 55%,
+        alpha(black, 0.20) 100%
+    ), linear-gradient(
+        180deg,
+        #60a5fa 0%,
+        #3b82f6 45%,
+        #2563eb 100%
+    );
+    border: 1px solid alpha(#dbeafe, 0.65);
+    box-shadow: 0 2.5px 0 alpha(black, 0.75);
+}
+
+.hifi-btn-play:active {
+    background-image: linear-gradient(
+        180deg,
+        alpha(black, 0.30) 0%,
+        alpha(black, 0.05) 50%,
+        alpha(white, 0.10) 100%
+    ), linear-gradient(
+        180deg,
+        #1e40af 0%,
+        #1d4ed8 55%,
+        #2563eb 100%
+    );
+    border: 1px solid alpha(#172554, 0.85);
+    box-shadow: 0 1px 0 alpha(black, 0.40);
+}
+
+.hifi-btn-play.is-playing {
+    background-image: linear-gradient(
+        180deg,
+        alpha(white, 0.45) 0%,
+        alpha(white, 0.15) 28%,
+        alpha(black, 0.00) 55%,
+        alpha(black, 0.25) 100%
+    ), linear-gradient(
+        180deg,
+        #3b82f6 0%,
+        #2563eb 45%,
+        #1d4ed8 100%
+    );
+    border: 1px solid alpha(#bfdbfe, 0.60);
+    box-shadow: 0 2px 0 alpha(black, 0.70);
+}
+

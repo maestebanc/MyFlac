@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import os
 import re
+import threading
 import time
 import urllib.parse
 from enum import Enum
@@ -27,6 +28,7 @@ from .devices import (
 )
 from .reserve import AudioDeviceReservation, pcm_is_closed, wait_until_pcm_closed
 from .track import AudioTrack
+from .upnp import REMOTE_PREFIX, RemoteRenderer, find_known_device
 
 log = get_logger("audio.engine")
 
@@ -123,6 +125,10 @@ class AudioEngine:
         self.on_track_finished: Callable[[], None] | None = None
         self.on_error: Callable[[str], None] | None = None
         self._output_listeners: list[Callable[[], None]] = []
+        # Renderer UPnP/DLNA activo (WiiM...): si no es None, el audio no pasa por GStreamer
+        self._remote: RemoteRenderer | None = None
+        # Último reintento por URL de streaming caducada, por pista
+        self._stream_retry_ts: dict[int, float] = {}
 
         log.info("Inicializando AudioEngine (device_id='%s', exclusivo=%s)", device_id, exclusive)
         self._init_pipeline()
@@ -720,11 +726,17 @@ class AudioEngine:
 
     def set_output(self, device_id: str, exclusive: bool):
         """Cambia a la vez dispositivo y modo exclusivo reconstruyendo la salida una sola vez."""
+        if device_id.startswith(REMOTE_PREFIX):
+            self._enter_remote(device_id)
+            return
+        was_remote = self._remote is not None
+        if was_remote:
+            self._leave_remote()
         if device_id == "default" and exclusive:
             log.warning("No se puede activar el modo exclusivo para la salida predeterminada del sistema")
             exclusive = False
         same_device = self.device_id == device_id
-        if same_device and self.exclusive == exclusive and self.exclusive_active == exclusive \
+        if not was_remote and same_device and self.exclusive == exclusive and self.exclusive_active == exclusive \
                 and self._exclusive_bypass_track is None:
             return
         log.info("Salida de audio: '%s' (exclusivo=%s)", device_id, exclusive)
@@ -746,8 +758,126 @@ class AudioEngine:
         self.set_output(self.device_id, enabled)
 
     @property
+    def remote_active(self) -> bool:
+        """True si la salida es un dispositivo de red UPnP/DLNA (el audio no pasa por GStreamer)."""
+        return self._remote is not None
+
+    def _enter_remote(self, device_id: str):
+        """Pasa la reproducción a un renderer UPnP/DLNA conservando pista, posición y estado."""
+        dev = find_known_device(device_id)
+        if dev is None:
+            name = device_id.removeprefix(REMOTE_PREFIX)
+            log.warning("Dispositivo de red no encontrado: %s", device_id)
+            if self.on_error:
+                self.on_error(i18n.t("devices.network_not_found", name=name))
+            return
+        if self._remote is not None and self.device_id == device_id:
+            return
+        log.info("Salida de red UPnP/DLNA: '%s' (%s)", dev.name, dev.host)
+        track = self.current_track
+        position = self.get_position() if track else 0.0
+        was_playing = self.state == PlaybackState.PLAYING
+        if self._remote is not None:
+            self._remote.stop_now()
+            self._remote.shutdown()
+            self._remote = None
+
+        # El pipeline local se desmonta por completo (devuelve el DAC a PipeWire si estaba en exclusivo)
+        self._cancel_pending_rebuild()
+        self._rebuild_finish = None
+        self._rebuild_request = None
+        self._cleanup_pipeline()
+        self._hw_suspended = False
+        self._exclusive_bypass_track = None
+        self.exclusive = False
+        self.exclusive_active = False
+        self.hw_device = None
+        self.resampling_active = False
+        self.depth_reduced = False
+        self.output_dsd = False
+        self.dsd_to_pcm = False
+        self._pending_seek = None
+        self._stop_timer()
+
+        self.device_id = device_id
+        self._remote = RemoteRenderer(
+            dev,
+            on_state=self._on_remote_state,
+            on_finished=self._on_remote_finished,
+            on_error=self._on_remote_error,
+            on_volume=self._notify_output_changed,
+            on_advanced=self._on_remote_advanced,
+        )
+        self._notify_output_changed()
+        if track:
+            self.load_track(track, play_now=was_playing, initial_position=position)
+
+    def _leave_remote(self):
+        """Abandona el renderer de red; el llamador reconstruye la salida local."""
+        remote = self._remote
+        if remote is None:
+            return
+        position = remote.position
+        remote.stop_now()
+        remote.shutdown()
+        self._remote = None
+        self._pending_seek = position if position > 0.0 else None
+        self._stop_timer()
+
+    def _on_remote_state(self, state: str):
+        """El dispositivo cambió de estado por su cuenta (botones físicos o su propia app)."""
+        if self._remote is None:
+            return
+        if state == "PLAYING" and self.state != PlaybackState.PLAYING:
+            self._want_playing = True
+            self.state = PlaybackState.PLAYING
+            self._start_timer()
+            self._notify_state_changed()
+        elif state == "PAUSED" and self.state == PlaybackState.PLAYING:
+            self._want_playing = False
+            self.state = PlaybackState.PAUSED
+            self._stop_timer()
+            self._notify_state_changed()
+
+    def _on_remote_finished(self):
+        if self._remote is None:
+            return
+        log.info("Fin de pista en el dispositivo de red")
+        self.stop()
+        if self.on_track_finished:
+            self.on_track_finished()
+
+    def _on_remote_advanced(self, track: AudioTrack):
+        """El dispositivo de red pasó solo a la pista encadenada (sin silencio entre pistas)."""
+        if self._remote is None:
+            return
+        log.info("Pista encadenada en reproducción en '%s': '%s'", self._remote.device.name, track.title)
+        if self.next_track is track:
+            self.next_track = None
+        self.current_track = track
+        self.output_sample_rate = track.sample_rate or 0
+        self.output_bit_depth = track.bits_per_sample or 0
+        self._notify_track_changed(track)
+        self._notify_position(self.get_position(), self.get_duration())
+
+    def _on_remote_error(self, reason: str):
+        if self._remote is None:
+            return
+        name = self._remote.device.name
+        log.error("Error en la salida de red '%s': %s", name, reason)
+        self._want_playing = False
+        if self.state != PlaybackState.STOPPED:
+            self.state = PlaybackState.PAUSED
+            self._stop_timer()
+            self._notify_state_changed()
+        if self.on_error:
+            self.on_error(i18n.t("devices.network_failed", name=name, reason=reason))
+
+    @property
     def volume(self) -> float:
-        """Volumen efectivo: el del DAC en exclusivo (si tiene control propio) o el de GStreamer."""
+        """Volumen efectivo: el del dispositivo de red, el del DAC en exclusivo (si tiene control propio) o el de GStreamer."""
+        if self._remote is not None and self._remote.volume is not None:
+            return self._remote.volume
         if self.exclusive_active and self.hw_mixer:
             return self.hw_mixer.get_volume()
         return self._sw_volume
@@ -759,11 +889,16 @@ class AudioEngine:
     @property
     def volume_adjustable(self) -> bool:
         """En exclusivo solo se puede ajustar si el DAC tiene volumen por hardware."""
+        if self._remote is not None:
+            return bool(self._remote.device.rc_url)
         return not self.exclusive_active or self.hw_mixer is not None
 
     def set_volume(self, vol: float):
-        """Ajusta el volumen: por hardware en el DAC en exclusivo, o por software con el mezclador."""
+        """Ajusta el volumen: en el dispositivo de red, por hardware en el DAC en exclusivo, o por software con el mezclador."""
         vol = max(0.0, min(1.0, vol))
+        if self._remote is not None:
+            self._remote.set_volume(vol)
+            return
         if self.exclusive_active:
             if self.hw_mixer:
                 self._hw_volume_target = vol
@@ -797,6 +932,26 @@ class AudioEngine:
 
     def load_track(self, track: AudioTrack, play_now: bool = True, initial_position: float = 0.0):
         """Carga una pista para reproducción de forma segura y sin bloqueos."""
+        if self._remote is not None:
+            self.current_track = track
+            self.next_track = None  # load() del renderer descarta la encadenada: se vuelve a encadenar
+            self._gapless_pending = None
+            self._error_seen = False
+            self._pending_seek = None
+            self._want_playing = play_now
+            self.output_sample_rate = track.sample_rate or 0
+            self.output_bit_depth = track.bits_per_sample or 0
+            log.info("Cargando pista en '%s': '%s' (%s)", self._remote.device.name, track.title, track.badge_full)
+            self._remote.load(track, play_now, initial_position)
+            self.state = PlaybackState.PLAYING if play_now else PlaybackState.PAUSED
+            if play_now:
+                self._start_timer()
+            else:
+                self._stop_timer()
+            self._notify_state_changed()
+            self._notify_track_changed(track)
+            self._notify_position(initial_position, self.get_duration())
+            return
         if self._rebuild_finish is not None:
             # Salida aún en preparación: cargará esta pista cuando esté lista
             self._rebuild_request = (track, initial_position)
@@ -842,7 +997,10 @@ class AudioEngine:
             self.resampling_active = False
             self.output_sample_rate = track.sample_rate or 0
 
-        uri = "file://" + urllib.parse.quote(os.path.abspath(track.filepath))
+        if track.filepath.startswith(("http://", "https://")):
+            uri = track.filepath
+        else:
+            uri = "file://" + urllib.parse.quote(os.path.abspath(track.filepath))
         log.info("Cargando pista: '%s' (%s) | URI: %s", track.title, track.badge_full, uri)
 
         if not self._playbin:
@@ -871,7 +1029,10 @@ class AudioEngine:
             self._notify_position(initial_position, self.get_duration())
 
     def queue_next_track(self, track: AudioTrack | None):
+        same = track is self.next_track
         self.next_track = track
+        if self._remote is not None and not same:
+            self._remote.set_next(track)
 
     def _on_about_to_finish(self, playbin):
         # Se ejecuta en un hilo de streaming de GStreamer: solo encadena la URI. El cambio de
@@ -885,13 +1046,29 @@ class AudioEngine:
         if next_track and self.exclusive_active and self._wants_dsd(next_track) != self._dsd_mode:
             return  # Cambio DSD ↔ PCM: la siguiente pista se carga al terminar esta, con otro sink
         if next_track:
-            next_uri = "file://" + urllib.parse.quote(os.path.abspath(next_track.filepath))
+            if next_track.filepath.startswith(("http://", "https://")):
+                next_uri = next_track.filepath
+            else:
+                next_uri = "file://" + urllib.parse.quote(os.path.abspath(next_track.filepath))
             log.info("Encadenando siguiente pista gapless: '%s'", next_track.title)
             playbin.set_property("uri", next_uri)
             self._gapless_pending = next_track
             self.next_track = None
 
     def play(self):
+        if self._remote is not None:
+            track = self.current_track
+            if track is None:
+                return
+            self._want_playing = True
+            if self.state == PlaybackState.STOPPED:
+                self._remote.load(track, True, 0.0)  # Tras una parada hay que volver a cargar la pista
+            else:
+                self._remote.play()
+            self.state = PlaybackState.PLAYING
+            self._start_timer()
+            self._notify_state_changed()
+            return
         if self._rebuild_finish is not None:
             self._want_playing = True  # Empezará a sonar al terminar de preparar la salida
             return
@@ -918,6 +1095,16 @@ class AudioEngine:
         self._notify_state_changed()
 
     def pause(self):
+        if self._remote is not None:
+            if self.current_track is None:
+                return
+            log.info("Pausando reproducción en '%s'", self._remote.device.name)
+            self._want_playing = False
+            self._remote.pause()
+            self.state = PlaybackState.PAUSED
+            self._stop_timer()
+            self._notify_state_changed()
+            return
         if self._rebuild_finish is not None:
             self._want_playing = False
             self.state = PlaybackState.PAUSED
@@ -951,6 +1138,14 @@ class AudioEngine:
             self.play()
 
     def stop(self):
+        if self._remote is not None:
+            self._want_playing = False
+            self._remote.stop()
+            self.state = PlaybackState.STOPPED
+            self._stop_timer()
+            self._notify_state_changed()
+            self._notify_position(0.0, self.get_duration())
+            return
         if self._rebuild_finish is not None:
             self._want_playing = False
         if not self._playbin:
@@ -976,6 +1171,16 @@ class AudioEngine:
 
     def seek(self, position_seconds: float):
         """Solicita avanzar o retroceder en la pista actual de forma segura y sin bloqueos."""
+        if self._remote is not None:
+            if self.state == PlaybackState.STOPPED:
+                return
+            position_seconds = max(0.0, position_seconds)
+            dur = self.get_duration()
+            if dur > 0:
+                position_seconds = min(position_seconds, max(0.0, dur - 0.5))
+            self._remote.seek(position_seconds)
+            self._notify_position(position_seconds, dur)
+            return
         if not self._playbin or self.state == PlaybackState.STOPPED:
             return
 
@@ -1009,6 +1214,8 @@ class AudioEngine:
         self._notify_position(position_seconds, self.get_duration())
 
     def get_position(self) -> float:
+        if self._remote is not None:
+            return self._remote.position if self.state != PlaybackState.STOPPED else 0.0
         if self._pending_seek is not None:
             return self._pending_seek
         if not self._playbin or self.state == PlaybackState.STOPPED:
@@ -1099,6 +1306,8 @@ class AudioEngine:
             err, debug = message.parse_error()
             log.error("Error en GStreamer: %s (debug: %s)", err.message, debug)
             self._error_seen = True
+            if self._retry_expired_stream(err):
+                return
             if self.exclusive_active:
                 if not self._fallback_scheduled:
                     # Fuera del manejador del bus del pipeline que falló, que se va a destruir
@@ -1108,6 +1317,41 @@ class AudioEngine:
             self.stop()
             if self.on_error:
                 self.on_error(err.message)
+
+    def _retry_expired_stream(self, err: GLib.Error) -> bool:
+        """
+        Las URL firmadas de streaming caducan: si la descarga de una pista de streaming falla, se pide
+        una URL nueva una vez y se reanuda en el mismo punto. Devuelve True si se reintenta.
+        """
+        if GLib.quark_to_string(err.domain) != "gst-resource-error-quark":
+            return False
+        pending = self._gapless_pending
+        track = pending or self.current_track
+        if track is None or not track.is_stream or not callable(track.stream_resolver):
+            return False
+        now = time.monotonic()
+        if now - self._stream_retry_ts.get(id(track), 0.0) < 60:
+            return False  # Ya se reintentó hace poco: es otro problema
+        self._stream_retry_ts[id(track)] = now
+        position = 0.0 if pending is not None else self.get_position()
+        play_now = self._want_playing or self.state == PlaybackState.PLAYING
+        log.warning("Fallo de descarga en '%s': se pide una URL nueva y se reanuda en %.1fs",
+                    track.title, position)
+        self._gapless_pending = None
+
+        def worker():
+            try:
+                track.resolve_stream()
+            except Exception as e:
+                log.error("No se pudo renovar la URL de '%s': %s", track.title, e)
+                msg = i18n.t(f"{track.stream_service}.err.stream_unavailable", title=track.title, error=e)
+                GLib.idle_add(lambda: (self.on_error and self.on_error(msg), False)[1])
+                return
+            GLib.idle_add(lambda: (self.load_track(track, play_now=play_now, initial_position=position), False)[1])
+
+        GLib.idle_add(lambda: (self.stop(), False)[1])
+        threading.Thread(target=worker, daemon=True, name="stream-renew").start()
+        return True
 
     def _fallback_to_mixer(self, err: GLib.Error, debug: str) -> bool:
         """
@@ -1169,6 +1413,10 @@ class AudioEngine:
 
     def shutdown(self):
         """Detiene la reproducción y devuelve la tarjeta a PipeWire."""
+        if self._remote is not None:
+            self._remote.stop_now(wait=True)
+            self._remote.shutdown()
+            self._remote = None
         self._cancel_pending_rebuild()
         self._cleanup_pipeline()
 

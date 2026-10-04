@@ -3,17 +3,19 @@ from __future__ import annotations
 
 import os
 import threading
+import time
 
 import gi
 gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
 from gi.repository import Adw, Gdk, Gio, GLib, GObject, Gtk
 
+from ..audio import upnp
 from ..audio.devices import AudioDevice, base_node_name, find_device_by_id, get_default_device
 from ..audio.engine import AudioEngine, PlaybackState
 from ..audio.track import AudioTrack, load_track
 from ..audio.mpris import MprisServer
-from ..config import is_device_exclusive_enabled, save_config, set_device_exclusive_enabled
+from ..config import TIDAL_AVAILABLE, is_device_exclusive_enabled, save_config, set_device_exclusive_enabled
 from ..hires_cover import HiResCoverService
 from ..music_info import MusicInfoService
 from .. import __version__
@@ -31,6 +33,8 @@ from .inspector_panel import InspectorPanel
 from .library_setup_dialog import LibrarySetupDialog
 from .mini_player import MiniPlayerWindow
 from .player_bar import PlayerBar
+from .qobuz_view import QobuzView
+from .tidal_view import TidalView
 from .style import apply_theme
 
 # Altura por defecto (px) de los paneles Artista/Álbum sobre la lista de temas
@@ -65,6 +69,10 @@ class MainWindow(Adw.ApplicationWindow):
 
         # 2. Inicializar motor de audio a través del mezclador del sistema
         dev_id = cfg.get("audio_device_id", "default")
+        # Las salidas de red hay que descubrirlas antes de usarlas: se restauran en segundo plano
+        saved_remote_id = dev_id if dev_id.startswith(upnp.REMOTE_PREFIX) else ""
+        if saved_remote_id:
+            dev_id = "default"
         ex_mode = False
         if dev_id != "default":
             ex_mode = is_device_exclusive_enabled(cfg, dev_id)
@@ -74,6 +82,8 @@ class MainWindow(Adw.ApplicationWindow):
             exclusive=ex_mode,
         )
         self.engine.set_levels_enabled(cfg.get("oscilloscope_enabled", True))
+        upnp.start_background_discovery()
+        self._saved_remote_id = saved_remote_id
 
         # 3. Servidor D-Bus MPRIS2 (control por teclas multimedia, auriculares y GNOME)
         self.mpris = MprisServer(window=self, engine=self.engine)
@@ -88,6 +98,8 @@ class MainWindow(Adw.ApplicationWindow):
         self.engine.add_state_listener(self._on_engine_state_changed)
         self.engine.add_track_listener(self._on_engine_track_changed)
         self.engine.add_output_listener(self._update_output_status)
+        if self._saved_remote_id:
+            self._restore_remote_output(self._saved_remote_id)
 
         # Ajuste inteligente del panel inspector al redimensionar / maximizar
         self.connect("map", lambda *_: GLib.idle_add(self._on_window_mapped))
@@ -135,6 +147,32 @@ class MainWindow(Adw.ApplicationWindow):
         scan_box.append(self.scan_status_label)
 
         self.header_bar.pack_start(scan_box)
+
+        # Conmutador de vista superior: [ Biblioteca | Qobuz ]
+        self.view_switcher_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
+        self.view_switcher_box.add_css_class("linked")
+        self.view_switcher_box.set_valign(Gtk.Align.CENTER)
+        self.view_switcher_box.set_margin_start(10)
+
+        self.btn_view_library = Gtk.ToggleButton(label=i18n.t("nav.library"))
+        self.btn_view_library.set_active(True)
+        self.btn_view_library.set_tooltip_text(i18n.t("nav.library_tooltip"))
+        self.btn_view_library.connect("toggled", self._on_view_mode_toggled)
+
+        self.btn_view_qobuz = Gtk.ToggleButton(label=i18n.t("nav.qobuz"))
+        self.btn_view_qobuz.set_group(self.btn_view_library)
+        self.btn_view_qobuz.set_tooltip_text(i18n.t("nav.qobuz_tooltip"))
+        self.btn_view_qobuz.connect("toggled", self._on_view_mode_toggled)
+
+        self.btn_view_tidal = Gtk.ToggleButton(label=i18n.t("nav.tidal"))
+        self.btn_view_tidal.set_group(self.btn_view_library)
+        self.btn_view_tidal.set_tooltip_text(i18n.t("nav.tidal_tooltip"))
+        self.btn_view_tidal.connect("toggled", self._on_view_mode_toggled)
+
+        self.view_switcher_box.append(self.btn_view_library)
+        self.view_switcher_box.append(self.btn_view_qobuz)
+        self.view_switcher_box.append(self.btn_view_tidal)
+        self.header_bar.pack_start(self.view_switcher_box)
 
         # Título limpio en el centro con versión y sin subtítulo
         self.window_title = Adw.WindowTitle(
@@ -207,7 +245,7 @@ class MainWindow(Adw.ApplicationWindow):
         # Navegador multicolumnas estilo iTunes (Artista -> Álbum -> Tema)
         self.browser = ColumnBrowserView(
             db=self.db,
-            on_track_activate=self._on_track_activated,
+            on_track_activate=self._on_user_track_activated,
             on_play_next_queue=self._on_play_next_queue,
             on_add_to_queue=self._on_add_to_queue,
         )
@@ -217,7 +255,41 @@ class MainWindow(Adw.ApplicationWindow):
             enabled=self.cfg.get("backdrop_enabled", False),
             intensity=self.cfg.get("backdrop_intensity", DEFAULT_INTENSITY),
         )
-        self.paned.set_start_child(self.library_backdrop)
+
+        # Contenedor conmutable: [ Biblioteca local | Qobuz Hi-Res ]
+        self.main_stack = Gtk.Stack()
+        self.main_stack.set_transition_type(Gtk.StackTransitionType.CROSSFADE)
+        self.main_stack.set_transition_duration(180)
+        self.main_stack.set_hexpand(True)
+        self.main_stack.set_vexpand(True)
+
+        # Vista 1: Biblioteca local de archivos
+        self.main_stack.add_named(self.library_backdrop, "library")
+
+        # Vista 2: Qobuz con filtros por género y categorías
+        self.qobuz_view = QobuzView(
+            on_track_activate=self._on_user_track_activated,
+            on_queue_track=self._on_add_to_queue,
+            on_play_list=self._on_play_tracks,
+            on_play_next=self._on_play_next_queue,
+            parent_window=self,
+        )
+        self.main_stack.add_named(self.qobuz_view, "qobuz")
+
+        # Vista 3: TIDAL (misma vista con el cliente de la API oficial de TIDAL), si está activado
+        self.tidal_view = None
+        if TIDAL_AVAILABLE:
+            self.tidal_view = TidalView(
+                on_track_activate=self._on_user_track_activated,
+                on_queue_track=self._on_add_to_queue,
+                on_play_list=self._on_play_tracks,
+                on_play_next=self._on_play_next_queue,
+                parent_window=self,
+            )
+            self.main_stack.add_named(self.tidal_view, "tidal")
+
+        self.paned.set_start_child(self.main_stack)
+        self.apply_streaming_services()
 
         # Panel Inspector de audio con visualizadores en tiempo real
         self.inspector = InspectorPanel(engine=self.engine)
@@ -313,7 +385,8 @@ class MainWindow(Adw.ApplicationWindow):
 
         if not valid_folders:
             log.info("No hay carpetas de biblioteca configuradas.")
-            self._needs_initial_setup = True
+            if not self.cfg.get("library_setup_dismissed", False):
+                self._needs_initial_setup = True
             return
 
         self._needs_initial_setup = False
@@ -388,11 +461,35 @@ class MainWindow(Adw.ApplicationWindow):
             first_track.load_cover_async(show)
 
     def _show_library_setup_dialog(self):
-        dlg = LibrarySetupDialog(parent=self, on_folder_chosen=self._on_initial_folder_chosen)
+        tidal_on = TIDAL_AVAILABLE and self.tidal_view is not None and bool(self.cfg.get("tidal_enabled", False))
+        qobuz_on = bool(self.cfg.get("qobuz_enabled", True))
+        dlg = LibrarySetupDialog(
+            parent=self,
+            on_folder_chosen=self._on_initial_folder_chosen,
+            on_skip=self._on_initial_setup_dismissed,
+            on_streaming_chosen=self._on_initial_setup_streaming,
+            tidal_enabled=tidal_on,
+            qobuz_enabled=qobuz_on,
+        )
         dlg.present()
+
+    def _on_initial_setup_dismissed(self):
+        log.info("Configuración inicial de biblioteca omitida por el usuario.")
+        self.cfg["library_setup_dismissed"] = True
+        save_config(self.cfg)
+
+    def _on_initial_setup_streaming(self, service: str):
+        log.info("Configuración inicial: pasando directamente a streaming (%s).", service)
+        self.cfg["library_setup_dismissed"] = True
+        save_config(self.cfg)
+        if service == "tidal" and hasattr(self, "btn_view_tidal") and self.btn_view_tidal.get_visible():
+            self.btn_view_tidal.set_active(True)
+        elif service == "qobuz" and hasattr(self, "btn_view_qobuz") and self.btn_view_qobuz.get_visible():
+            self.btn_view_qobuz.set_active(True)
 
     def _on_initial_folder_chosen(self, folder_path: str):
         log.info("Carpeta inicial seleccionada: %s", folder_path)
+        self.cfg["library_setup_dismissed"] = True
         folders = self.cfg.setdefault("library_folders", [])
         if folder_path not in folders:
             folders.append(folder_path)
@@ -484,10 +581,52 @@ class MainWindow(Adw.ApplicationWindow):
         self._update_theme_button_ui()
         self.btn_mini_player.set_tooltip_text(i18n.t("header.mini_player"))
         self.btn_fullscreen.set_tooltip_text(i18n.t("header.super_player"))
+        self.btn_view_library.set_label(i18n.t("nav.library"))
+        self.btn_view_library.set_tooltip_text(i18n.t("nav.library_tooltip"))
+        self.btn_view_qobuz.set_label(i18n.t("nav.qobuz"))
+        self.btn_view_qobuz.set_tooltip_text(i18n.t("nav.qobuz_tooltip"))
+        self.btn_view_tidal.set_label(i18n.t("nav.tidal"))
+        self.btn_view_tidal.set_tooltip_text(i18n.t("nav.tidal_tooltip"))
         self.search_entry.set_placeholder_text(i18n.t("header.search_placeholder"))
         self._rebuild_menu()
         self._update_output_status()
         self.browser.refresh_i18n()
+
+    def apply_streaming_services(self):
+        """Muestra u oculta las pestañas de Qobuz y TIDAL según Preferencias → General."""
+        qobuz_on = bool(self.cfg.get("qobuz_enabled", True))
+        tidal_on = TIDAL_AVAILABLE and self.tidal_view is not None and bool(self.cfg.get("tidal_enabled", False))
+        self.btn_view_qobuz.set_visible(qobuz_on)
+        self.btn_view_tidal.set_visible(tidal_on)
+        # Solo queda la biblioteca: el selector de pestañas sobra
+        self.view_switcher_box.set_visible(qobuz_on or tidal_on)
+        current = self.main_stack.get_visible_child_name()
+        if (current == "qobuz" and not qobuz_on) or (current == "tidal" and not tidal_on):
+            self.btn_view_library.set_active(True)  # Se estaba viendo el servicio desactivado
+        else:
+            last_view = self.cfg.get("last_view", "library")
+            if last_view == "tidal" and tidal_on and not self.btn_view_tidal.get_active():
+                self.btn_view_tidal.set_active(True)
+            elif last_view == "qobuz" and qobuz_on and not self.btn_view_qobuz.get_active():
+                self.btn_view_qobuz.set_active(True)
+
+    def _on_view_mode_toggled(self, btn: Gtk.ToggleButton):
+        """Conmuta la vista entre la biblioteca local y los servicios de streaming."""
+        if not btn.get_active():
+            return
+        if btn is self.btn_view_library:
+            self.main_stack.set_visible_child_name("library")
+            self.btn_scan.set_sensitive(True)
+            self.btn_search.set_sensitive(True)
+            self.cfg["last_view"] = "library"
+            save_config(self.cfg)
+        elif btn is self.btn_view_qobuz or btn is self.btn_view_tidal:
+            view_name = "qobuz" if btn is self.btn_view_qobuz else "tidal"
+            self.main_stack.set_visible_child_name(view_name)
+            self.btn_scan.set_sensitive(False)
+            self.btn_search.set_sensitive(False)
+            self.cfg["last_view"] = view_name
+            save_config(self.cfg)
 
     def _toggle_theme(self):
         """Alterna entre tema claro y oscuro al pulsar el botón de la cabecera."""
@@ -635,15 +774,56 @@ class MainWindow(Adw.ApplicationWindow):
             if track:
                 log.info("Play accionado sin pista activa -> iniciando: '%s'", track.title)
                 self.browser.set_current_playing_track(track)
-                self._on_track_activated(track)
+                self._on_user_track_activated(track)
                 return
             else:
                 log.info("Play accionado pero no hay pistas cargadas en la lista")
                 return
         self.engine.toggle_play_pause()
 
+    def _on_user_track_activated(self, track: AudioTrack):
+        """El usuario elige una pista: lo que quedaba del álbum que sonaba antes sale de la cola."""
+        context = [t for t in self.play_queue if getattr(t, "_from_context", False)]
+        if context:
+            log.info("Descartadas %d pistas pendientes del álbum anterior", len(context))
+            self.play_queue = [t for t in self.play_queue if not getattr(t, "_from_context", False)]
+            self.player_bar.update_queue(self.play_queue)
+        self._on_track_activated(track)
+
     def _on_track_activated(self, track: AudioTrack):
         log.info("Pista activada: '%s' - '%s'", track.artist, track.title)
+        if track.needs_stream_url():
+            # Las URL firmadas de streaming caducan: se pide una nueva fuera del hilo de la interfaz
+            self._pending_activation = track
+
+            def resolve_worker():
+                try:
+                    track.resolve_stream()
+                    error = ""
+                except Exception as e:
+                    log.error("No se pudo obtener la URL de streaming de '%s': %s", track.title, e)
+                    error = str(e)
+
+                def on_resolved():
+                    if self._pending_activation is not track:
+                        return False
+                    if error:
+                        self._pending_activation = None
+                        self._on_playback_error(i18n.t(f"{track.stream_service}.err.stream_unavailable", title=track.title, error=error))
+                    else:
+                        self._on_track_activated(track)
+                    return False
+
+                GLib.idle_add(on_resolved)
+
+            threading.Thread(target=resolve_worker, daemon=True, name="stream-resolve").start()
+            return
+        if track.stream_is_sample:
+            key = {"FULL_REQUIRES_HIGHER_ACCESS_TIER": "tidal.sample_app_tier",
+                   "FULL_REQUIRES_PURCHASE": "tidal.sample_purchase"}.get(track.stream_preview_reason,
+                                                                         f"{track.stream_service}.sample_only")
+            self._on_playback_error(i18n.t(key, title=track.title))
+
         if not track.cover_loaded:
             # La portada se lee en otro hilo: en una unidad de red puede tardar segundos y la
             # ventana no debe congelarse. Si mientras tanto se elige otra pista, esta se descarta.
@@ -663,11 +843,18 @@ class MainWindow(Adw.ApplicationWindow):
 
     def _on_engine_track_changed(self, track: AudioTrack):
         """Notificado cuando cambia la pista en reproducción (incluyendo encadenamiento gapless)."""
+        if self.play_queue and self.play_queue[0] is track:
+            # Encadenada sin pausa desde la cola: ya no es la siguiente
+            self.play_queue.pop(0)
+            self.player_bar.update_queue(self.play_queue)
         if not track.cover_loaded:
             # Normalmente ya está precargada; si no, la interfaz se refresca cuando llegue
             track.load_cover_async(lambda: self.engine.current_track is track and self.engine.renotify_track_changed())
         is_paused = (self.engine.state == PlaybackState.PAUSED)
         self.browser.set_current_playing_track(track, is_paused=is_paused)
+        for view in (getattr(self, "qobuz_view", None), getattr(self, "tidal_view", None)):
+            if view is not None:
+                view.set_playing_track(track, self.engine.state == PlaybackState.PLAYING, is_paused)
         self.inspector.set_track(track)
         self.player_bar.set_track(track)
         self.library_backdrop.set_artist(track.artist)
@@ -680,11 +867,12 @@ class MainWindow(Adw.ApplicationWindow):
             self.mini_player.set_track(track)
         self._prepare_gapless_next()
         self._update_output_status()
-        self.cfg["last_track_path"] = track.filepath
-        if hasattr(self, "browser") and self.browser:
-            self.cfg["last_artist"] = self.browser.current_artist
-            self.cfg["last_album"] = self.browser.current_album
-        save_config(self.cfg)
+        if not getattr(track, "is_stream", False):
+            self.cfg["last_track_path"] = track.filepath
+            if hasattr(self, "browser") and self.browser:
+                self.cfg["last_artist"] = self.browser.current_artist
+                self.cfg["last_album"] = self.browser.current_album
+            save_config(self.cfg)
 
     def _prefetch_info(self, track: AudioTrack) -> bool:
         if self.engine.current_track is track:
@@ -720,16 +908,53 @@ class MainWindow(Adw.ApplicationWindow):
         self.player_bar.update_queue(self.play_queue)
         self._prepare_gapless_next()
 
-    def _prepare_gapless_next(self):
+    def _next_candidate(self) -> AudioTrack | None:
+        """Siguiente pista: la cola; si está vacía, la biblioteca (salvo tras una pista de streaming)."""
         if self.play_queue:
-            nxt = self.play_queue[0]
-        else:
-            shuffle = self.cfg.get("shuffle", False)
-            repeat = self.cfg.get("repeat_mode", "none")
-            nxt = self.browser.get_next_track(shuffle=shuffle, repeat_mode=repeat)
+            return self.play_queue[0]
+        current = self.engine.current_track
+        if current is not None and current.is_stream:
+            return None  # Al acabar el álbum de streaming no se salta a la biblioteca local
+        shuffle = self.cfg.get("shuffle", False)
+        repeat = self.cfg.get("repeat_mode", "none")
+        return self.browser.get_next_track(shuffle=shuffle, repeat_mode=repeat)
+
+    def _prepare_gapless_next(self):
+        nxt = self._next_candidate()
+        if nxt is not None and nxt.needs_stream_url():
+            # Se encadena cuando tenga URL; mientras tanto no queda encadenada ninguna otra
+            self.engine.queue_next_track(None)
+
+            def resolve_worker():
+                try:
+                    nxt.resolve_stream()
+                except Exception as e:
+                    log.warning("No se pudo preparar el stream de la siguiente pista: %s", e)
+                    return
+
+                def apply():
+                    if self._next_candidate() is nxt:
+                        nxt.load_cover_async()
+                        self.engine.queue_next_track(nxt)
+                    return False
+
+                GLib.idle_add(apply)
+
+            threading.Thread(target=resolve_worker, daemon=True, name="stream-prefetch").start()
+            return
         if nxt is not None:
             nxt.load_cover_async()  # Lista antes del cambio gapless, sin leer la red en el hilo principal
         self.engine.queue_next_track(nxt)
+
+    def _on_play_tracks(self, tracks: list[AudioTrack]):
+        """Reproduce una lista (p. ej. un álbum de Qobuz desde una pista): sustituye la cola."""
+        if not tracks:
+            return
+        for t in tracks[1:]:
+            t._from_context = True  # Resto del álbum: se descarta si luego se elige otra pista
+        self.play_queue = [t for t in self.play_queue if not getattr(t, "_from_context", False)] + list(tracks[1:])
+        self.player_bar.update_queue(self.play_queue)
+        self._on_track_activated(tracks[0])
 
     def _play_next(self):
         if self.play_queue:
@@ -739,9 +964,7 @@ class MainWindow(Adw.ApplicationWindow):
             self._on_track_activated(nxt)
             return
 
-        shuffle = self.cfg.get("shuffle", False)
-        repeat = self.cfg.get("repeat_mode", "none")
-        nxt = self.browser.get_next_track(shuffle=shuffle, repeat_mode=repeat)
+        nxt = self._next_candidate()
         if nxt:
             log.info("Avanzando a siguiente pista: '%s'", nxt.title)
             self._on_track_activated(nxt)
@@ -752,7 +975,7 @@ class MainWindow(Adw.ApplicationWindow):
         prev = self.browser.get_previous_track()
         if prev:
             log.info("Retrocediendo a pista anterior: '%s'", prev.title)
-            self._on_track_activated(prev)
+            self._on_user_track_activated(prev)
 
     def _on_track_finished(self):
         log.debug("Evento de pista finalizada recibido en MainWindow")
@@ -772,6 +995,9 @@ class MainWindow(Adw.ApplicationWindow):
             is_playing=is_playing or is_paused,
             is_paused=is_paused,
         )
+        for view in (getattr(self, "qobuz_view", None), getattr(self, "tidal_view", None)):
+            if view is not None:
+                view.set_playing_track(self.engine.current_track, is_playing, is_paused)
 
         # Inhibidor de suspensión del sistema mientras reproduce
         app = self.get_application()
@@ -854,6 +1080,28 @@ class MainWindow(Adw.ApplicationWindow):
             parent=self,
         )
         dlg.present()
+
+    def _restore_remote_output(self, dev_id: str):
+        """Busca en segundo plano el dispositivo de red usado en la sesión anterior y vuelve a él."""
+        def worker():
+            for _ in range(4):
+                upnp.discover()
+                if upnp.find_known_device(dev_id) is not None:
+                    break
+                time.sleep(1.0)
+            GLib.idle_add(apply)
+
+        def apply():
+            if upnp.find_known_device(dev_id) is not None:
+                log.info("Restaurando salida de red: %s", dev_id)
+                self.engine.set_output(dev_id, False)
+                self._update_output_status()
+            else:
+                name = dev_id.removeprefix(upnp.REMOTE_PREFIX)
+                self._on_playback_error(i18n.t("devices.network_not_found", name=name))
+            return False
+
+        threading.Thread(target=worker, daemon=True, name="upnp-restore").start()
 
     def _on_device_selected(self, dev: AudioDevice | str):
         dev_id = dev if isinstance(dev, str) else dev.id

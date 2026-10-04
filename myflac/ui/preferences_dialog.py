@@ -9,7 +9,7 @@ gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
 from gi.repository import Adw, Gio, GLib, Gtk
 
-from ..config import save_config
+from ..config import TIDAL_AVAILABLE, save_config
 from ..library.db import LibraryDB
 from ..library.scanner import LibraryScanner
 from ..logger import get_logger
@@ -87,6 +87,29 @@ class PreferencesDialog(Adw.PreferencesWindow):
         self.close_tray_row.connect("notify::active", self._on_close_to_tray_changed)
         self.group_behavior.add(self.close_tray_row)
         self.page_general.add(self.group_behavior)
+
+        # Grupo: Servicios de streaming (al desactivarlos desaparecen de la interfaz)
+        self.group_streaming = Adw.PreferencesGroup(title=i18n.t("prefs.streaming_group"))
+        self.qobuz_row = Adw.SwitchRow()
+        self.qobuz_row.set_title("Qobuz")
+        self.qobuz_row.set_subtitle(i18n.t("prefs.qobuz_desc"))
+        self.qobuz_row.set_active(self.cfg.get("qobuz_enabled", True))
+        self.qobuz_row.connect("notify::active", self._on_service_changed, "qobuz_enabled")
+        self.group_streaming.add(self.qobuz_row)
+
+        self.tidal_row = Adw.SwitchRow()
+        self.tidal_row.set_title("TIDAL")
+        if TIDAL_AVAILABLE:
+            self.tidal_row.set_subtitle(i18n.t("prefs.tidal_desc"))
+            self.tidal_row.set_active(self.cfg.get("tidal_enabled", False))
+            self.tidal_row.connect("notify::active", self._on_service_changed, "tidal_enabled")
+        else:
+            # Aún no disponible: en gris y sin poder activarse
+            self.tidal_row.set_subtitle(i18n.t("prefs.tidal_coming_soon"))
+            self.tidal_row.set_active(False)
+            self.tidal_row.set_sensitive(False)
+        self.group_streaming.add(self.tidal_row)
+        self.page_general.add(self.group_streaming)
 
         self.add(self.page_general)
 
@@ -409,6 +432,9 @@ class PreferencesDialog(Adw.PreferencesWindow):
         self.lang_row.set_subtitle(i18n.t("prefs.language_desc"))
 
         self.group_behavior.set_title(i18n.t("prefs.behavior_group"))
+        self.group_streaming.set_title(i18n.t("prefs.streaming_group"))
+        self.qobuz_row.set_subtitle(i18n.t("prefs.qobuz_desc"))
+        self.tidal_row.set_subtitle(i18n.t("prefs.tidal_desc" if TIDAL_AVAILABLE else "prefs.tidal_coming_soon"))
         self.close_tray_row.set_title(i18n.t("prefs.close_to_tray"))
         self.close_tray_row.set_subtitle(i18n.t("prefs.close_to_tray_desc"))
 
@@ -444,6 +470,12 @@ class PreferencesDialog(Adw.PreferencesWindow):
             i18n.set_language(lang_code)
             if self.on_config_changed:
                 self.on_config_changed(self.cfg)
+
+    def _on_service_changed(self, row: Adw.SwitchRow, _param, key: str):
+        self.cfg[key] = row.get_active()
+        save_config(self.cfg)
+        if self.on_config_changed:
+            self.on_config_changed(self.cfg)
 
     def _on_close_to_tray_changed(self, row: Adw.SwitchRow, _param):
         active = row.get_active()

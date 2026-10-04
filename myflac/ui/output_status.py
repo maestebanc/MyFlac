@@ -32,6 +32,8 @@ def format_device_subtitle(dev: AudioDevice) -> str:
 
 def output_status(engine) -> tuple[str, str, str]:
     """Texto de estado del transporte, nivel del indicador ('ok', 'warn' o '') y tooltip."""
+    if getattr(engine, "remote_active", False):
+        return i18n.t("devices.status_network"), "ok", i18n.t("devices.network_tooltip")
     if not engine.exclusive_active:
         return i18n.t("devices.status_mixer"), "", i18n.t("devices.subtitle_default")
     if getattr(engine, "output_dsd", False):

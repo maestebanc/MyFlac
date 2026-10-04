@@ -3,8 +3,9 @@ from __future__ import annotations
 
 import os
 import threading
+import time
 from dataclasses import dataclass, field
-from typing import Callable
+from typing import Any, Callable
 
 import mutagen
 from mutagen.flac import FLAC
@@ -18,6 +19,10 @@ log = get_logger("audio.track")
 # archivos: el escáner relee entonces toda la biblioteca una vez, aunque los archivos no cambien.
 # 2: etiquetas ID3 en MP3/WAV y FLAC con etiquetas incompletas (antes quedaban sin artista/álbum)
 METADATA_VERSION = 2
+
+
+# Las URL firmadas de los servicios de streaming caducan: se piden de nuevo pasado este tiempo
+STREAM_URL_MAX_AGE_S = 10 * 60
 
 
 @dataclass
@@ -42,13 +47,63 @@ class AudioTrack:
     file_size_bytes: int = 0
     cover_data: bytes | None = field(default=None, repr=False)
     cover_mime: str = ""
+    cover_url: str = ""
+    is_stream: bool = False
+    # Pistas de streaming: función que devuelve una URL firmada nueva (str u objeto con .url,
+    # .mime_type, .bit_depth, .sample_rate e .is_sample). Las URL firmadas caducan.
+    stream_resolver: Any = field(default=None, repr=False, compare=False)
+    stream_mime: str = ""
+    stream_id: str = ""  # Identificador en el servicio (p. ej. "qobuz:123") para marcarla en sus listas
+    stream_is_sample: bool = False
+    stream_preview_reason: str = ""
+    stream_resolved_at: float = field(default=0.0, repr=False, compare=False)
     # Búsqueda de portada: "unloaded", "loading" o "loaded" (encontrada o no; no se repite)
     _cover_state: str = field(default="unloaded", repr=False, compare=False)
     _cover_waiters: list = field(default_factory=list, repr=False, compare=False)
 
     def __post_init__(self):
         if not self.filename and self.filepath:
-            self.filename = os.path.basename(self.filepath)
+            if self.filepath.startswith(("http://", "https://")):
+                self.filename = self.title or "stream.flac"
+                self.is_stream = True
+            else:
+                self.filename = os.path.basename(self.filepath)
+
+    @property
+    def stream_service(self) -> str:
+        """Servicio de la pista de streaming ("qobuz", "tidal"...)."""
+        return self.stream_id.split(":", 1)[0] if ":" in self.stream_id else "qobuz"
+
+    @property
+    def is_url(self) -> bool:
+        return self.filepath.startswith(("http://", "https://"))
+
+    def needs_stream_url(self, max_age: float = STREAM_URL_MAX_AGE_S) -> bool:
+        """True si es una pista de streaming sin URL o con una URL que puede haber caducado."""
+        if not self.is_stream or not callable(self.stream_resolver):
+            return False
+        return not self.is_url or time.monotonic() - self.stream_resolved_at > max_age
+
+    def resolve_stream(self) -> None:
+        """Pide una URL firmada nueva (bloqueante: llamar desde un hilo). Propaga los errores."""
+        info = self.stream_resolver()
+        url = info if isinstance(info, str) else info.url
+        if not url:
+            raise RuntimeError("URL de streaming vacía")
+        self.filepath = url
+        self.stream_resolved_at = time.monotonic()
+        if not isinstance(info, str):
+            self.stream_mime = info.mime_type or self.stream_mime
+            self.stream_is_sample = bool(info.is_sample)
+            self.stream_preview_reason = getattr(info, "preview_reason", "") or ""
+            if info.sample_rate:
+                self.sample_rate = info.sample_rate
+            if info.bit_depth:
+                self.bits_per_sample = info.bit_depth
+            if self.sample_rate and self.bits_per_sample:
+                self.bitrate = self.sample_rate * self.bits_per_sample * (self.channels or 2)
+            if self.stream_mime == "audio/mpeg":
+                self.format_name = "MP3"
 
     @property
     def is_dsd(self) -> bool:
@@ -68,6 +123,8 @@ class AudioTrack:
         """Etiqueta compacta con especificaciones de audio (ej: '24/88.2k')."""
         if "DSD" in self.format_name.upper():
             return "DSD"
+        if not self.sample_rate:  # Streaming Hi-Res aún sin frecuencia conocida
+            return f"{self.bits_per_sample}-bit" if self.bits_per_sample else "Hi-Res"
         rate_str = f"{self.sample_rate / 1000:g}k"
         if self.bits_per_sample > 0:
             return f"{self.bits_per_sample}/{rate_str}"
@@ -76,6 +133,8 @@ class AudioTrack:
     @property
     def badge_full(self) -> str:
         """Etiqueta descriptiva para el inspector (ej: 'Hi-Res 24-bit / 88.2 kHz')."""
+        if not self.sample_rate:
+            return f"Hi-Res {self.bits_per_sample}-bit"
         rate_str = f"{self.sample_rate / 1000:g} kHz"
         if self.is_hires:
             return f"Hi-Res {self.bits_per_sample}-bit / {rate_str}"
@@ -165,6 +224,18 @@ class AudioTrack:
             return self.cover_data, self.cover_mime
         if self._cover_state == "loaded":
             return None  # Ya se buscó y no hay: no repetir los accesos al disco
+
+        # Si tiene URL remota (pistas de streaming como Qobuz), descargar y guardar en memoria
+        if self.cover_url and not self.cover_data:
+            try:
+                import urllib.request
+                req = urllib.request.Request(self.cover_url, headers={"User-Agent": "Mozilla/5.0"})
+                with urllib.request.urlopen(req, timeout=6) as resp:
+                    self.cover_data = resp.read()
+                    self.cover_mime = resp.headers.get_content_type() or "image/jpeg"
+                    return self.cover_data, self.cover_mime
+            except Exception as e:
+                log.debug("No se pudo descargar portada remota de %s: %s", self.cover_url, e)
 
         # 1. Si no está en memoria, extraer carátula embebida directamente del archivo de audio
         if self.filepath and os.path.isfile(self.filepath):
