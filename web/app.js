@@ -12,7 +12,7 @@ const translations = {
     fmt_wav: "(PCM sin compresión)",
     fmt_dsd: "(DSF / DFF — nativo en DAC compatibles)",
     fmt_qobuz: "(FLAC streaming hasta 24/192)",
-    fmt_upnp: "(WiiM y receptores de red)",
+    fmt_upnp: "(receptores y streamers de red)",
     dl_recommended: "Recomendado",
     dl_any_distro: "Cualquier distribución Linux",
     dl_rpm_type: "Paquete RPM nativo",
@@ -24,7 +24,7 @@ const translations = {
     dl_arch_btn: "Descargar .pkg.tar.zst (335 KB)",
     footer_tagline: "— Creado con pasión por Miguel Ángel Esteban",
     footer_kofi: "☕ ¡Dame argo! (Ko-fi)",
-    meta_description: "MyFlac es un reproductor de música audiófilo y gratuito para Linux y GNOME: sonido bit-perfect, streaming oficial de Qobuz Hi-Res, emisión UPnP para WiiM, DSD nativo, letras sincronizadas y fichas de Wikipedia y Discogs.",
+    meta_description: "MyFlac es un reproductor de música audiófilo y gratuito para Linux y GNOME: sonido bit-perfect, streaming oficial de Qobuz Hi-Res, emisión en red UPnP / DLNA, DSD nativo, letras sincronizadas y fichas de Wikipedia y Discogs.",
     btn_install: "Instalar MyFlac",
     btn_install_sub: "Flatpak · actualizaciones automáticas",
     btn_other_packages: "Otros paquetes",
@@ -34,7 +34,7 @@ const translations = {
     dl_flatpak_install: "Instalar con actualizaciones automáticas",
     dl_flatpak_bundle: "o descarga el paquete .flatpak (6.7 MB)",
     page_title: "MyFlac — Reproductor de música Hi-Res y Bit-Perfect para Linux",
-    meta_desc: "MyFlac es un reproductor audiófilo nativo para GNOME y Linux con sonido bit-perfect, catálogo oficial de Qobuz Hi-Res, emisión UPnP para WiiM, letras sincronizadas y diseño GTK4 / Libadwaita.",
+    meta_desc: "MyFlac es un reproductor audiófilo nativo para GNOME y Linux con sonido bit-perfect, catálogo oficial de Qobuz Hi-Res, emisión en red UPnP / DLNA, letras sincronizadas y diseño GTK4 / Libadwaita.",
 
     // Header
     nav_about: "Por qué MyFlac",
@@ -45,9 +45,9 @@ const translations = {
     nav_kofi: "¡Dame argo!",
 
     // Hero
-    hero_badge: "Nuevo en v0.2.3 • Streaming Oficial Qobuz Hi-Res y Emisión en Red UPnP / WiiM",
+    hero_badge: "Nuevo en v0.2.3 • Streaming Oficial Qobuz Hi-Res y Emisión en Red UPnP / DLNA",
     hero_title: "Tu música local y streaming Hi-Res con máxima fidelidad",
-    hero_subtitle: "Un reproductor audiófilo moderno para Linux. Sonido bit-perfect directo a tu DAC, catálogo oficial de Qobuz en alta resolución, emisión en red UPnP hacia WiiM, letras sincronizadas en tiempo real y fichas de Wikipedia y Discogs.",
+    hero_subtitle: "Un reproductor audiófilo moderno para Linux. Sonido bit-perfect directo a tu DAC, catálogo oficial de Qobuz en alta resolución, emisión en red UPnP / DLNA a tus receptores y streamers de audio, letras sincronizadas en tiempo real y fichas de Wikipedia y Discogs.",
     btn_download: "Descargar para Linux",
     btn_github: "Código en GitHub",
     zoom_hint: "Haz clic en la captura para ampliar en alta resolución",
@@ -66,8 +66,8 @@ const translations = {
     feat_qobuz_title: "Streaming Oficial Qobuz Hi-Res",
     feat_qobuz_desc: "Accede al catálogo oficial de Qobuz en calidad FLAC hasta 24-bit / 192 kHz directamente desde MyFlac. Explora por géneros, novedades y lanzamientos destacados, gestiona tus álbumes favoritos y reproduce con salida Bit-Perfect en un solo clic.",
 
-    feat_upnp_title: "Emisión en Red UPnP / DLNA (WiiM)",
-    feat_upnp_desc: "Envía tanto tu música local como tus reproducciones de streaming a receptores y streamers de red como WiiM o Linkplay en calidad Hi-Res sin pérdidas, con control de transporte e información en tiempo real.",
+    feat_upnp_title: "Emisión en Red UPnP / DLNA",
+    feat_upnp_desc: "Envía tanto tu música local como tus reproducciones de streaming a cualquier receptor, amplificador o streamer de red compatible con UPnP / DLNA en calidad Hi-Res sin pérdidas, con control de transporte e información en tiempo real.",
 
     feat_bitperfect_title: "Sonido Puro Bit-Perfect y DSD Nativo",
     feat_bitperfect_desc: "Acceso directo por hardware a tu DAC mediante ALSA exclusivo, negociado con PipeWire sin que el sistema pierda el dispositivo. Sin remuestreo ni dither, DSD nativo en DAC compatibles y volumen controlado en el propio DAC. El selector te dice en todo momento qué llega realmente.",
@@ -113,7 +113,7 @@ const translations = {
     fmt_wav: "(uncompressed PCM)",
     fmt_dsd: "(DSF / DFF — native on capable DACs)",
     fmt_qobuz: "(FLAC streaming up to 24/192)",
-    fmt_upnp: "(WiiM & network renderers)",
+    fmt_upnp: "(network receivers & streamers)",
     dl_recommended: "Recommended",
     dl_any_distro: "Any Linux distribution",
     dl_rpm_type: "Native RPM package",
@@ -125,7 +125,7 @@ const translations = {
     dl_arch_btn: "Download .pkg.tar.zst (335 KB)",
     footer_tagline: "— Crafted with passion by Miguel Ángel Esteban",
     footer_kofi: "☕ Buy Me a Coffee (Ko-fi)",
-    meta_description: "MyFlac is a free audiophile music player for Linux and GNOME: bit-perfect playback, official Qobuz Hi-Res streaming, UPnP streaming to WiiM, native DSD, synchronized lyrics and Wikipedia & Discogs insights.",
+    meta_description: "MyFlac is a free audiophile music player for Linux and GNOME: bit-perfect playback, official Qobuz Hi-Res streaming, UPnP / DLNA network streaming, native DSD, synchronized lyrics and Wikipedia & Discogs insights.",
     btn_install: "Install MyFlac",
     btn_install_sub: "Flatpak · automatic updates",
     btn_other_packages: "Other packages",
@@ -135,7 +135,7 @@ const translations = {
     dl_flatpak_install: "Install with automatic updates",
     dl_flatpak_bundle: "or download the .flatpak package (6.7 MB)",
     page_title: "MyFlac — Bit-Perfect Hi-Res Music Player for Linux",
-    meta_desc: "MyFlac is a native audiophile music player for GNOME and Linux featuring bit-perfect output, official Qobuz Hi-Res streaming, UPnP casting to WiiM, synchronized lyrics, and GTK4 / Libadwaita design.",
+    meta_desc: "MyFlac is a native audiophile music player for GNOME and Linux featuring bit-perfect output, official Qobuz Hi-Res streaming, UPnP / DLNA network streaming, synchronized lyrics, and GTK4 / Libadwaita design.",
 
     // Header
     nav_about: "Why MyFlac",
@@ -146,9 +146,9 @@ const translations = {
     nav_kofi: "Buy Me a Coffee",
 
     // Hero
-    hero_badge: "New in v0.2.3 • Official Qobuz Hi-Res Streaming & UPnP / WiiM Network Playback",
+    hero_badge: "New in v0.2.3 • Official Qobuz Hi-Res Streaming & UPnP / DLNA Network Streaming",
     hero_title: "Your local music and Hi-Res streaming in pristine fidelity",
-    hero_subtitle: "A modern audiophile player for Linux. Bit-perfect sound direct to your DAC, official Qobuz studio master streaming catalogue, UPnP network casting to WiiM, synchronized lyrics, and Wikipedia & Discogs insights.",
+    hero_subtitle: "A modern audiophile player for Linux. Bit-perfect sound direct to your DAC, official Qobuz studio master streaming catalogue, UPnP / DLNA network streaming to your receivers and network streamers, synchronized lyrics, and Wikipedia & Discogs insights.",
     btn_download: "Download for Linux",
     btn_github: "View on GitHub",
     zoom_hint: "Click screenshot to expand in high resolution",
@@ -167,8 +167,8 @@ const translations = {
     feat_qobuz_title: "Official Qobuz Hi-Res Streaming",
     feat_qobuz_desc: "Browse and stream millions of studio master FLAC albums up to 24-bit / 192 kHz directly inside MyFlac. Genre filters, editorial releases, and personal favorites with seamless one-click web login.",
 
-    feat_upnp_title: "UPnP / DLNA Network Streaming (WiiM)",
-    feat_upnp_desc: "Cast your local music library and streaming playback to network renderers like WiiM or Linkplay in bit-perfect lossless quality with live transport control.",
+    feat_upnp_title: "UPnP / DLNA Network Streaming",
+    feat_upnp_desc: "Stream both your local music library and streaming playback to any UPnP / DLNA compliant network receiver, streamer, or amplifier in lossless Hi-Res quality, with live transport control and real-time metadata.",
 
     feat_bitperfect_title: "Pure Bit-Perfect Audio & Native DSD",
     feat_bitperfect_desc: "Direct hardware output to your DAC via exclusive ALSA, negotiated with PipeWire so the system never loses the device. No resampling or dither, native DSD on capable DACs and volume handled by the DAC itself. The output selector always shows what really reaches it.",
@@ -214,7 +214,7 @@ const translations = {
     fmt_wav: "(PCM sense compressió)",
     fmt_dsd: "(DSF / DFF — natiu en DAC compatibles)",
     fmt_qobuz: "(FLAC streaming fins a 24/192)",
-    fmt_upnp: "(WiiM i receptors de xarxa)",
+    fmt_upnp: "(receptors i streamers de xarxa)",
     dl_recommended: "Recomanat",
     dl_any_distro: "Qualsevol distribució Linux",
     dl_rpm_type: "Paquet RPM natiu",
@@ -226,7 +226,7 @@ const translations = {
     dl_arch_btn: "Descarregar .pkg.tar.zst (335 KB)",
     footer_tagline: "— Creat amb passió per Miguel Ángel Esteban",
     footer_kofi: "☕ Dona'm argo! (Ko-fi)",
-    meta_description: "MyFlac és un reproductor de música audiòfil i gratuït per a Linux i GNOME: so bit-perfect, streaming oficial de Qobuz Hi-Res, emissió UPnP per a WiiM, DSD natiu, lletres sincronitzades i fitxes de Wikipedia i Discogs.",
+    meta_description: "MyFlac és un reproductor de música audiòfil i gratuït per a Linux i GNOME: so bit-perfect, streaming oficial de Qobuz Hi-Res, emissió en xarxa UPnP / DLNA, DSD natiu, lletres sincronitzades i fitxes de Wikipedia i Discogs.",
     btn_install: "Instal·lar MyFlac",
     btn_install_sub: "Flatpak · actualitzacions automàtiques",
     btn_other_packages: "Altres paquets",
@@ -236,7 +236,7 @@ const translations = {
     dl_flatpak_install: "Instal·lar amb actualitzacions automàtiques",
     dl_flatpak_bundle: "o descarrega el paquet .flatpak (6.7 MB)",
     page_title: "MyFlac — Reproductor de música Hi-Res i Bit-Perfect per a Linux",
-    meta_desc: "MyFlac és un reproductor audiòfil natiu per a GNOME i Linux amb so bit-perfect, catàleg oficial de Qobuz Hi-Res, emissió UPnP per a WiiM, lletres sincronitzades i disseny GTK4 / Libadwaita.",
+    meta_desc: "MyFlac és un reproductor audiòfil natiu per a GNOME i Linux amb so bit-perfect, catàleg oficial de Qobuz Hi-Res, emissió en xarxa UPnP / DLNA, lletres sincronitzades i disseny GTK4 / Libadwaita.",
 
     // Header
     nav_about: "Per què MyFlac",
@@ -247,9 +247,9 @@ const translations = {
     nav_kofi: "Dona'm argo!",
 
     // Hero
-    hero_badge: "Nou a la v0.2.3 • Streaming Oficial Qobuz Hi-Res i Emissió en Xarxa UPnP / WiiM",
+    hero_badge: "Nou a la v0.2.3 • Streaming Oficial Qobuz Hi-Res i Emissió en Xarxa UPnP / DLNA",
     hero_title: "La teva música local i streaming Hi-Res amb la màxima fidelitat",
-    hero_subtitle: "Un reproductor audiòfil modern per a Linux. So bit-perfect directe al teu DAC, catàleg oficial de Qobuz en alta resolució, emissió en xarxa UPnP cap a WiiM, lletres sincronitzades en temps real i fitxes de Wikipedia i Discogs.",
+    hero_subtitle: "Un reproductor audiòfil modern per a Linux. So bit-perfect directe al teu DAC, catàleg oficial de Qobuz en alta resolució, emissió en xarxa UPnP / DLNA als teus receptors i streamers de xarxa, lletres sincronitzades en temps real i fitxes de Wikipedia i Discogs.",
     btn_download: "Descarregar per a Linux",
     btn_github: "Codi a GitHub",
     zoom_hint: "Fes clic a la captura per ampliar en alta resolució",
@@ -257,7 +257,7 @@ const translations = {
     // Suite Cross-Reference
     suite_badge: "La Suite MyFlac & MyTag",
     suite_title: "Dues aplicacions creades a mida per conviure",
-    suite_desc: "Cap reproductor de Linux s'adaptava al que realment volia per a la meva col·lecció musical, una cosa molt semblant al que em va motivar a crear MyTag. Per això van néixer totes dues eines: amb MyTag organitzes, neteges i descarregues caràtules per als teus arxius, i amb MyFlac els gaudeixes amb màxima qualitat amb so bit-perfect i una interfície feta amb cura.",
+    suite_desc: "Cap reproductor de Linux s'adaptava al que realment volia per a la meva col·lecció musical, una cosa molt semblant al que em va motivar a crear MyTag. Per això van néixer totes dues eines: amb MyTag organitzes, neteges i descarregues caràtules per als teus arxius, y con MyFlac els gaudeixes amb màxima qualitat amb so bit-perfect i una interfície feta amb cura.",
     suite_btn: "Conèixer MyTag — Editor d'Etiquetes ↗",
 
     // Why MyFlac
@@ -268,8 +268,8 @@ const translations = {
     feat_qobuz_title: "Streaming Oficial Qobuz Hi-Res",
     feat_qobuz_desc: "Accedeix al catàleg oficial de Qobuz en qualitat FLAC fins a 24-bit / 192 kHz directament des de MyFlac. Explora per gèneres, novetats i llançaments destacats, gestiona els teus àlbums preferits i reprodueix amb sortida Bit-Perfect en un sol clic.",
 
-    feat_upnp_title: "Emissió en Xarxa UPnP / DLNA (WiiM)",
-    feat_upnp_desc: "Envia tant la teva música local com les teves reproduccions en streaming a streamers i receptors de xarxa com WiiM o Linkplay amb qualitat Hi-Res sense pèrdues i control de transport directe.",
+    feat_upnp_title: "Emissió en Xarxa UPnP / DLNA",
+    feat_upnp_desc: "Envia tant la teva música local com les teves reproduccions en streaming a qualsevol receptor, amplificador o streamer de xarxa compatible amb UPnP / DLNA amb qualitat Hi-Res sense pèrdues i control de transport directe.",
 
     feat_bitperfect_title: "So Pur Bit-Perfect i DSD Natiu",
     feat_bitperfect_desc: "Accés directe per maquinari al teu DAC mitjançant ALSA exclusiu, negociat amb PipeWire sense que el sistema perdi el dispositiu. Sense remostreig ni dither, DSD natiu als DAC compatibles i volum controlat al mateix DAC. El selector et diu en tot moment què hi arriba realment.",

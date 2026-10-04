@@ -4,14 +4,14 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>MyFlac — Reproductor de música Hi-Res y Bit-Perfect para Linux</title>
-  <meta name="description" content="MyFlac es un reproductor de música audiófilo y gratuito para Linux y GNOME: sonido bit-perfect, streaming oficial de Qobuz Hi-Res, emisión UPnP para WiiM, DSD nativo, letras sincronizadas y fichas de Wikipedia y Discogs.">
+  <meta name="description" content="MyFlac es un reproductor de música audiófilo y gratuito para Linux y GNOME: sonido bit-perfect, streaming oficial de Qobuz Hi-Res, emisión en red UPnP / DLNA, DSD nativo, letras sincronizadas y fichas de Wikipedia y Discogs.">
   <!-- Buscadores: dirección canónica, versiones por idioma y ficha de aplicación -->
   <link rel="canonical" href="https://maestebanc.github.io/MyFlac/">
   <link rel="alternate" hreflang="es" href="https://maestebanc.github.io/MyFlac/">
   <link rel="alternate" hreflang="en" href="https://maestebanc.github.io/MyFlac/en/">
   <link rel="alternate" hreflang="ca" href="https://maestebanc.github.io/MyFlac/ca/">
   <link rel="alternate" hreflang="x-default" href="https://maestebanc.github.io/MyFlac/en/">
-  <meta name="keywords" content="reproductor de música Linux, bit-perfect, Qobuz, UPnP, WiiM, DSD nativo, FLAC, Hi-Res, audiófilo, DAC, GNOME, GTK4, Libadwaita, Flatpak, PipeWire, ALSA">
+  <meta name="keywords" content="reproductor de música Linux, bit-perfect, Qobuz, UPnP, DLNA, DSD nativo, FLAC, Hi-Res, audiófilo, DAC, GNOME, GTK4, Libadwaita, Flatpak, PipeWire, ALSA">
   <meta name="author" content="Miguel Angel Esteban">
   <meta name="robots" content="index, follow">
   <meta name="google-site-verification" content="VkoIGFAX1H_xr_B3RrxuAwMoASh3KFmEpVww2xi6n8g">
@@ -20,7 +20,7 @@
   "@context": "https://schema.org",
   "@type": "SoftwareApplication",
   "name": "MyFlac",
-  "description": "Reproductor de música audiófilo para Linux y GNOME: sonido bit-perfect por ALSA exclusivo, streaming oficial de Qobuz Hi-Res, emisión UPnP para WiiM, DSD nativo, volumen por hardware del DAC, letras sincronizadas y fichas de Wikipedia y Discogs.",
+  "description": "Reproductor de música audiófilo para Linux y GNOME: sonido bit-perfect por ALSA exclusivo, streaming oficial de Qobuz Hi-Res, emisión en red UPnP / DLNA, DSD nativo, volumen por hardware del DAC, letras sincronizadas y fichas de Wikipedia y Discogs.",
   "applicationCategory": "MultimediaApplication",
   "applicationSubCategory": "Music player",
   "operatingSystem": "Linux",
@@ -72,7 +72,7 @@
   <meta property="og:site_name" content="MyFlac">
   <meta property="og:url" content="https://maestebanc.github.io/MyFlac/">
   <meta property="og:title" content="MyFlac — Reproductor de música Hi-Res y Bit-Perfect para Linux">
-  <meta property="og:description" content="Reproductor audiófilo nativo GTK4/Libadwaita con sonido bit-perfect, streaming oficial de Qobuz Hi-Res, emisión UPnP para WiiM, DSD nativo, volumen del DAC y letras sincronizadas.">
+  <meta property="og:description" content="Reproductor audiófilo nativo GTK4/Libadwaita con sonido bit-perfect, streaming oficial de Qobuz Hi-Res, emisión en red UPnP / DLNA, DSD nativo, volumen del DAC y letras sincronizadas.">
   <meta property="og:image" content="https://maestebanc.github.io/MyFlac/assets/og-preview.jpg">
   <meta property="og:image:secure_url" content="https://maestebanc.github.io/MyFlac/assets/og-preview.jpg">
   <meta property="og:image:type" content="image/jpeg">
@@ -83,7 +83,7 @@
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:url" content="https://maestebanc.github.io/MyFlac/">
   <meta name="twitter:title" content="MyFlac — Reproductor de música Hi-Res y Bit-Perfect para Linux">
-  <meta name="twitter:description" content="Reproductor audiófilo nativo GTK4/Libadwaita con sonido bit-perfect, streaming oficial de Qobuz Hi-Res, emisión UPnP para WiiM, DSD nativo, volumen del DAC y letras sincronizadas.">
+  <meta name="twitter:description" content="Reproductor audiófilo nativo GTK4/Libadwaita con sonido bit-perfect, streaming oficial de Qobuz Hi-Res, emisión en red UPnP / DLNA, DSD nativo, volumen del DAC y letras sincronizadas.">
   <meta name="twitter:image" content="https://maestebanc.github.io/MyFlac/assets/og-preview.jpg">
 </head>
 <body>
@@ -156,7 +156,7 @@
       <div class="container hero-container">
         <div class="hero-badge">
           <span class="badge-dot"></span>
-          <span data-i18n="hero_badge">Nuevo en v0.2.3 • Streaming Oficial Qobuz Hi-Res y Emisión en Red UPnP / WiiM</span>
+          <span data-i18n="hero_badge">Nuevo en v0.2.3 • Streaming Oficial Qobuz Hi-Res y Emisión en Red UPnP / DLNA</span>
         </div>
 
         <h1 class="hero-title" data-i18n="hero_title">
@@ -164,7 +164,7 @@
         </h1>
 
         <p class="hero-subtitle" data-i18n="hero_subtitle">
-          Un reproductor audiófilo moderno para Linux. Sonido bit-perfect directo a tu DAC, catálogo oficial de Qobuz en alta resolución, emisión en red UPnP hacia WiiM, letras sincronizadas en tiempo real y fichas de Wikipedia y Discogs.
+          Un reproductor audiófilo moderno para Linux. Sonido bit-perfect directo a tu DAC, catálogo oficial de Qobuz en alta resolución, emisión en red UPnP / DLNA a tus receptores y streamers de audio, letras sincronizadas en tiempo real y fichas de Wikipedia y Discogs.
         </p>
 
         <div class="hero-cta">
@@ -298,7 +298,7 @@
             </p>
           </div>
 
-          <!-- Card UPnP / WiiM (Novedad) -->
+          <!-- Card UPnP / DLNA (Novedad) -->
           <div class="feature-card">
             <div class="card-tag-new" data-i18n="card_tag_new">Novedad v0.2.3</div>
             <div class="feature-icon" style="background: rgba(51, 209, 122, 0.14); color: var(--green-3);">
@@ -309,9 +309,9 @@
                 <line x1="12" y1="20" x2="12.01" y2="20"></line>
               </svg>
             </div>
-            <h3 class="feature-title" data-i18n="feat_upnp_title">Emisión en Red UPnP / DLNA (WiiM)</h3>
+            <h3 class="feature-title" data-i18n="feat_upnp_title">Emisión en Red UPnP / DLNA</h3>
             <p class="feature-desc" data-i18n="feat_upnp_desc">
-              Envía tanto tu música local como tus reproducciones de streaming a receptores y streamers de red como WiiM o Linkplay en calidad Hi-Res sin pérdidas, con control de transporte e información en tiempo real.
+              Envía tanto tu música local como tus reproducciones de streaming a cualquier receptor, amplificador o streamer de red compatible con UPnP / DLNA en calidad Hi-Res sin pérdidas, con control de transporte e información en tiempo real.
             </p>
           </div>
 
@@ -418,7 +418,7 @@
 
         <div class="formats-pills">
           <span class="format-pill qobuz-pill"><strong>Qobuz Hi-Res</strong> <span data-i18n="fmt_qobuz">(FLAC streaming hasta 24/192)</span></span>
-          <span class="format-pill"><strong>UPnP / DLNA</strong> <span data-i18n="fmt_upnp">(WiiM y receptores de red)</span></span>
+          <span class="format-pill"><strong>UPnP / DLNA</strong> <span data-i18n="fmt_upnp">(receptores y streamers de red)</span></span>
           <span class="format-pill"><strong>FLAC</strong> <span data-i18n="fmt_flac">(hasta 24-bit / 384 kHz)</span></span>
           <span class="format-pill"><strong>WAV</strong> &amp; <strong>AIFF</strong> <span data-i18n="fmt_wav">(PCM sin compresión)</span></span>
           <span class="format-pill"><strong>DSD</strong> <span data-i18n="fmt_dsd">(DSF / DFF — nativo en DAC compatibles)</span></span>
