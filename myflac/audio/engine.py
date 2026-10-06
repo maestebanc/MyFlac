@@ -838,6 +838,11 @@ class AudioEngine:
             self.state = PlaybackState.PAUSED
             self._stop_timer()
             self._notify_state_changed()
+        elif state == "STOPPED" and self.state != PlaybackState.STOPPED:
+            self._want_playing = False
+            self.state = PlaybackState.STOPPED
+            self._stop_timer()
+            self._notify_state_changed()
 
     def _on_remote_finished(self):
         if self._remote is None:

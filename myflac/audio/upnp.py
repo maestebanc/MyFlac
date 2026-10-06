@@ -970,16 +970,28 @@ class RemoteRenderer:
                 self._seen_playing = False
                 self._set_position(0.0, False)
                 self._reported = "STOPPED"
-                self._ui(self._on_finished)
+                natural_end = (
+                    self._duration <= 0
+                    or self._last_rel >= max(0.0, self._duration - 6.0)
+                )
+                if natural_end:
+                    self._ui(self._on_finished)
+                else:
+                    log.info("Pista detenida externamente a los %.1fs (duración %.1fs) en '%s'",
+                             self._last_rel, self._duration, self.device.name)
+                    self._next_track, self._next_url = None, ""
+                    self._ui(self._on_state, "STOPPED")
             elif now - self._load_ts > 15:
                 self._expect_playing = False
                 self._fail(self._no_start_reason())
             return
 
-        mapped = {"PLAYING": "PLAYING", "PAUSED_PLAYBACK": "PAUSED"}.get(state)
+        mapped = {"PLAYING": "PLAYING", "PAUSED_PLAYBACK": "PAUSED", "STOPPED": "STOPPED"}.get(state)
         if mapped and mapped != self._reported:
             # Cambio hecho desde fuera (botones o app del propio dispositivo)
             self._reported = mapped
             self._expect_playing = mapped == "PLAYING"
             self._set_position(self._base_pos, mapped == "PLAYING")
+            if mapped == "STOPPED":
+                self._next_track, self._next_url = None, ""
             self._ui(self._on_state, mapped)
