@@ -340,6 +340,8 @@ class PreferencesDialog(Adw.PreferencesWindow):
     def _on_scan_now_clicked(self):
         folders = self.cfg.get("library_folders", [])
         if self.scanner and folders:
+            if self.scanner.is_scanning:
+                return
             self.btn_scan.set_sensitive(False)
             self.scanner.start_scan(folders, quick=True, on_finished=self._on_scan_finished)
 
@@ -364,6 +366,8 @@ class PreferencesDialog(Adw.PreferencesWindow):
 
     def _do_reset_database(self):
         log.info("Restableciendo base de datos a petición del usuario")
+        if self.scanner and self.scanner.is_scanning:
+            self.scanner.stop()
         if self.db:
             self.db.clear_database()
         folders = self.cfg.get("library_folders", [])
@@ -407,6 +411,11 @@ class PreferencesDialog(Adw.PreferencesWindow):
         save_config(self.cfg)
 
     def _on_close_request(self, *_args) -> bool:
+        if self._backdrop_save_id:
+            GLib.source_remove(self._backdrop_save_id)
+            self._backdrop_save_id = 0
+            save_config(self.cfg)
+        i18n.remove_language_listener(self._on_language_changed)
         Adw.StyleManager.get_default().disconnect(self._dark_handler)
         return False
 

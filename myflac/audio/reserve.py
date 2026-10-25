@@ -84,6 +84,7 @@ _last_release: dict[int, float] = {}
 REACQUIRE_COOLDOWN_S = 1.0
 _held: set[str] = set()
 _device_names: dict[int, str] = {}
+_card_gen: dict[int, int] = {}
 
 
 def _on_method_call(_conn, _sender, path, _iface, method, _params, invocation):
@@ -125,11 +126,31 @@ class AudioDeviceReservation:
         self.object_path = f"/org/freedesktop/ReserveDevice1/Audio{card_index}"
         self._conn: Gio.DBusConnection | None = None
         self.acquired = False
+        self._cancelled = False
+        self._gen = 0
+
+    def _next_gen(self) -> int:
+        gen = _card_gen.get(self.card_index, 0) + 1
+        _card_gen[self.card_index] = gen
+        self._gen = gen
+        return gen
+
+    def _is_current(self) -> bool:
+        return not self._cancelled and _card_gen.get(self.card_index, 0) == self._gen
+
+    def cancel(self):
+        """Anula una reserva en curso o ya obtenida; solo libera en D-Bus si ninguna reserva posterior tomó el relevo."""
+        self._cancelled = True
+        if self.acquired:
+            self.release()
+        elif _card_gen.get(self.card_index, 0) == self._gen:
+            self._leave_name_queue()
 
     def acquire(self) -> bool:
         """Adquiere la reserva pidiendo al propietario actual que libere la tarjeta."""
         if self.acquired:
             return True
+        self._next_gen()
         try:
             self._conn = Gio.bus_get_sync(Gio.BusType.SESSION, None)
             if self.device_name:
@@ -172,15 +193,23 @@ class AudioDeviceReservation:
         Como acquire(), pero sin bloquear el hilo principal: la petición a WirePlumber es asíncrona
         y la espera del traspaso del nombre se hace con temporizadores de GLib. callback(éxito).
         """
+        if self._cancelled:
+            GLib.idle_add(lambda: (callback(False), False)[1])
+            return
         if self.acquired:
             GLib.idle_add(lambda: (callback(True), False)[1])
             return
+        if self._gen == 0:
+            self._next_gen()
         wait = _last_release.get(self.card_index, 0.0) + REACQUIRE_COOLDOWN_S - time.monotonic()
         if wait > 0:
-            GLib.timeout_add(int(wait * 1000) + 1, lambda: (self.acquire_async(callback), False)[1])
+            GLib.timeout_add(int(wait * 1000) + 1, lambda: (self._is_current() and self.acquire_async(callback), False)[1])
             return
 
         def done(ok: bool):
+            if not self._is_current():
+                callback(False)
+                return
             if ok:
                 _held.add(self.bus_name)
                 self.acquired = True
@@ -212,6 +241,8 @@ class AudioDeviceReservation:
         deadline = time.monotonic() + 2.0
 
         def poll_owner() -> bool:
+            if not self._is_current():
+                return False
             try:
                 reply = self._conn.call_sync(
                     "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
@@ -231,6 +262,8 @@ class AudioDeviceReservation:
             return True
 
         def on_release_reply(conn, res):
+            if not self._is_current():
+                return
             try:
                 accepted = bool(conn.call_finish(res).unpack()[0])
             except GLib.Error as e:
@@ -253,6 +286,9 @@ class AudioDeviceReservation:
         """Libera la reserva para que PipeWire recupere la tarjeta."""
         if not self.acquired or not self._conn:
             return
+        self.acquired = False
+        if _card_gen.get(self.card_index, 0) != self._gen:
+            return
         # Primero se deja de negar la tarjeta y después se suelta el nombre
         _held.discard(self.bus_name)
         _last_release[self.card_index] = time.monotonic()
@@ -261,7 +297,6 @@ class AudioDeviceReservation:
             log.info("Reserva liberada: %s", self.bus_name)
         except GLib.Error as e:
             log.warning("Error liberando %s: %s", self.bus_name, e.message)
-        self.acquired = False
 
     def _request_name(self, flags: int) -> int:
         reply = self._conn.call_sync(

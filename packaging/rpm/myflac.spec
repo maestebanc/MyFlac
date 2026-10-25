@@ -2,7 +2,7 @@
 %define pysitelib %(python3 -c "import sys; print(f'/usr/lib/python{sys.version_info.major}.{sys.version_info.minor}/site-packages')")
 
 Name:           myflac
-Version:        0.2.3
+Version:        0.2.4
 Release:        1%{?dist}
 Summary:        Bit-perfect Hi-Res audio player for GNOME
 License:        GPL-3.0-or-later
@@ -75,6 +75,9 @@ update-desktop-database -q /usr/share/applications &>/dev/null || :
 gtk-update-icon-cache -q /usr/share/icons/hicolor &>/dev/null || :
 
 %changelog
+* Sun Oct 25 2026 Miguel Angel Esteban <maestebanc@gmail.com> - 0.2.4-1
+- Corrección de errores.
+
 * Fri Oct 02 2026 Miguel Angel Esteban <maestebanc@gmail.com> - 0.2.1-1
 - Oscilloscope relocated to bottom-left mini-cover in main window to keep main artwork clear.
 - Compact oscilloscope bottom strip with gentle alpha fade in Mini Player and Super Player.

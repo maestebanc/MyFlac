@@ -174,10 +174,8 @@ class MainWindow(Adw.ApplicationWindow):
         self.view_switcher_box.append(self.btn_view_tidal)
         self.header_bar.pack_start(self.view_switcher_box)
 
-        # Título limpio en el centro con versión y sin subtítulo
-        self.window_title = Adw.WindowTitle(
-            title=f"{APP_NAME} {__version__}",
-        )
+        # Título limpio en el centro con versión
+        self.window_title = Adw.WindowTitle(title=f"{APP_NAME} {__version__}")
         self.header_bar.set_title_widget(self.window_title)
 
         # Botón de búsqueda desplegable
@@ -314,6 +312,10 @@ class MainWindow(Adw.ApplicationWindow):
         self.player_bar.is_device_exclusive_enabled_cb = lambda dev: is_device_exclusive_enabled(self.cfg, dev)
         self.player_bar.on_exclusive_toggled = self._on_exclusive_toggled
         self.player_bar.on_cover_clicked = self._toggle_cover_popup
+
+        # Inicializar estado visual de repeat y shuffle desde configuración
+        self._apply_repeat_ui(self.cfg.get("repeat_mode", "none"))
+        self._apply_shuffle_ui(bool(self.cfg.get("shuffle", False)))
 
         # Vincular el osciloscopio de la mini-portada al panel inspector
         self.inspector._player_bar = self.player_bar
@@ -504,6 +506,17 @@ class MainWindow(Adw.ApplicationWindow):
         if not folders:
             self._show_library_setup_dialog()
             return
+        if self.scanner.is_scanning:
+            return
+
+        bar_tid = getattr(self, "_scan_hide_bar_id", None)
+        if bar_tid is not None:
+            GLib.source_remove(bar_tid)
+            self._scan_hide_bar_id = None
+        lbl_tid = getattr(self, "_scan_hide_lbl_id", None)
+        if lbl_tid is not None:
+            GLib.source_remove(lbl_tid)
+            self._scan_hide_lbl_id = None
 
         # Mostrar línea azul sutil de progreso no obstructiva
         self.scan_progress_bar.set_fraction(0.0)
@@ -525,17 +538,28 @@ class MainWindow(Adw.ApplicationWindow):
             else:
                 self.scan_progress_bar.pulse()
 
+        def _hide_bar():
+            self._scan_hide_bar_id = None
+            self.scan_progress_bar.set_visible(False)
+            return False
+
+        def _hide_lbl():
+            self._scan_hide_lbl_id = None
+            self.scan_status_label.set_visible(False)
+            return False
+
         def _on_finished(result: dict):
             self.spinner.stop()
             self.spinner.set_visible(False)
-            self.btn_scan.set_sensitive(True)
+            if self.main_stack.get_visible_child_name() == "library":
+                self.btn_scan.set_sensitive(True)
 
             self.scan_progress_bar.set_fraction(1.0)
-            GLib.timeout_add(700, lambda: self.scan_progress_bar.set_visible(False))
+            self._scan_hide_bar_id = GLib.timeout_add(700, _hide_bar)
 
             if not silent:
                 self.scan_status_label.set_text(i18n.t("header.library_status_done"))
-                GLib.timeout_add(3000, lambda: self.scan_status_label.set_visible(False))
+                self._scan_hide_lbl_id = GLib.timeout_add(3000, _hide_lbl)
 
             # Si se añadieron, actualizaron o eliminaron temas, refrescar la interfaz
             if result.get("added_or_updated", 0) > 0 or result.get("deleted", 0) > 0 or not quick:
@@ -574,8 +598,9 @@ class MainWindow(Adw.ApplicationWindow):
         menu.append(i18n.t("menu.about"), "app.about")
         self.menu_btn.set_menu_model(menu)
 
-    def _on_language_changed(self, _lang: str):
+    def _on_language_changed(self, lang: str):
         """Actualiza tooltips, búsqueda y menú al cambiar el idioma en caliente."""
+        self.cfg["language"] = lang
         self.btn_scan.set_tooltip_text(i18n.t("header.scan_library"))
         self.btn_search.set_tooltip_text(i18n.t("header.search_tooltip"))
         self._update_theme_button_ui()
@@ -616,15 +641,18 @@ class MainWindow(Adw.ApplicationWindow):
             return
         if btn is self.btn_view_library:
             self.main_stack.set_visible_child_name("library")
-            self.btn_scan.set_sensitive(True)
+            self.btn_scan.set_sensitive(not self.scanner.is_scanning)
             self.btn_search.set_sensitive(True)
+            self.search_bar.set_key_capture_widget(self)
             self.cfg["last_view"] = "library"
             save_config(self.cfg)
         elif btn is self.btn_view_qobuz or btn is self.btn_view_tidal:
             view_name = "qobuz" if btn is self.btn_view_qobuz else "tidal"
             self.main_stack.set_visible_child_name(view_name)
             self.btn_scan.set_sensitive(False)
+            self.btn_search.set_active(False)
             self.btn_search.set_sensitive(False)
+            self.search_bar.set_key_capture_widget(None)
             self.cfg["last_view"] = view_name
             save_config(self.cfg)
 
@@ -676,6 +704,13 @@ class MainWindow(Adw.ApplicationWindow):
             return True
         if keyval in (Gdk.KEY_f, Gdk.KEY_F) and (state & Gdk.ModifierType.CONTROL_MASK):
             log.debug("Atajo teclado: Ctrl+F -> activar búsqueda")
+            visible_view = self.main_stack.get_visible_child_name()
+            if visible_view == "qobuz" and self.qobuz_view and hasattr(self.qobuz_view, "search_entry"):
+                self.qobuz_view.search_entry.grab_focus()
+                return True
+            if visible_view == "tidal" and self.tidal_view and hasattr(self.tidal_view, "search_entry"):
+                self.tidal_view.search_entry.grab_focus()
+                return True
             self.btn_search.set_active(not self.btn_search.get_active())
             if self.btn_search.get_active():
                 self.search_entry.grab_focus()
@@ -909,14 +944,16 @@ class MainWindow(Adw.ApplicationWindow):
         self._prepare_gapless_next()
 
     def _next_candidate(self) -> AudioTrack | None:
-        """Siguiente pista: la cola; si está vacía, la biblioteca (salvo tras una pista de streaming)."""
+        """Siguiente pista: repetición de una pista, luego la cola, y luego la biblioteca."""
+        current = self.engine.current_track
+        repeat = self.cfg.get("repeat_mode", "none")
+        if repeat == "one" and current is not None:
+            return current
         if self.play_queue:
             return self.play_queue[0]
-        current = self.engine.current_track
         if current is not None and current.is_stream:
             return None  # Al acabar el álbum de streaming no se salta a la biblioteca local
         shuffle = self.cfg.get("shuffle", False)
-        repeat = self.cfg.get("repeat_mode", "none")
         return self.browser.get_next_track(shuffle=shuffle, repeat_mode=repeat)
 
     def _prepare_gapless_next(self):
@@ -972,6 +1009,10 @@ class MainWindow(Adw.ApplicationWindow):
             log.info("Fin de la lista de reproducción alcanzado")
 
     def _play_previous(self):
+        current = self.engine.current_track
+        if current is not None and (getattr(current, "is_stream", False) or self.engine.position > 3.0):
+            self.engine.seek(0.0)
+            return
         prev = self.browser.get_previous_track()
         if prev:
             log.info("Retrocediendo a pista anterior: '%s'", prev.title)
@@ -1031,20 +1072,47 @@ class MainWindow(Adw.ApplicationWindow):
         self.inspector.update_dac_status(info)
         self.player_bar.update_active_device()
 
-    def set_repeat_mode(self, mode: str):
-        """Establece el modo de repetición y actualiza la UI y MPRIS."""
-        self.cfg["repeat_mode"] = mode
-        save_config(self.cfg)
+    def _apply_repeat_ui(self, mode: str):
         icons = {
             "none": "media-playlist-repeat-symbolic",
             "all": "media-playlist-repeat-symbolic",
             "one": "media-playlist-repeat-song-symbolic",
         }
-        self.player_bar.repeat_btn.set_icon_name(icons.get(mode, "media-playlist-repeat-symbolic"))
-        if mode != "none":
-            self.player_bar.repeat_btn.add_css_class("accent")
+        icon_name = icons.get(mode, "media-playlist-repeat-symbolic")
+        for btn in (
+            self.player_bar.repeat_btn,
+            getattr(self.mini_player, "mini_repeat_btn", None) if self.mini_player else None,
+            getattr(self.mini_player, "super_repeat_btn", None) if self.mini_player else None,
+        ):
+            if btn is not None:
+                btn.set_icon_name(icon_name)
+                if mode != "none":
+                    btn.add_css_class("accent")
+                else:
+                    btn.remove_css_class("accent")
+
+    def _apply_shuffle_ui(self, active: bool):
+        if self.player_bar.shuffle_btn.get_active() != active:
+            self.player_bar.shuffle_btn.set_active(active)
+        if active:
+            self.player_bar.shuffle_btn.add_css_class("accent")
         else:
-            self.player_bar.repeat_btn.remove_css_class("accent")
+            self.player_bar.shuffle_btn.remove_css_class("accent")
+        if self.mini_player is not None:
+            for btn in (self.mini_player.mini_shuffle_btn, self.mini_player.super_shuffle_btn):
+                if btn.get_active() != active:
+                    btn.set_active(active)
+                if active:
+                    btn.add_css_class("accent")
+                else:
+                    btn.remove_css_class("accent")
+
+    def set_repeat_mode(self, mode: str):
+        """Establece el modo de repetición y actualiza la UI y MPRIS."""
+        self.cfg["repeat_mode"] = mode
+        save_config(self.cfg)
+        self._apply_repeat_ui(mode)
+        self._prepare_gapless_next()
         if hasattr(self, "mpris"):
             mpris_val = "Track" if mode == "one" else ("Playlist" if mode == "all" else "None")
             self.mpris.notify_property_changed({"LoopStatus": GLib.Variant("s", mpris_val)})
@@ -1053,10 +1121,7 @@ class MainWindow(Adw.ApplicationWindow):
         """Establece el modo aleatorio y actualiza la UI y MPRIS."""
         self.cfg["shuffle"] = active
         save_config(self.cfg)
-        if active:
-            self.player_bar.shuffle_btn.add_css_class("accent")
-        else:
-            self.player_bar.shuffle_btn.remove_css_class("accent")
+        self._apply_shuffle_ui(active)
         self._prepare_gapless_next()
         if hasattr(self, "mpris"):
             self.mpris.notify_property_changed({"Shuffle": GLib.Variant("b", active)})
@@ -1171,6 +1236,8 @@ class MainWindow(Adw.ApplicationWindow):
         log.info("Activando modo Mini-Reproductor y ocultando ventana principal")
         if self.mini_player is None:
             self.mini_player = MiniPlayerWindow(main_window=self, engine=self.engine)
+            self._apply_repeat_ui(self.cfg.get("repeat_mode", "none"))
+            self._apply_shuffle_ui(bool(self.cfg.get("shuffle", False)))
         self.mini_player.set_visualizer_mode(self.inspector.visualizer_mode, save=False)
         if self.engine.current_track:
             self.mini_player.set_track(self.engine.current_track)
@@ -1182,6 +1249,8 @@ class MainWindow(Adw.ApplicationWindow):
         log.info("Activando Super-Reproductor a pantalla completa y ocultando ventana principal")
         if self.mini_player is None:
             self.mini_player = MiniPlayerWindow(main_window=self, engine=self.engine)
+            self._apply_repeat_ui(self.cfg.get("repeat_mode", "none"))
+            self._apply_shuffle_ui(bool(self.cfg.get("shuffle", False)))
         self.mini_player.set_visualizer_mode(self.inspector.visualizer_mode, save=False)
         if self.engine.current_track:
             self.mini_player.set_track(self.engine.current_track)
@@ -1193,7 +1262,7 @@ class MainWindow(Adw.ApplicationWindow):
         if hasattr(self, "browser") and self.browser:
             self.cfg["last_artist"] = self.browser.current_artist
             self.cfg["last_album"] = self.browser.current_album
-        if self.engine.current_track:
+        if self.engine.current_track and not getattr(self.engine.current_track, "is_stream", False):
             self.cfg["last_track_path"] = self.engine.current_track.filepath
             self.cfg["last_position"] = self.engine.position
         if hasattr(self, "inspector") and self.inspector:

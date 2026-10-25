@@ -1,10 +1,11 @@
 """Gestor de base de datos SQLite para la Biblioteca Musical de MyFlac."""
 from __future__ import annotations
 
+import contextlib
 import os
 import sqlite3
 import threading
-from typing import Any
+from typing import Any, Iterator
 
 import gi
 gi.require_version("GLib", "2.0")
@@ -39,13 +40,18 @@ class LibraryDB:
         self._lock = threading.Lock()
         self._init_db()
 
-    def _get_connection(self) -> sqlite3.Connection:
+    @contextlib.contextmanager
+    def _get_connection(self) -> Iterator[sqlite3.Connection]:
         conn = sqlite3.connect(self.db_path, uri=self._uri, check_same_thread=False)
         conn.row_factory = sqlite3.Row
         if not self._uri:
             conn.execute("PRAGMA journal_mode = WAL;")
             conn.execute("PRAGMA synchronous = NORMAL;")
-        return conn
+        try:
+            with conn:
+                yield conn
+        finally:
+            conn.close()
 
     def _init_db(self) -> None:
         with self._lock, self._get_connection() as conn:
@@ -122,13 +128,14 @@ class LibraryDB:
 
     def remove_library_folder(self, path: str) -> bool:
         norm_path = os.path.abspath(path)
+        escaped = norm_path.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
         with self._lock, self._get_connection() as conn:
             try:
                 conn.execute("DELETE FROM library_folders WHERE path = ?;", (norm_path,))
                 # Eliminar pistas asociadas a esa carpeta
                 conn.execute(
-                    "DELETE FROM tracks WHERE folder_path = ? OR filepath LIKE ? || '/%';",
-                    (norm_path, norm_path),
+                    "DELETE FROM tracks WHERE folder_path = ? OR filepath LIKE ? || '/%' ESCAPE '\\';",
+                    (norm_path, escaped),
                 )
                 log.info("Carpeta y pistas eliminadas de la biblioteca: %s", norm_path)
                 return True
@@ -178,7 +185,7 @@ class LibraryDB:
                 t.channels,
                 t.format_name,
                 1 if (t.cover_data or t.get_cover_image_bytes()) else 0,
-                folder_path or os.path.dirname(t.filepath),
+                getattr(t, "_folder_path", "") or folder_path or os.path.dirname(t.filepath),
             ))
 
         sql = """
@@ -237,10 +244,10 @@ class LibraryDB:
     def clear_database(self) -> None:
         """Restablece la base de datos a cero (borra todas las pistas indexadas)."""
         with self._lock:
-            conn = self._get_connection()
+            with self._get_connection() as conn:
+                conn.execute("DELETE FROM tracks;")
+            conn = sqlite3.connect(self.db_path, uri=self._uri, check_same_thread=False)
             try:
-                with conn:
-                    conn.execute("DELETE FROM tracks;")
                 conn.isolation_level = None
                 conn.execute("VACUUM;")
             finally:

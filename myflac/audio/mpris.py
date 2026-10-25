@@ -265,11 +265,13 @@ class MprisServer:
             current_pos = self.engine.get_position()
             target_pos = max(0.0, current_pos + (offset_us / 1_000_000.0))
             GLib.idle_add(self.engine.seek, target_pos)
+            self._emit_seeked(int(target_pos * 1_000_000.0))
             invocation.return_value(None)
         elif method == "SetPosition":
             _track_id, pos_us = params[0], params[1]
             target_pos = max(0.0, pos_us / 1_000_000.0)
             GLib.idle_add(self.engine.seek, target_pos)
+            self._emit_seeked(int(pos_us))
             invocation.return_value(None)
         elif method == "OpenUri":
             uri = params[0]
@@ -377,7 +379,7 @@ class MprisServer:
             meta["mpris:trackid"] = GLib.Variant("o", "/org/mpris/MediaPlayer2/TrackList/NoTrack")
             return GLib.Variant("a{sv}", meta)
 
-        track_hash = abs(hash(track.filepath))
+        track_hash = abs(hash(track.stream_id or track.filepath))
         meta["mpris:trackid"] = GLib.Variant("o", f"/org/mpris/MediaPlayer2/track/{track_hash}")
         meta["mpris:length"] = GLib.Variant("x", int(track.duration * 1_000_000.0))
         meta["xesam:title"] = GLib.Variant("s", track.title or os.path.basename(track.filepath))
@@ -389,16 +391,43 @@ class MprisServer:
         if track.album_artist or track.artist:
             meta["xesam:albumArtist"] = GLib.Variant("as", [track.album_artist or track.artist])
 
-        meta["xesam:url"] = GLib.Variant("s", "file://" + os.path.abspath(track.filepath))
+        if track.filepath:
+            if track.is_url:
+                if not track.filepath.startswith("data:"):
+                    meta["xesam:url"] = GLib.Variant("s", track.filepath)
+            else:
+                try:
+                    uri = GLib.filename_to_uri(os.path.abspath(track.filepath), None)
+                except Exception:
+                    uri = "file://" + os.path.abspath(track.filepath)
+                meta["xesam:url"] = GLib.Variant("s", uri)
 
         if self._has_cached_cover and os.path.isfile(self._cover_cache_path):
-            meta["mpris:artUrl"] = GLib.Variant("s", "file://" + os.path.abspath(self._cover_cache_path))
+            try:
+                art_uri = GLib.filename_to_uri(os.path.abspath(self._cover_cache_path), None)
+            except Exception:
+                art_uri = "file://" + os.path.abspath(self._cover_cache_path)
+            meta["mpris:artUrl"] = GLib.Variant("s", art_uri)
 
         return GLib.Variant("a{sv}", meta)
 
     # -------------------------------------------------------------------------
     # Notificaciones de cambio al bus D-Bus
     # -------------------------------------------------------------------------
+
+    def _emit_seeked(self, pos_us: int):
+        if not self._connection:
+            return
+        try:
+            self._connection.emit_signal(
+                None,
+                "/org/mpris/MediaPlayer2",
+                "org.mpris.MediaPlayer2.Player",
+                "Seeked",
+                GLib.Variant("(x)", (pos_us,)),
+            )
+        except Exception as e:
+            log.debug("Error emitiendo señal Seeked MPRIS2: %s", e)
 
     def _notify_property_changed(self, changed_props: dict[str, GLib.Variant]):
         if not self._connection:
@@ -457,10 +486,17 @@ class MprisServer:
         except Exception as e:
             log.warning("No se pudo cachear carátula para MPRIS: %s", e)
 
+        if self.engine.state == PlaybackState.PLAYING:
+            status = "Playing"
+        elif self.engine.state == PlaybackState.PAUSED:
+            status = "Paused"
+        else:
+            status = "Stopped"
+
         # Notificar metadatos nuevos
         self._notify_property_changed({
             "Metadata": self._build_metadata_variant(),
-            "PlaybackStatus": GLib.Variant("s", "Playing" if self.engine.state == PlaybackState.PLAYING else "Paused"),
+            "PlaybackStatus": GLib.Variant("s", status),
         })
 
     # -------------------------------------------------------------------------

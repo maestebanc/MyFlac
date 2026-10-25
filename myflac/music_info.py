@@ -78,17 +78,22 @@ _KIND_KEYWORDS = {
 
 def _normalize(text: str) -> str:
     decomposed = unicodedata.normalize("NFKD", text or "")
-    return re.sub(r"[^a-z0-9]", "", "".join(c for c in decomposed if not unicodedata.combining(c)).lower())
+    stripped = "".join(c for c in decomposed if not unicodedata.combining(c)).lower()
+    return "".join(c for c in stripped if c.isalnum())
 
 
 def _clean_album(album: str) -> str:
     """Quita coletillas de edición: '(2011 Remaster)', '[Deluxe]', 'CDP 7 46271 2'..."""
-    return re.sub(r"\s*[\(\[][^\)\]]*[\)\]]\s*", " ", album or "").strip()
+    raw = (album or "").strip()
+    cleaned = re.sub(r"\s+[\(\[][^\)\]]*[\)\]]\s*$", "", raw).strip()
+    return cleaned or raw
 
 
 def _clean_title(title: str) -> str:
-    title = re.sub(r"\s*[\(\[][^\)\]]*(remaster|live|mix|version|edit|feat|mono|stereo)[^\)\]]*[\)\]]", "", title or "", flags=re.I)
-    return re.sub(r"\s+-\s+.*(remaster|live|version).*$", "", title, flags=re.I).strip()
+    raw = (title or "").strip()
+    cleaned = re.sub(r"\s*[\(\[][^\)\]]*(remaster|live|mix|version|edit|feat|mono|stereo)[^\)\]]*[\)\]]", "", raw, flags=re.I)
+    cleaned = re.sub(r"\s+-\s+.*(remaster|live|version).*$", "", cleaned, flags=re.I).strip()
+    return cleaned or raw
 
 
 class _PangoFromHTML(HTMLParser):
@@ -197,6 +202,13 @@ def _esc(text) -> str:
     return GLib.markup_escape_text(str(text))
 
 
+def _t(key: str, language: str) -> str:
+    entry = i18n.STRINGS.get(key)
+    if entry is not None:
+        return entry.get(language) or entry.get("es") or key
+    return i18n.t(key)
+
+
 def _credits_markup(credits: list[tuple[str, str]], language: str) -> str:
     return "\n".join(f"<b>{_esc(translate.role(role, language))}</b>: {_esc(names)}" for role, names in credits)
 
@@ -206,15 +218,31 @@ def _shorten(markup: str, limit: int = MAX_DISCOGS_TEXT) -> str:
     if len(markup) <= limit:
         return markup
     cut = markup[:limit]
+    # Evitar cortar en medio de una etiqueta XML (<...) o entidad (&...;)
+    last_lt = cut.rfind("<")
+    if last_lt > cut.rfind(">"):
+        cut = cut[:last_lt]
+    last_amp = cut.rfind("&")
+    if last_amp != -1 and ";" not in cut[last_amp:]:
+        cut = cut[:last_amp]
     for sep in ("\n\n", ". "):
         pos = cut.rfind(sep)
         if pos > limit // 2:
             cut = cut[: pos + (1 if sep == ". " else 0)]
             break
-    # Cerrar etiquetas que hayan quedado abiertas
-    for tag in ("a", "i", "b"):
-        if cut.count(f"<{tag}") > cut.count(f"</{tag}>"):
-            cut += f"</{tag}>"
+    # Cerrar etiquetas que hayan quedado abiertas en orden inverso (LIFO)
+    open_stack: list[str] = []
+    for m in re.finditer(r"<(/?)(a|b|i|sub|sup)(?:\s[^>]*)?>", cut):
+        closing, tag = m.group(1), m.group(2)
+        if closing:
+            if tag in open_stack:
+                open_stack.reverse()
+                open_stack.remove(tag)
+                open_stack.reverse()
+        else:
+            open_stack.append(tag)
+    for tag in reversed(open_stack):
+        cut += f"</{tag}>"
     return cut.rstrip() + " …"
 
 
@@ -400,17 +428,17 @@ class MusicInfoService:
             except Exception as e:
                 log.debug("Wikipedia (%s) no respondió: %s", lang, e)
                 continue
-            redirects = {r["from"]: r["to"] for r in query.get("redirects", [])}
-            normalized = {n["from"]: n["to"] for n in query.get("normalized", [])}
-            pages = {p.get("title"): p for p in query.get("pages", [])}
+            redirects = {r["from"]: r["to"] for r in (query.get("redirects") or [])}
+            normalized = {n["from"]: n["to"] for n in (query.get("normalized") or [])}
+            pages = {p.get("title"): p for p in (query.get("pages") or [])}
             for title in candidates:
                 final = redirects.get(normalized.get(title, title), normalized.get(title, title))
                 page = pages.get(final)
-                if not page or page.get("missing") or "disambiguation" in page.get("pageprops", {}):
+                if not page or page.get("missing") or "disambiguation" in (page.get("pageprops") or {}):
                     continue
                 markup = html_to_markup(page.get("extract") or "")
                 extract = markup_to_text(markup).strip()
-                about = f"{page.get('description', '')} {extract[:400]}"
+                about = f"{page.get('description') or ''} {extract[:400]}"
                 if not extract or not keyword.search(about):
                     continue
                 # Un disco o canción debe ser del artista (evita homónimos de otros artistas)
@@ -421,7 +449,7 @@ class MusicInfoService:
                     continue
                 return WikiPage(
                     title=page.get("title", final),
-                    description=page.get("description", ""),
+                    description=page.get("description") or "",
                     markup=markup,
                     url=page.get("fullurl") or f"https://{lang}.wikipedia.org/wiki/{urllib.parse.quote(final)}",
                     image_url=(page.get("thumbnail") or {}).get("source", ""),
@@ -468,7 +496,7 @@ class MusicInfoService:
 
         if not (info.markup or info.facts or info.sections):
             if info.temporary:
-                return InfoCard(status="error", error=i18n.t("info.err_busy"))
+                return InfoCard(status="error", error=_t("info.err_busy", language))
             return InfoCard(status="empty")
         return info
 
@@ -491,32 +519,32 @@ class MusicInfoService:
         year = master.get("year") or release.get("year")
         facts = []
         if year:
-            facts.append((i18n.t("info.year"), _esc(year)))
+            facts.append((_t("info.year", language), _esc(year)))
         labels = [f"{discogs.clean_name(l.get('name', ''))}" + (f" ({l['catno']})" if l.get("catno") and l["catno"].lower() != "none" else "")
                   for l in release.get("labels", [])]
         if labels:
-            facts.append((i18n.t("info.label"), _esc(", ".join(dict.fromkeys(labels)))))
+            facts.append((_t("info.label", language), _esc(", ".join(dict.fromkeys(labels)))))
         if release.get("country"):
-            facts.append((i18n.t("info.country"), _esc(translate.region(release["country"], language))))
+            facts.append((_t("info.country", language), _esc(translate.region(release["country"], language))))
         formats = [
             ", ".join(translate.term(x, language) for x in [f.get("name", "")] + f.get("descriptions", []))
             for f in release.get("formats", [])
         ]
         if formats:
-            facts.append((i18n.t("info.format"), _esc("; ".join(formats))))
+            facts.append((_t("info.format", language), _esc("; ".join(formats))))
         genres = master.get("genres") or release.get("genres") or []
         if genres:
-            facts.append((i18n.t("info.genres"), _esc(", ".join(translate.term(g, language) for g in genres))))
+            facts.append((_t("info.genres", language), _esc(", ".join(translate.term(g, language) for g in genres))))
         styles = master.get("styles") or release.get("styles") or []
         if styles:
-            facts.append((i18n.t("info.styles"), _esc(", ".join(translate.term(s, language) for s in styles))))
+            facts.append((_t("info.styles", language), _esc(", ".join(translate.term(s, language) for s in styles))))
         info.facts += facts
         credits = discogs.group_credits(release.get("extraartists", []))
         if credits:
-            info.sections.append((i18n.t("info.credits"), _credits_markup(credits, language)))
+            info.sections.append((_t("info.credits", language), _credits_markup(credits, language)))
         notes = discogs.discogs_to_markup(release.get("notes", ""))
         if notes:
-            info.sections.append((i18n.t("info.release_notes"), self._translated(info, _shorten(notes), language)))
+            info.sections.append((_t("info.release_notes", language), self._translated(info, _shorten(notes), language)))
         uri = master.get("uri") or release.get("uri")
         if uri:
             info.sources.append(uri)
@@ -532,14 +560,14 @@ class MusicInfoService:
         album_title = _clean_album(track.album)
         year = (album.get("master") or {}).get("year") or release.get("year")
         if album_title:
-            facts.append((i18n.t("info.album"), _esc(f"{album_title} ({year})" if year else album_title)))
+            facts.append((_t("info.album", language), _esc(f"{album_title} ({year})" if year else album_title)))
         if found.get("position"):
-            facts.append((i18n.t("info.position"), _esc(found["position"])))
+            facts.append((_t("info.position", language), _esc(found["position"])))
         if found.get("duration"):
-            facts.append((i18n.t("info.duration"), _esc(found["duration"])))
+            facts.append((_t("info.duration", language), _esc(found["duration"])))
         info.facts += facts
         if credits:
-            info.sections.append((i18n.t("info.credits"), _credits_markup(credits, language)))
+            info.sections.append((_t("info.credits", language), _credits_markup(credits, language)))
         uri = (album.get("master") or {}).get("uri") or release.get("uri")
         if uri:
             info.sources.append(uri)
@@ -552,19 +580,19 @@ class MusicInfoService:
             return
         facts = []
         if artist.get("realname") and _normalize(artist["realname"]) != _normalize(name):
-            facts.append((i18n.t("info.real_name"), _esc(artist["realname"])))
+            facts.append((_t("info.real_name", language), _esc(artist["realname"])))
         members = [discogs.clean_name(m["name"]) for m in artist.get("members", []) if m.get("active", True)]
         if members:
-            facts.append((i18n.t("info.members"), _esc(", ".join(members[:12]))))
+            facts.append((_t("info.members", language), _esc(", ".join(members[:12]))))
         groups = [discogs.clean_name(g["name"]) for g in artist.get("groups", [])]
         if groups:
-            facts.append((i18n.t("info.groups"), _esc(", ".join(groups[:8]))))
+            facts.append((_t("info.groups", language), _esc(", ".join(groups[:8]))))
         aliases = [discogs.clean_name(a["name"]) for a in artist.get("aliases", [])]
         if aliases:
-            facts.append((i18n.t("info.aliases"), _esc(", ".join(aliases[:8]))))
+            facts.append((_t("info.aliases", language), _esc(", ".join(aliases[:8]))))
         info.facts += facts
         profile = discogs.discogs_to_markup(artist.get("profile", ""))
         if profile:
-            info.sections.append((i18n.t("info.discogs_profile"), self._translated(info, _shorten(profile), language)))
+            info.sections.append((_t("info.discogs_profile", language), self._translated(info, _shorten(profile), language)))
         if artist.get("uri"):
             info.sources.append(artist["uri"])

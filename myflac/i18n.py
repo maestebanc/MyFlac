@@ -35,8 +35,8 @@ def set_language(lang: str) -> None:
     cfg["language"] = lang
     _config.save_config(cfg)
 
-    # Notificar a los listeners registrados
-    for listener in _change_listeners:
+    # Notificar a los listeners registrados (copia para evitar mutaciones durante iteración)
+    for listener in list(_change_listeners):
         try:
             listener(lang)
         except Exception:
@@ -75,14 +75,34 @@ STRINGS: dict[str, dict[str, str]] = {
         "ca": "MyFlac",
     },
     "app.comment": {
-        "es": "Reproductor de música Hi-Res para GNOME",
-        "en": "Hi-Res music player for GNOME",
-        "ca": "Reproductor de música Hi-Res per a GNOME",
+        "es": "Reproductor de música Hi-Res para GNOME.\nCódigo generado con IA mediante Antigravity.",
+        "en": "Hi-Res music player for GNOME.\nCode generated with AI using Antigravity.",
+        "ca": "Reproductor de música Hi-Res per a GNOME.\nCodi generat amb IA mitjançant Antigravity.",
     },
     "about.title": {
         "es": "Acerca de MyFlac",
         "en": "About MyFlac",
         "ca": "Quant a MyFlac",
+    },
+    "about.developer_name": {
+        "es": "Miguel Angel Esteban · Generado con IA (Antigravity)",
+        "en": "Miguel Angel Esteban · Generated with AI (Antigravity)",
+        "ca": "Miguel Angel Esteban · Generat amb IA (Antigravity)",
+    },
+    "about.credit_concept": {
+        "es": "Idea, diseño funcional y dirección",
+        "en": "Concept, functional design & direction",
+        "ca": "Idea, disseny funcional i direcció",
+    },
+    "about.credit_ai": {
+        "es": "Programación y generación de código con IA",
+        "en": "AI programming & code generation",
+        "ca": "Programació i generació de codi amb IA",
+    },
+    "header.ai_subtitle": {
+        "es": "Generado con IA · Antigravity",
+        "en": "Generated with AI · Antigravity",
+        "ca": "Generat amb IA · Antigravity",
     },
 
     # --- Barra de cabecera ---

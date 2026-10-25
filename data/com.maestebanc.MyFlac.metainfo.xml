@@ -55,6 +55,13 @@
     </screenshot>
   </screenshots>
   <releases>
+    <release version="0.2.4" date="2026-10-25">
+      <description>
+        <p>Bug fixes.</p>
+        <p xml:lang="es">Corrección de errores.</p>
+        <p xml:lang="ca">Correcció d'errors.</p>
+      </description>
+    </release>
     <release version="0.2.3" date="2026-10-03">
       <description>
         <p>Qobuz and TIDAL streaming integration: browse catalogue, user mixes, favorites, and stream Hi-Res lossless FLAC directly with bit-perfect ALSA output.</p>

@@ -71,19 +71,19 @@ def _pick_deezer_picture(artist_name: str, results: list[dict]) -> str | None:
 
 def _pick_wikipedia_thumbnail(candidates: list[str], query: dict) -> str | None:
     """Elige la miniatura del primer título candidato que sea una página musical (no desambiguación)."""
-    redirects = {r["from"]: r["to"] for r in query.get("redirects", [])}
-    normalized = {n["from"]: n["to"] for n in query.get("normalized", [])}
-    pages = {p.get("title"): p for p in query.get("pages", [])}
+    redirects = {r["from"]: r["to"] for r in (query.get("redirects") or [])}
+    normalized = {n["from"]: n["to"] for n in (query.get("normalized") or [])}
+    pages = {p.get("title"): p for p in (query.get("pages") or [])}
 
     for title in candidates:
         final = normalized.get(title, title)
         final = redirects.get(final, final)
         page = pages.get(final)
-        if not page or page.get("missing") or "disambiguation" in page.get("pageprops", {}):
+        if not page or page.get("missing") or "disambiguation" in (page.get("pageprops") or {}):
             continue
-        if not _MUSIC_DESCRIPTION_RE.search(page.get("description", "")):
+        if not _MUSIC_DESCRIPTION_RE.search(page.get("description") or ""):
             continue
-        thumb = page.get("thumbnail", {}).get("source")
+        thumb = (page.get("thumbnail") or {}).get("source")
         if thumb:
             return thumb
     return None
@@ -158,18 +158,22 @@ class ArtistArtService:
 
         # 3. Descarga asíncrona en hilo de trabajo
         def _worker():
-            image_url, definitive = self._resolve_artist_url(clean_name)
             downloaded_path = None
-            if not image_url:
-                log.info("No se encontró imagen pública para el artista: %s", clean_name)
-                # Solo se recuerda si ambos servicios respondieron; un fallo de red se reintenta
-                if definitive:
-                    self._write_not_found(not_found_marker)
-            else:
-                downloaded_path = self._download_image(image_url, cached_file)
-                if downloaded_path:
-                    log.info("Foto descargada con éxito para %s (%s)", clean_name, downloaded_path)
-            GLib.idle_add(self._deliver, cache_key, downloaded_path)
+            try:
+                image_url, definitive = self._resolve_artist_url(clean_name)
+                if not image_url:
+                    log.info("No se encontró imagen pública para el artista: %s", clean_name)
+                    # Solo se recuerda si ambos servicios respondieron; un fallo de red se reintenta
+                    if definitive:
+                        self._write_not_found(not_found_marker)
+                else:
+                    downloaded_path = self._download_image(image_url, cached_file)
+                    if downloaded_path:
+                        log.info("Foto descargada con éxito para %s (%s)", clean_name, downloaded_path)
+            except Exception as e:
+                log.warning("Error inesperado descargando imagen de %s: %s", clean_name, e)
+            finally:
+                GLib.idle_add(self._deliver, cache_key, downloaded_path)
 
         threading.Thread(target=_worker, name=f"artist-art-{clean_name}", daemon=True).start()
 

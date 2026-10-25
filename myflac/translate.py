@@ -360,8 +360,11 @@ class Translator:
                 continue
             if translated.strip():
                 try:
-                    with open(path, "w", encoding="utf-8") as f:
-                        json.dump({"text": translated, "service": service}, f, ensure_ascii=False)
+                    tmp = f"{path}.tmp.{threading.get_ident()}"
+                    with self._lock:
+                        with open(tmp, "w", encoding="utf-8") as f:
+                            json.dump({"text": translated, "service": service}, f, ensure_ascii=False)
+                        os.replace(tmp, path)
                 except OSError:
                     pass
                 return translated, service

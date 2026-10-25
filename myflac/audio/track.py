@@ -63,7 +63,7 @@ class AudioTrack:
 
     def __post_init__(self):
         if not self.filename and self.filepath:
-            if self.filepath.startswith(("http://", "https://")):
+            if self.filepath.startswith(("http://", "https://", "data:")):
                 self.filename = self.title or "stream.flac"
                 self.is_stream = True
             else:
@@ -76,7 +76,7 @@ class AudioTrack:
 
     @property
     def is_url(self) -> bool:
-        return self.filepath.startswith(("http://", "https://"))
+        return self.filepath.startswith(("http://", "https://", "data:"))
 
     def needs_stream_url(self, max_age: float = STREAM_URL_MAX_AGE_S) -> bool:
         """True si es una pista de streaming sin URL o con una URL que puede haber caducado."""
@@ -225,38 +225,45 @@ class AudioTrack:
         if self._cover_state == "loaded":
             return None  # Ya se buscó y no hay: no repetir los accesos al disco
 
-        # Si tiene URL remota (pistas de streaming como Qobuz), descargar y guardar en memoria
+        # Si tiene URL remota (pistas de streaming como Qobuz/TIDAL), descargar y guardar en memoria
         if self.cover_url and not self.cover_data:
             try:
                 import urllib.request
                 req = urllib.request.Request(self.cover_url, headers={"User-Agent": "Mozilla/5.0"})
                 with urllib.request.urlopen(req, timeout=6) as resp:
-                    self.cover_data = resp.read()
-                    self.cover_mime = resp.headers.get_content_type() or "image/jpeg"
+                    data = resp.read()
+                    mime = resp.headers.get_content_type() or "image/jpeg"
+                    self.cover_mime = mime
+                    self.cover_data = data
                     return self.cover_data, self.cover_mime
             except Exception as e:
                 log.debug("No se pudo descargar portada remota de %s: %s", self.cover_url, e)
 
+        if self.is_stream or self.is_url or not self.filepath:
+            if self._cover_state != "loading":
+                self._cover_state = "loaded"
+            return None
+
         # 1. Si no está en memoria, extraer carátula embebida directamente del archivo de audio
-        if self.filepath and os.path.isfile(self.filepath):
+        if os.path.isfile(self.filepath):
             try:
                 audio = mutagen.File(self.filepath)
                 if isinstance(audio, FLAC) and audio.pictures:
                     pic = audio.pictures[0]
-                    self.cover_data = pic.data
                     self.cover_mime = pic.mime or "image/jpeg"
+                    self.cover_data = pic.data
                     return self.cover_data, self.cover_mime
                 elif hasattr(audio, "tags") and audio.tags:
                     for k, v in audio.tags.items():
                         if k.startswith("APIC") and hasattr(v, "data"):
-                            self.cover_data = v.data
                             self.cover_mime = getattr(v, "mime", "image/jpeg")
+                            self.cover_data = v.data
                             return self.cover_data, self.cover_mime
                         elif k == "covr" and isinstance(v, list) and v:
                             covr_item = v[0]
-                            self.cover_data = bytes(covr_item)
                             img_fmt = getattr(covr_item, "imageformat", None)
                             self.cover_mime = "image/png" if img_fmt == getattr(mutagen.mp4.MP4Cover, "FORMAT_PNG", 14) else "image/jpeg"
+                            self.cover_data = bytes(covr_item)
                             return self.cover_data, self.cover_mime
                     if "metadata_block_picture" in audio.tags:
                         mbp = audio.tags.get("metadata_block_picture")
@@ -265,8 +272,8 @@ class AudioTrack:
                                 from mutagen.flac import Picture
                                 raw_b64 = mbp[0] if isinstance(mbp, list) else mbp
                                 pic = Picture(base64.b64decode(raw_b64))
-                                self.cover_data = pic.data
                                 self.cover_mime = pic.mime or "image/jpeg"
+                                self.cover_data = pic.data
                                 return self.cover_data, self.cover_mime
                             except Exception:
                                 pass
@@ -282,8 +289,8 @@ class AudioTrack:
                     with open(candidate, "rb") as f:
                         data = f.read()
                     mime = "image/png" if fname.endswith(".png") else "image/jpeg"
-                    self.cover_data = data
                     self.cover_mime = mime
+                    self.cover_data = data
                     return data, mime
                 except Exception:
                     pass

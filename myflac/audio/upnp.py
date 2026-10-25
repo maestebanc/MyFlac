@@ -179,7 +179,7 @@ def discover(timeout: float = 2.5) -> list[UpnpDevice]:
             if dev:
                 found[dev.udn] = dev
         with _known_lock:
-            changed = set(found) != set(_known)
+            changed = any(_known.get(k) != v for k, v in found.items())
             _known.update(found)
             # Un dispositivo que no responde se conserva: puede haber perdido solo un paquete
         if changed:
@@ -302,7 +302,8 @@ class _FileHandler(BaseHTTPRequestHandler):
     def _resolve(self) -> str | None:
         parts = urllib.parse.urlparse(self.path).path.split("/")
         if len(parts) >= 3 and parts[1] == "f":
-            return self.server.files.get(parts[2])  # type: ignore[attr-defined]
+            with self.server.lock:  # type: ignore[attr-defined]
+                return self.server.files.get(parts[2])  # type: ignore[attr-defined]
         return None
 
     def _serve_cover(self, head: bool) -> bool:
@@ -310,7 +311,8 @@ class _FileHandler(BaseHTTPRequestHandler):
         parts = urllib.parse.urlparse(self.path).path.split("/")
         if len(parts) < 3 or parts[1] != "c":
             return False
-        data = self.server.covers.get(parts[2])  # type: ignore[attr-defined]
+        with self.server.lock:  # type: ignore[attr-defined]
+            data = self.server.covers.get(parts[2])  # type: ignore[attr-defined]
         if data is None:
             self.send_error(404)
             return True
@@ -334,7 +336,8 @@ class _FileHandler(BaseHTTPRequestHandler):
         parts = urllib.parse.urlparse(self.path).path.split("/")
         if len(parts) < 3 or parts[1] != "d":
             return False
-        mpd_url = self.server.dash.get(parts[2])  # type: ignore[attr-defined]
+        with self.server.lock:  # type: ignore[attr-defined]
+            mpd_url = self.server.dash.get(parts[2])  # type: ignore[attr-defined]
         if mpd_url is None:
             self.send_error(404)
             return True
@@ -370,14 +373,14 @@ class _FileHandler(BaseHTTPRequestHandler):
         rng = self.headers.get("Range")
         if rng:
             m = re.match(r"bytes=(\d*)-(\d*)", rng)
-            if m:
+            if m and (m.group(1) or m.group(2)):
                 if m.group(1):
                     start = int(m.group(1))
                     if m.group(2):
                         end = min(int(m.group(2)), size - 1)
                 elif m.group(2):
                     start = max(0, size - int(m.group(2)))
-                if start >= size:
+                if start >= size or start > end:
                     self.send_response(416)
                     self.send_header("Content-Range", f"bytes */{size}")
                     self.send_header("Content-Length", "0")
@@ -437,6 +440,7 @@ class MediaServer:
                 continue
         assert self._httpd is not None
         self._httpd.daemon_threads = True
+        self._httpd.lock = threading.Lock()  # type: ignore[attr-defined]
         self._httpd.files = OrderedDict()  # type: ignore[attr-defined]
         self._httpd.covers = OrderedDict()  # type: ignore[attr-defined]
         self._httpd.dash = OrderedDict()  # type: ignore[attr-defined]
@@ -447,10 +451,11 @@ class MediaServer:
     def url_for(self, path: str, peer_host: str) -> str:
         ip = _local_ip_towards(peer_host)
         token = os.urandom(8).hex()
-        files = self._httpd.files  # type: ignore[attr-defined]
-        files[token] = os.path.abspath(path)
-        while len(files) > _MAX_SERVED_FILES:
-            files.popitem(last=False)  # Solo hace falta la pista actual y la siguiente
+        with self._httpd.lock:  # type: ignore[attr-defined]
+            files = self._httpd.files  # type: ignore[attr-defined]
+            files[token] = os.path.abspath(path)
+            while len(files) > _MAX_SERVED_FILES:
+                files.popitem(last=False)  # Solo hace falta la pista actual y la siguiente
         name = urllib.parse.quote(os.path.basename(path))
         return f"http://{ip}:{self.port}/f/{token}/{name}"
 
@@ -458,21 +463,23 @@ class MediaServer:
         """URL local que entrega como FLAC normal un stream MPEG-DASH (TIDAL)."""
         ip = _local_ip_towards(peer_host)
         token = os.urandom(8).hex()
-        dash = self._httpd.dash  # type: ignore[attr-defined]
-        dash[token] = mpd_url
-        while len(dash) > _MAX_SERVED_COVERS:
-            dash.popitem(last=False)
+        with self._httpd.lock:  # type: ignore[attr-defined]
+            dash = self._httpd.dash  # type: ignore[attr-defined]
+            dash[token] = mpd_url
+            while len(dash) > _MAX_SERVED_COVERS:
+                dash.popitem(last=False)
         return f"http://{ip}:{self.port}/d/{token}/stream.flac"
 
     def cover_url_for(self, image: bytes, peer_host: str) -> str:
         """Publica una portada (ya en JPEG) para que el renderer la descargue."""
         ip = _local_ip_towards(peer_host)
         token = hashlib.sha1(image).hexdigest()[:16]  # La misma portada para todo el álbum
-        covers = self._httpd.covers  # type: ignore[attr-defined]
-        covers[token] = image
-        covers.move_to_end(token)
-        while len(covers) > _MAX_SERVED_COVERS:
-            covers.popitem(last=False)
+        with self._httpd.lock:  # type: ignore[attr-defined]
+            covers = self._httpd.covers  # type: ignore[attr-defined]
+            covers[token] = image
+            covers.move_to_end(token)
+            while len(covers) > _MAX_SERVED_COVERS:
+                covers.popitem(last=False)
         return f"http://{ip}:{self.port}/c/{token}/cover.jpg"
 
     def shutdown(self):
@@ -575,18 +582,31 @@ def dash_to_flac(mpd_url: str, timeout_s: float = 20.0):
     from gi.repository import Gst
     Gst.init(None)
     pipeline = Gst.parse_launch(
-        f'urisourcebin uri="{mpd_url}" parse-streams=true ! flacparse ! appsink name=sink sync=false max-buffers=64')
+        "urisourcebin name=src parse-streams=true ! flacparse ! appsink name=sink sync=false max-buffers=64")
+    src = pipeline.get_by_name("src")
+    src.set_property("uri", mpd_url)
     sink = pipeline.get_by_name("sink")
+    bus = pipeline.get_bus()
     pipeline.set_state(Gst.State.PLAYING)
     first = True
     try:
         while True:
-            sample = sink.emit("try-pull-sample", int(timeout_s * Gst.SECOND))
+            deadline = time.monotonic() + timeout_s
+            sample = None
+            while time.monotonic() < deadline:
+                sample = sink.emit("try-pull-sample", int(0.5 * Gst.SECOND))
+                if sample is not None:
+                    break
+                msg = bus.pop_filtered(Gst.MessageType.ERROR | Gst.MessageType.EOS)
+                if msg is not None:
+                    if msg.type == Gst.MessageType.ERROR:
+                        raise RuntimeError(msg.parse_error()[0].message)
+                    return
             if sample is None:
-                msg = pipeline.get_bus().pop_filtered(Gst.MessageType.ERROR)
+                msg = bus.pop_filtered(Gst.MessageType.ERROR)
                 if msg is not None:
                     raise RuntimeError(msg.parse_error()[0].message)
-                return  # Fin del stream
+                return  # Fin del stream o timeout
             buf = sample.get_buffer()
             data = buf.extract_dup(0, buf.get_size())
             if first:
@@ -659,6 +679,7 @@ class RemoteRenderer:
 
         self._expect_playing = False
         self._seen_playing = False
+        self._pending_seek = 0.0
         self._load_ts = 0.0
         self._quiet_until = 0.0
         self._reported = "STOPPED"
@@ -768,6 +789,7 @@ class RemoteRenderer:
         self._error_reported = False
         self._expect_playing = play
         self._seen_playing = False
+        self._pending_seek = position if (not play and position > 1.0) else 0.0
         self._load_ts = time.monotonic()
         self._reported = "PLAYING" if play else "PAUSED"
         self._duration = track.duration or 0.0
@@ -802,7 +824,10 @@ class RemoteRenderer:
                             break
                         time.sleep(0.4)
                     if gen == self._gen:
-                        self._avt("Seek", Unit="REL_TIME", Target=_fmt_time(position))
+                        try:
+                            self._avt("Seek", Unit="REL_TIME", Target=_fmt_time(position))
+                        except UpnpError as e:
+                            log.warning("UPnP (%s): fallo al hacer seek inicial: %s", self.device.name, e)
             self._quiet()
 
         self._submit(job)
@@ -834,9 +859,29 @@ class RemoteRenderer:
     def play(self):
         self._expect_playing = True
         self._quiet()
-        self._set_position(self.position, True)
+        seek_pos, self._pending_seek = self._pending_seek, 0.0
+        self._set_position(seek_pos if seek_pos > 0 else self.position, True)
         self._reported = "PLAYING"
-        self._submit(lambda: self._avt("Play", Speed="1"))
+        gen = self._gen
+
+        def job():
+            if gen != self._gen:
+                return
+            self._avt("Play", Speed="1")
+            if seek_pos > 1.0:
+                deadline = time.monotonic() + 8
+                while time.monotonic() < deadline and gen == self._gen:
+                    if self._avt("GetTransportInfo").get("CurrentTransportState") == "PLAYING":
+                        break
+                    time.sleep(0.4)
+                if gen == self._gen:
+                    try:
+                        self._avt("Seek", Unit="REL_TIME", Target=_fmt_time(seek_pos))
+                    except UpnpError as e:
+                        log.warning("UPnP (%s): fallo al hacer seek tras reanudar: %s", self.device.name, e)
+            self._quiet()
+
+        self._submit(job)
 
     def pause(self):
         self._expect_playing = False
@@ -847,6 +892,7 @@ class RemoteRenderer:
 
     def stop(self):
         self._expect_playing = False
+        self._pending_seek = 0.0
         self._gen += 1
         self._next_track, self._next_url = None, ""
         self._quiet()
@@ -858,10 +904,20 @@ class RemoteRenderer:
         self._quiet()
         self._set_position(seconds)
         self._last_rel = seconds
-        self._submit(lambda: self._avt("Seek", Unit="REL_TIME", Target=_fmt_time(seconds)))
+        if not self._seen_playing and not self._expect_playing:
+            self._pending_seek = seconds
+            return
+
+        def job():
+            try:
+                self._avt("Seek", Unit="REL_TIME", Target=_fmt_time(seconds))
+            except UpnpError as e:
+                log.warning("UPnP (%s): Seek rechazado: %s", self.device.name, e)
+
+        self._submit(job)
 
     def set_volume(self, vol: float):
-        if self.volume is None or abs(vol - self.volume) < 0.005:
+        if self.volume is not None and abs(vol - self.volume) < 0.005:
             return
         self.volume = vol
         self._pending_volume = vol
@@ -869,7 +925,10 @@ class RemoteRenderer:
         def job():
             v, self._pending_volume = self._pending_volume, None
             if v is not None:
-                self._rc("SetVolume", Channel="Master", DesiredVolume=int(round(v * 100)))
+                try:
+                    self._rc("SetVolume", Channel="Master", DesiredVolume=int(round(v * 100)))
+                except UpnpError as e:
+                    log.warning("UPnP (%s): SetVolume rechazado: %s", self.device.name, e)
 
         self._submit(job)
 
@@ -949,7 +1008,8 @@ class RemoteRenderer:
             track = self._next_track
             self._next_track, self._next_url = None, ""
             self._duration = track.duration or 0.0
-            self._current_is_local = not getattr(track, "is_stream", False)
+            self._current_is_local = getattr(track, "stream_mime", "") == "application/dash+xml" or (
+                not track.filepath.startswith(("http://", "https://")) and not getattr(track, "is_stream", False))
             self._last_rel = rel
             self._set_position(rel, state == "PLAYING")
             if self._on_advanced:
@@ -987,6 +1047,9 @@ class RemoteRenderer:
             return
 
         mapped = {"PLAYING": "PLAYING", "PAUSED_PLAYBACK": "PAUSED", "STOPPED": "STOPPED"}.get(state)
+        if mapped == "STOPPED" and not self._seen_playing and not self._expect_playing:
+            # Pista cargada en pausa (SetAVTransportURI sin Play todavía): el renderer reporta STOPPED
+            return
         if mapped and mapped != self._reported:
             # Cambio hecho desde fuera (botones o app del propio dispositivo)
             self._reported = mapped

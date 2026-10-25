@@ -308,6 +308,9 @@ class InspectorPanel(Gtk.Box):
             cfg = load_config()
             cfg["inspector_tab"] = name
             save_config(cfg)
+            root = self.get_root()
+            if root is not None and hasattr(root, "cfg"):
+                root.cfg["inspector_tab"] = name
         except Exception as e:
             log.warning("No se pudo guardar la pestaña del inspector: %s", e)
         self._load_notes(name)
@@ -400,6 +403,8 @@ class InspectorPanel(Gtk.Box):
 
     def _on_album_label_clicked(self, _gesture: Gtk.GestureClick, n_press: int, _x: float, _y: float):
         if n_press == 2 and self.on_album_activate and self.current_track:
+            if getattr(self.current_track, "is_stream", False):
+                return
             album_name = self.current_track.album
             if album_name:
                 log.info("Doble clic en etiqueta de álbum del inspector: '%s'", album_name)
@@ -413,6 +418,9 @@ class InspectorPanel(Gtk.Box):
             cfg = load_config()
             cfg["visualizer_mode"] = self.visualizer_mode
             save_config(cfg)
+            root = self.get_root()
+            if root is not None and hasattr(root, "cfg"):
+                root.cfg["visualizer_mode"] = self.visualizer_mode
         except Exception as e:
             log.warning("No se pudo guardar visualizer_mode en configuración: %s", e)
         if self.on_visualizer_mode_changed:
@@ -489,14 +497,12 @@ class InspectorPanel(Gtk.Box):
             self.cover_frame.set_tooltip_text(tooltips[self.visualizer_mode])
 
     def set_engine(self, engine: AudioEngine | None):
-        """Conecta el motor de audio para recibir métricas de nivel y estado."""
+        """Conecta el motor de audio para recibir métricas de estado y posición."""
         if self._engine:
-            self._engine.remove_level_listener(self._on_audio_level)
             self._engine.remove_state_listener(self._on_playback_state_changed)
             self._engine.remove_position_listener(self._on_position_updated)
         self._engine = engine
         if self._engine:
-            self._engine.add_level_listener(self._on_audio_level)
             self._engine.add_state_listener(self._on_playback_state_changed)
             self._engine.add_position_listener(self._on_position_updated)
             is_playing = (self._engine.state == PlaybackState.PLAYING)
@@ -506,12 +512,6 @@ class InspectorPanel(Gtk.Box):
             if self._player_bar is not None:
                 self._player_bar.bar_scope.set_playing(is_playing and is_scope)
                 self._player_bar.bar_scope.set_visible(is_playing and is_scope)
-
-    def _on_audio_level(self, rms: list[float], peak: list[float]):
-        """Reenvía los niveles al scope de la mini-portada en la barra."""
-        is_scope = (self.visualizer_mode == 0) and getattr(self, "_oscilloscope_enabled", True)
-        if is_scope and self._is_playing and self._player_bar is not None:
-            self._player_bar.update_bar_scope_level(rms, peak)
 
     def _on_playback_state_changed(self, state: PlaybackState):
         is_playing = (state == PlaybackState.PLAYING)

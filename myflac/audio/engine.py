@@ -97,6 +97,7 @@ class AudioEngine:
         # Pista que cargará la reconstrucción en curso (la última que se haya pedido mientras espera)
         self._rebuild_request: tuple[AudioTrack, float] | None = None
         self._resume_pending = False
+        self._resume_timer: int | None = None
         self._levels_enabled = True
 
         self.current_track: AudioTrack | None = None
@@ -539,9 +540,16 @@ class AudioEngine:
             self._suspend_exclusive(keep_position=True)
         return False
 
+    def _cancel_resume(self):
+        if self._resume_timer is not None:
+            GLib.source_remove(self._resume_timer)
+            self._resume_timer = None
+        self._resume_pending = False
+
     def _suspend_exclusive(self, keep_position: bool):
         """Cierra el DAC y lo devuelve a PipeWire (pausa o parada en modo exclusivo)."""
         self._cancel_release()
+        self._cancel_resume()
         if not self.exclusive_active or self._hw_suspended:
             return
         if keep_position:
@@ -558,10 +566,10 @@ class AudioEngine:
         Prepara el DAC para reproducir. True si ya está listo; False si se está reservando (play()
         se repetirá solo al terminar) o si no se pudo y la pista pasó al mezclador.
         """
-        if not self.exclusive_active or not self._hw_suspended:
-            return True
         if self._resume_pending:
             return False
+        if not self.exclusive_active or not self._hw_suspended:
+            return True
         self._resume_pending = True
         hw_dev = self.hw_device
         playbin = self._playbin
@@ -571,9 +579,11 @@ class AudioEngine:
             return self._playbin is not playbin or not self.exclusive_active or not self._hw_suspended
 
         def ready():
+            self._resume_timer = None
             self._resume_pending = False
             if self._playbin is not playbin or not self.exclusive_active or self._reservation is not reservation:
                 return
+            self._hw_suspended = False
             if self._want_playing:
                 self.play()
             else:
@@ -582,15 +592,17 @@ class AudioEngine:
         def on_reserved(ok: bool):
             if stale():
                 self._resume_pending = False
-                reservation.release()
+                reservation.cancel()
                 return
             if ok:
                 self._reservation = reservation
-                self._hw_suspended = False
                 log.info("DAC recuperado para reproducir (%s)", hw_dev.hw_path)
+                if self.hw_mixer:
+                    self.hw_mixer.capture_initial()
                 self._reapply_hw_volume()
-                self._wait_until(lambda: pcm_is_closed(hw_dev.alsa_card, hw_dev.alsa_device), 2.0, 20,
-                                 f"{hw_dev.hw_path} sigue abierto por otro proceso", ready)
+                self._resume_timer = self._wait_until(
+                    lambda: pcm_is_closed(hw_dev.alsa_card, hw_dev.alsa_device), 2.0, 20,
+                    f"{hw_dev.hw_path} sigue abierto por otro proceso", ready)
                 return
             self._resume_pending = False
             log.warning("No se pudo recuperar el DAC %s; esta pista va por el mezclador", hw_dev.hw_path)
@@ -644,6 +656,7 @@ class AudioEngine:
         """
         current_pos = self.get_position() if position is None else position
         curr_track = track or self.current_track
+        was_stopped = (self.state == PlaybackState.STOPPED and not self._want_playing and track is None)
 
         self._cancel_pending_rebuild()
         # Si la nueva salida es el mismo DAC en exclusivo (p. ej. cambio PCM ↔ DSD), la reserva se
@@ -653,7 +666,7 @@ class AudioEngine:
         kept = None
         if self._reservation and target_hw and self._reservation.card_index == target_hw.alsa_card:
             kept, self._reservation = self._reservation, None
-        self._cleanup_pipeline()  # Devuelve la tarjeta a PipeWire si estaba en exclusivo (y no se conserva)
+        self._cleanup_pipeline(keep_hw_volume=kept is not None)
         self._pending_seek = current_pos if current_pos > 0.0 else None
         self._rebuild_gen += 1
         gen = self._rebuild_gen
@@ -671,7 +684,7 @@ class AudioEngine:
             request, self._rebuild_request = self._rebuild_request, None
             self._init_pipeline()
             self._notify_output_changed()
-            if request:
+            if request and not (was_stopped and request[1] == 0.0 and not self._want_playing):
                 self.load_track(request[0], play_now=self._want_playing, initial_position=request[1])
 
         self._rebuild_finish = finish
@@ -684,7 +697,7 @@ class AudioEngine:
 
                 def on_reserved(ok: bool):
                     if gen != self._rebuild_gen:
-                        reservation.release()
+                        reservation.cancel()
                         return
                     if not ok:
                         # WirePlumber no la cede: esta pista suena por el mezclador
@@ -716,12 +729,13 @@ class AudioEngine:
 
     def _cancel_pending_rebuild(self):
         self._rebuild_gen += 1
+        self._cancel_resume()
         if self._rebuild_timer is not None:
             GLib.source_remove(self._rebuild_timer)
             self._rebuild_timer = None
         self._rebuild_finish = None
         if self._prepared_reservation is not None:
-            self._prepared_reservation.release()
+            self._prepared_reservation.cancel()
             self._prepared_reservation = None
 
     def set_output(self, device_id: str, exclusive: bool):
@@ -777,6 +791,7 @@ class AudioEngine:
         track = self.current_track
         position = self.get_position() if track else 0.0
         was_playing = self.state == PlaybackState.PLAYING
+        was_stopped = self.state == PlaybackState.STOPPED and not self._want_playing
         if self._remote is not None:
             self._remote.stop_now()
             self._remote.shutdown()
@@ -809,7 +824,7 @@ class AudioEngine:
             on_advanced=self._on_remote_advanced,
         )
         self._notify_output_changed()
-        if track:
+        if track and not (was_stopped and position == 0.0):
             self.load_track(track, play_now=was_playing, initial_position=position)
 
     def _leave_remote(self):
@@ -917,11 +932,13 @@ class AudioEngine:
         self._close_hw_mixer()
         if self.hw_device and self.hw_device.alsa_card is not None:
             self.hw_mixer = HardwareMixer.open(self.hw_device.alsa_card)
-            self._reapply_hw_volume()
+            if self._reservation is not None:
+                self._reapply_hw_volume()
 
-    def _close_hw_mixer(self):
+    def _close_hw_mixer(self, keep_volume: bool = False):
         if self.hw_mixer:
-            self._restore_hw_volume()
+            if not keep_volume:
+                self._restore_hw_volume()
             self.hw_mixer.close()
             self.hw_mixer = None
 
@@ -1002,7 +1019,7 @@ class AudioEngine:
             self.resampling_active = False
             self.output_sample_rate = track.sample_rate or 0
 
-        if track.filepath.startswith(("http://", "https://")):
+        if track.filepath.startswith(("http://", "https://", "data:")):
             uri = track.filepath
         else:
             uri = "file://" + urllib.parse.quote(os.path.abspath(track.filepath))
@@ -1048,10 +1065,13 @@ class AudioEngine:
         if playbin is not self._playbin or not self._is_prerolled or self._error_seen:
             return
         next_track = self.next_track
-        if next_track and self.exclusive_active and self._wants_dsd(next_track) != self._dsd_mode:
-            return  # Cambio DSD ↔ PCM: la siguiente pista se carga al terminar esta, con otro sink
+        if next_track and self.exclusive_active:
+            if self._wants_dsd(next_track) != self._dsd_mode:
+                return  # Cambio DSD ↔ PCM: la siguiente pista se carga al terminar esta, con otro sink
+            if next_track.is_dsd != (self.current_track.is_dsd if self.current_track else False):
+                return  # DSD a PCM usa capsfilter dsd_pcm_rate específico; no encadenar con PCM normal
         if next_track:
-            if next_track.filepath.startswith(("http://", "https://")):
+            if next_track.filepath.startswith(("http://", "https://", "data:")):
                 next_uri = next_track.filepath
             else:
                 next_uri = "file://" + urllib.parse.quote(os.path.abspath(next_track.filepath))
@@ -1067,7 +1087,7 @@ class AudioEngine:
                 return
             self._want_playing = True
             if self.state == PlaybackState.STOPPED:
-                self._remote.load(track, True, 0.0)  # Tras una parada hay que volver a cargar la pista
+                self._remote.load(track, True, self._remote.position)  # Tras una parada hay que volver a cargar la pista
             else:
                 self._remote.play()
             self.state = PlaybackState.PLAYING
@@ -1113,6 +1133,7 @@ class AudioEngine:
         if self._rebuild_finish is not None:
             self._want_playing = False
             self.state = PlaybackState.PAUSED
+            self._stop_timer()
             self._notify_state_changed()
             return
         if not self._playbin:
@@ -1260,6 +1281,7 @@ class AudioEngine:
 
     def _on_timer_tick(self) -> bool:
         if self.state != PlaybackState.PLAYING:
+            self._timer_id = None
             return False
         pos = self.get_position()
         dur = self.get_duration()
@@ -1278,6 +1300,11 @@ class AudioEngine:
                 self.current_track = self._gapless_pending
                 self._gapless_pending = None
                 log.info("Pista gapless en reproducción: '%s'", self.current_track.title)
+                if self.exclusive_active and isinstance(self._sink, Gst.Bin):
+                    hw_sink = self._sink.get_by_name("hw_sink")
+                    pad = hw_sink.get_static_pad("sink") if hw_sink else None
+                    if pad:
+                        self._on_hw_sink_caps(pad, None)
                 self._notify_track_changed(self.current_track)
                 if self._exclusive_bypass_track is not None:
                     # Terminó la pista no admitida por el DAC: recuperar el modo exclusivo
@@ -1298,12 +1325,14 @@ class AudioEngine:
                     self._notify_level(rms, peak)
         elif m_type == Gst.MessageType.STATE_CHANGED:
             if message.src == self._playbin:
-                old_state, new_state, _pending = message.parse_state_changed()
+                old_state, new_state, pending = message.parse_state_changed()
                 if new_state == Gst.State.PLAYING and self.state != PlaybackState.PLAYING:
                     self.state = PlaybackState.PLAYING
                     self._start_timer()
                     self._notify_state_changed()
-                elif new_state == Gst.State.PAUSED and old_state == Gst.State.PLAYING and self.state != PlaybackState.PAUSED:
+                elif (new_state == Gst.State.PAUSED and old_state == Gst.State.PLAYING
+                      and pending == Gst.State.VOID_PENDING
+                      and self.state == PlaybackState.PLAYING and not self._want_playing):
                     self.state = PlaybackState.PAUSED
                     self._stop_timer()
                     self._notify_state_changed()
@@ -1343,6 +1372,7 @@ class AudioEngine:
         log.warning("Fallo de descarga en '%s': se pide una URL nueva y se reanuda en %.1fs",
                     track.title, position)
         self._gapless_pending = None
+        self.stop()
 
         def worker():
             try:
@@ -1352,9 +1382,11 @@ class AudioEngine:
                 msg = i18n.t(f"{track.stream_service}.err.stream_unavailable", title=track.title, error=e)
                 GLib.idle_add(lambda: (self.on_error and self.on_error(msg), False)[1])
                 return
-            GLib.idle_add(lambda: (self.load_track(track, play_now=play_now, initial_position=position), False)[1])
+            GLib.idle_add(lambda: (
+                self.current_track is track and self.load_track(track, play_now=play_now, initial_position=position),
+                False,
+            )[1])
 
-        GLib.idle_add(lambda: (self.stop(), False)[1])
         threading.Thread(target=worker, daemon=True, name="stream-renew").start()
         return True
 
@@ -1425,10 +1457,11 @@ class AudioEngine:
         self._cancel_pending_rebuild()
         self._cleanup_pipeline()
 
-    def _cleanup_pipeline(self):
+    def _cleanup_pipeline(self, keep_hw_volume: bool = False):
         self._stop_timer()
-        self._close_hw_mixer()
+        self._close_hw_mixer(keep_volume=keep_hw_volume)
         self._cancel_release()
+        self._cancel_resume()
         if self._bus:
             self._bus.remove_signal_watch()
             self._bus = None

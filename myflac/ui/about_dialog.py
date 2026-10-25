@@ -16,14 +16,22 @@ def build_about_dialog() -> Adw.AboutDialog:
     dialog = Adw.AboutDialog(
         application_name=APP_NAME,
         application_icon=APP_ID,
-        developer_name="Miguel Angel Esteban",
+        developer_name=i18n.t("about.developer_name"),
         version=__version__,
         comments=i18n.t("app.comment"),
         website=APP_WEBSITE,
         issue_url=f"{APP_REPOSITORY}/issues",
         support_url=APP_REPOSITORY,
-        copyright="© 2026 Miguel Angel Esteban",
+        copyright="© 2026 Miguel Angel Esteban · Antigravity AI",
         license_type=Gtk.License.GPL_3_0,
+    )
+    dialog.add_credit_section(
+        i18n.t("about.credit_concept"),
+        ["Miguel Angel Esteban"],
+    )
+    dialog.add_credit_section(
+        i18n.t("about.credit_ai"),
+        ["Antigravity (Google DeepMind)"],
     )
     dialog.add_link(i18n.t("about.donate"), KOFI_URL)
     dialog.add_link("GitHub", APP_REPOSITORY)

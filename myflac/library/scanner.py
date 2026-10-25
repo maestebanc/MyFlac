@@ -88,11 +88,11 @@ class LibraryScanner:
     ) -> dict:
         # Si la biblioteca se leyó con un lector de metadatos anterior, releer todo una vez:
         # el escaneo rápido se saltaría los archivos sin cambios y conservaría sus datos incompletos
-        upgrading = quick and self.db.get_metadata_version() < METADATA_VERSION
-        if upgrading:
+        current_meta_version = self.db.get_metadata_version()
+        if quick and current_meta_version < METADATA_VERSION:
             log.info(
                 "Biblioteca escaneada con el lector de metadatos v%d (actual v%d): releyendo todos los archivos",
-                self.db.get_metadata_version(), METADATA_VERSION,
+                current_meta_version, METADATA_VERSION,
             )
             quick = False
         log.info("Iniciando escaneo de biblioteca (quick=%s) en: %s", quick, folders)
@@ -106,7 +106,8 @@ class LibraryScanner:
         files_to_parse: list[tuple[str, str]] = []  # (filepath, root_folder)
 
         # 2. Recorrer árbol de carpetas con os.scandir (mucho más rápido que os.walk)
-        for root_folder in folders:
+        norm_folders = [os.path.abspath(f) for f in folders]
+        for root_folder in norm_folders:
             if self._stop_event.is_set():
                 break
 
@@ -151,10 +152,11 @@ class LibraryScanner:
         if self._stop_event.is_set():
             return {"added_or_updated": 0, "deleted": 0, "cancelled": True}
 
-        # 3. Detectar y purgar pistas eliminadas del disco
+        # 3. Detectar y purgar pistas eliminadas del disco (con prefijo exacto de directorio)
+        folder_prefixes = [f.rstrip(os.sep) + os.sep for f in norm_folders]
         deleted_paths = [
             p for p in cache
-            if any(p.startswith(f) for f in folders) and p not in seen_paths
+            if any(p.startswith(prefix) for prefix in folder_prefixes) and p not in seen_paths
         ]
         deleted_count = 0
         if deleted_paths:
@@ -167,6 +169,7 @@ class LibraryScanner:
         batch: list[AudioTrack] = []
         batch_folder = ""
         processed = 0
+        added_or_updated = 0
 
         for filepath, root_folder in files_to_parse:
             if self._stop_event.is_set():
@@ -174,8 +177,10 @@ class LibraryScanner:
 
             track = load_track(filepath)
             if track:
+                track._folder_path = root_folder  # type: ignore[attr-defined]
                 batch.append(track)
                 batch_folder = root_folder
+                added_or_updated += 1
 
             processed += 1
 
@@ -192,11 +197,11 @@ class LibraryScanner:
             if on_progress:
                 GLib.idle_add(on_progress, processed, total_to_parse)
 
-        if upgrading and not self._stop_event.is_set():
+        if not quick and current_meta_version < METADATA_VERSION and not self._stop_event.is_set():
             self.db.set_metadata_version(METADATA_VERSION)
 
         return {
-            "added_or_updated": processed,
+            "added_or_updated": added_or_updated,
             "deleted": deleted_count,
             "total_seen": len(seen_paths),
         }

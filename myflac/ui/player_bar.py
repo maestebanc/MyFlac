@@ -573,8 +573,18 @@ class PlayerBar(Gtk.Box):
             self.duration_label.set_text(self._format_sec(dur))
 
     def _on_seek_change_value(self, _scale, _scroll, value: float) -> bool:
+        self._is_seeking = True
         self.engine.seek(value)
         self.elapsed_label.set_text(self._format_sec(value))
+        seek_id = getattr(self, "_seek_reset_id", None)
+        if seek_id is not None:
+            GLib.source_remove(seek_id)
+        self._seek_reset_id = GLib.timeout_add(300, self._finish_seeking)
+        return False
+
+    def _finish_seeking(self) -> bool:
+        self._seek_reset_id = None
+        self._is_seeking = False
         return False
 
     def _on_shuffle_toggle(self, btn: Gtk.ToggleButton):
@@ -585,6 +595,11 @@ class PlayerBar(Gtk.Box):
         val = round(scale.get_value(), 2)
         if not getattr(self, "_syncing_volume", False):
             self.engine.set_volume(val)
+            root = self.get_root()
+            mini = getattr(root, "mini_player", None) if root else None
+            if mini is not None and hasattr(mini, "super_vol_scale"):
+                if abs(mini.super_vol_scale.get_value() - val) > 0.005:
+                    mini.super_vol_scale.set_value(val)
         self._update_vol_icon(val)
 
     def _on_volume_scroll(self, _controller, _dx: float, dy: float) -> bool:

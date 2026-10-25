@@ -110,8 +110,17 @@ def load_config() -> dict:
 
 def save_config(config: dict) -> None:
     path = _config_path()
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(config, f, ensure_ascii=False, indent=2)
+    tmp_path = f"{path}.tmp.{os.getpid()}"
+    try:
+        with open(tmp_path, "w", encoding="utf-8") as f:
+            json.dump(config, f, ensure_ascii=False, indent=2)
+        os.replace(tmp_path, path)
+    except OSError:
+        try:
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(config, f, ensure_ascii=False, indent=2)
+        except OSError:
+            pass
 
 
 def is_device_exclusive_enabled(cfg: dict, dev_id_or_obj: Any) -> bool:

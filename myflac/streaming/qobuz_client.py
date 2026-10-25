@@ -229,24 +229,27 @@ class QobuzClient:
             pass
 
     def _save_config(self) -> None:
-        data = {
-            "app_id": self.app_id,
-            "app_secret": self.app_secret,
-            "user_auth_token": self.user_auth_token,
-            "user_email": self.user_email,
-            "user_display_name": self.user_display_name,
-            "subscription_label": self.subscription_label,
-            "max_format_id": self.max_format_id,
-        }
-        try:
-            self.config_path.parent.mkdir(parents=True, exist_ok=True)
-            # El token da acceso a la cuenta: el archivo solo lo puede leer el usuario
-            fd = os.open(self.config_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-            with os.fdopen(fd, "w", encoding="utf-8") as f:
-                json.dump(data, f, indent=2)
-            self._secure_config_file()
-        except OSError as e:
-            log.error("Error al guardar configuración de Qobuz: %s", e)
+        with self._lock:
+            data = {
+                "app_id": self.app_id,
+                "app_secret": self.app_secret,
+                "user_auth_token": self.user_auth_token,
+                "user_email": self.user_email,
+                "user_display_name": self.user_display_name,
+                "subscription_label": self.subscription_label,
+                "max_format_id": self.max_format_id,
+            }
+            try:
+                self.config_path.parent.mkdir(parents=True, exist_ok=True)
+                tmp_path = self.config_path.with_suffix(f".tmp.{threading.get_ident()}")
+                # El token da acceso a la cuenta: el archivo solo lo puede leer el usuario
+                fd = os.open(tmp_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+                with os.fdopen(fd, "w", encoding="utf-8") as f:
+                    json.dump(data, f, indent=2)
+                os.replace(tmp_path, self.config_path)
+                self._secure_config_file()
+            except OSError as e:
+                log.error("Error al guardar configuración de Qobuz: %s", e)
 
     # -- HTTP -----------------------------------------------------------------
 

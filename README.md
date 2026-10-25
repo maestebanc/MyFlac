@@ -1,11 +1,14 @@
 # MyFlac
 
 [![Ko-fi](https://img.shields.io/badge/Ko--fi-¡Dame_argo!-ff5e5b?logo=kofi&logoColor=white)](https://ko-fi.com/marianitu)
+[![Built with Antigravity AI](https://img.shields.io/badge/Generated_with_AI-Antigravity-8A2BE2)](https://github.com/maestebanc/MyFlac)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 
 **A clean, bit-perfect Hi-Res music player and library browser for the Linux desktop.**
 
 MyFlac is designed for those who want to listen to their music collection in pristine audiophile quality, with zero unnecessary bloat, a modern GNOME/Libadwaita interface, and rich contextual information about every song, album, and artist.
+
+> **AI-Generated Software Disclosure:** All code in MyFlac has been generated with AI using **Antigravity** (Google DeepMind), based on the product idea, functional design, testing, and direction of Miguel Angel Esteban.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="screenshots/main-window-dark.png">
@@ -15,7 +18,7 @@ MyFlac is designed for those who want to listen to their music collection in pri
 
 ## Why MyFlac
 
-No audio player on Linux quite matched what I was looking for: I wanted true bit-perfect hardware output without fighting system sound servers, automatic synchronized lyrics that scroll smoothly like in Roon or Apple Music, and a clean, native interface that looks at home on GNOME. Just like what drove me to build [MyTag](https://maestebanc.github.io/MyTag/), I created MyFlac to fit my exact tastes and needs as a music lover.
+No audio player on Linux quite matched what I was looking for: I wanted true bit-perfect hardware output without fighting system sound servers, automatic synchronized lyrics that scroll smoothly like in Roon or Apple Music, and a clean, native interface that looks at home on GNOME. Just like what drove me to conceive [MyTag](https://maestebanc.github.io/MyTag/), I designed MyFlac to fit my exact tastes and needs as a music lover, using **Antigravity** to generate its codebase.
 
 ### The MyFlac & MyTag Suite
 
@@ -76,18 +79,18 @@ Install from the official MyFlac repository and get automatic updates through GN
 flatpak install --from https://maestebanc.github.io/MyFlac/myflac.flatpakref
 ```
 
-Or click **Install MyFlac** on the [official website](https://maestebanc.github.io/MyFlac/). The standalone `myflac-0.2.3.flatpak` bundle from the releases page also receives updates from the repository.
+Or click **Install MyFlac** on the [official website](https://maestebanc.github.io/MyFlac/). The standalone `myflac-0.2.4.flatpak` bundle from the releases page also receives updates from the repository.
 
 ### Fedora / RHEL (RPM)
 
 ```bash
-sudo dnf install ./myflac-0.2.3-1.noarch.rpm
+sudo dnf install ./myflac-0.2.4-1.noarch.rpm
 ```
 
 ### Debian / Ubuntu (24.04 LTS+, Debian 13+)
 
 ```bash
-sudo apt install ./myflac_0.2.3-1_all.deb
+sudo apt install ./myflac_0.2.4-1_all.deb
 ```
 
 ### Arch Linux
@@ -95,7 +98,7 @@ sudo apt install ./myflac_0.2.3-1_all.deb
 Install the pre-built package with `pacman`:
 
 ```bash
-sudo pacman -U myflac-0.2.3-1-any.pkg.tar.zst
+sudo pacman -U myflac-0.2.4-1-any.pkg.tar.zst
 ```
 
 Or build from source using the included `PKGBUILD`:

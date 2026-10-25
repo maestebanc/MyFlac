@@ -1,6 +1,6 @@
 /**
- * MyFlac — Official Landing Page Script
- * Multi-language engine (ES, EN, CA), theme handling, interactive gallery, lightbox, and clipboard copy.
+ * MyFlac — Official Landing Page Script (v0.2.4)
+ * Multi-language engine (ES, EN, CA), theme handling, interactive gallery, tabs, lightbox, and clipboard copy.
  */
 
 // ==========================================
@@ -19,15 +19,16 @@ const translations = {
     dl_rpm_desc: "Integración completa con el sistema para Fedora 40/41/42+ y distribuciones RPM.",
     dl_deb_desc: "Paquete deb estándar con resolución de dependencias mediante apt.",
     dl_arch_desc: "Paquete binario optimizado con compresión zstandard para pacman.",
-    dl_rpm_btn: "Descargar .rpm (714 KB)",
-    dl_deb_btn: "Descargar .deb (281 KB)",
-    dl_arch_btn: "Descargar .pkg.tar.zst (335 KB)",
-    footer_tagline: "— Creado con pasión por Miguel Ángel Esteban",
+    dl_rpm_btn: "Descargar .rpm (726 KB)",
+    dl_deb_btn: "Descargar .deb (284 KB)",
+    dl_arch_btn: "Descargar .pkg.tar.zst (339 KB)",
+    footer_tagline: "— Idea, diseño y dirección de Miguel Ángel Esteban",
+    footer_ai_note: "Código generado íntegramente con IA mediante Antigravity (Google DeepMind).",
     footer_kofi: "☕ ¡Dame argo! (Ko-fi)",
     meta_description: "MyFlac es un reproductor de música audiófilo y gratuito para Linux y GNOME: sonido bit-perfect, streaming oficial de Qobuz Hi-Res, emisión en red UPnP / DLNA, DSD nativo, letras sincronizadas y fichas de Wikipedia y Discogs.",
-    btn_install: "Instalar MyFlac",
+    btn_install: "Instalar MyFlac v0.2.4",
     btn_install_sub: "Flatpak · actualizaciones automáticas",
-    btn_other_packages: "Otros paquetes",
+    btn_other_packages: "RPM · DEB · Arch Linux",
     install_hint: "Se abre en GNOME Software o Discover. También desde la terminal:",
     copy_btn: "Copiar",
     dl_flatpak_desc: "Instalación aislada y segura, con actualizaciones automáticas desde GNOME Software o Discover.",
@@ -37,6 +38,7 @@ const translations = {
     meta_desc: "MyFlac es un reproductor audiófilo nativo para GNOME y Linux con sonido bit-perfect, catálogo oficial de Qobuz Hi-Res, emisión en red UPnP / DLNA, letras sincronizadas y diseño GTK4 / Libadwaita.",
 
     // Header
+    nav_signal: "Ruta de Señal",
     nav_about: "Por qué MyFlac",
     nav_features: "Características",
     nav_screenshots: "Capturas",
@@ -45,12 +47,24 @@ const translations = {
     nav_kofi: "¡Dame argo!",
 
     // Hero
-    hero_badge: "Nuevo en v0.2.3 • Streaming Oficial Qobuz Hi-Res y Emisión en Red UPnP / DLNA",
+    hero_badge: "Versión 0.2.4 • Streaming Oficial Qobuz Hi-Res y Emisión en Red UPnP / DLNA",
     hero_title: "Tu música local y streaming Hi-Res con máxima fidelidad",
-    hero_subtitle: "Un reproductor audiófilo moderno para Linux. Sonido bit-perfect directo a tu DAC, catálogo oficial de Qobuz en alta resolución, emisión en red UPnP / DLNA a tus receptores y streamers de audio, letras sincronizadas en tiempo real y fichas de Wikipedia y Discogs.",
+    hero_subtitle: "Un reproductor audiófilo moderno para Linux y GNOME. Sonido bit-perfect directo a tu DAC, catálogo oficial de Qobuz en alta resolución, emisión en red UPnP / DLNA a tus receptores y streamers de audio, letras sincronizadas en tiempo real y fichas de Wikipedia y Discogs.",
+    telemetry_upnp: "Streamers de Red",
     btn_download: "Descargar para Linux",
     btn_github: "Código en GitHub",
     zoom_hint: "Haz clic en la captura para ampliar en alta resolución",
+
+    // Signal Path
+    signal_eyebrow: "Arquitectura de Audio",
+    signal_title: "Ruta de señal transparente, de principio a fin",
+    signal_subtitle: "Cada muestra viaja intacta desde tu biblioteca o desde los servidores de Qobuz hasta los conversores de tu DAC o tu streamer de red UPnP / DLNA.",
+    sig_node1_title: "Colección Local y Qobuz Hi-Res",
+    sig_node1_desc: "Archivos locales o en red (SMB / NFS) en FLAC, WAV, AIFF, ALAC y DSD (DSF/DFF), junto al catálogo oficial de Qobuz Studio Master hasta 24-bit / 192 kHz.",
+    sig_node2_title: "Motor Bit-Perfect y ReserveDevice1",
+    sig_node2_desc: "Negociación limpia con PipeWire / WirePlumber por D-Bus. Sin mezclador de software, sin remuestreo ni dither, y con conmutación automática de frecuencia de muestreo.",
+    sig_node3_title: "DAC por ALSA Exclusivo o UPnP / DLNA",
+    sig_node3_desc: "Salida directa por hardware al DAC con control de volumen analógico/hardware integrado, o envío sin pérdidas por red a cualquier streamer, receptor o amplificador UPnP / DLNA.",
 
     // Suite Cross-Reference
     suite_badge: "La Suite MyFlac & MyTag",
@@ -59,12 +73,14 @@ const translations = {
     suite_btn: "Conocer MyTag — Editor de Etiquetas ↗",
 
     // Why MyFlac
+    about_eyebrow: "Ingeniería y Diseño",
     about_title: "Por qué MyFlac",
     about_subtitle: "Diseñado pensando en quien ama escuchar música con calma, apreciar cada instrumento y disfrutar de una experiencia visual a la altura de su equipo.",
 
-    card_tag_new: "Novedad v0.2.3",
+    card_tag_new: "Destacado · Qobuz Studio Hi-Res",
+    card_tag_upnp: "Audio en Red",
     feat_qobuz_title: "Streaming Oficial Qobuz Hi-Res",
-    feat_qobuz_desc: "Accede al catálogo oficial de Qobuz en calidad FLAC hasta 24-bit / 192 kHz directamente desde MyFlac. Explora por géneros, novedades y lanzamientos destacados, gestiona tus álbumes favoritos y reproduce con salida Bit-Perfect en un solo clic.",
+    feat_qobuz_desc: "Accede al catálogo oficial de Qobuz en calidad FLAC hasta 24-bit / 192 kHz directamente desde MyFlac. Explora por géneros, novedades y lanzamientos destacados, gestiona tus álbumes, pistas y artistas favoritos, e inicia sesión con un clic para reproducir con salida Bit-Perfect.",
 
     feat_upnp_title: "Emisión en Red UPnP / DLNA",
     feat_upnp_desc: "Envía tanto tu música local como tus reproducciones de streaming a cualquier receptor, amplificador o streamer de red compatible con UPnP / DLNA en calidad Hi-Res sin pérdidas, con control de transporte e información en tiempo real.",
@@ -98,6 +114,7 @@ const translations = {
     cap_mini: "Mini-Reproductor flotante (500×500 px): portada limpia o con osciloscopio interactivo y controles HUD auto-ocultables que aparecen al pasar el ratón.",
 
     // Formats
+    formats_eyebrow: "Estándares de Estudio",
     formats_title: "Soporte Multiformato",
     formats_subtitle: "Reproduce con total soltura los formatos de audio más populares y los estándares Hi-Res más exigentes.",
 
@@ -120,15 +137,16 @@ const translations = {
     dl_rpm_desc: "Full system integration for Fedora 40/41/42+ and RPM-based distributions.",
     dl_deb_desc: "Standard deb package with dependency resolution through apt.",
     dl_arch_desc: "Optimized binary package with zstandard compression for pacman.",
-    dl_rpm_btn: "Download .rpm (714 KB)",
-    dl_deb_btn: "Download .deb (281 KB)",
-    dl_arch_btn: "Download .pkg.tar.zst (335 KB)",
-    footer_tagline: "— Crafted with passion by Miguel Ángel Esteban",
+    dl_rpm_btn: "Download .rpm (726 KB)",
+    dl_deb_btn: "Download .deb (284 KB)",
+    dl_arch_btn: "Download .pkg.tar.zst (339 KB)",
+    footer_tagline: "— Concept, design & direction by Miguel Ángel Esteban",
+    footer_ai_note: "Code generated entirely with AI using Antigravity (Google DeepMind).",
     footer_kofi: "☕ Buy Me a Coffee (Ko-fi)",
     meta_description: "MyFlac is a free audiophile music player for Linux and GNOME: bit-perfect playback, official Qobuz Hi-Res streaming, UPnP / DLNA network streaming, native DSD, synchronized lyrics and Wikipedia & Discogs insights.",
-    btn_install: "Install MyFlac",
+    btn_install: "Install MyFlac v0.2.4",
     btn_install_sub: "Flatpak · automatic updates",
-    btn_other_packages: "Other packages",
+    btn_other_packages: "RPM · DEB · Arch Linux",
     install_hint: "Opens in GNOME Software or Discover. Or from the terminal:",
     copy_btn: "Copy",
     dl_flatpak_desc: "Sandboxed and secure, with automatic updates from GNOME Software or Discover.",
@@ -138,6 +156,7 @@ const translations = {
     meta_desc: "MyFlac is a native audiophile music player for GNOME and Linux featuring bit-perfect output, official Qobuz Hi-Res streaming, UPnP / DLNA network streaming, synchronized lyrics, and GTK4 / Libadwaita design.",
 
     // Header
+    nav_signal: "Signal Path",
     nav_about: "Why MyFlac",
     nav_features: "Features",
     nav_screenshots: "Screenshots",
@@ -146,12 +165,24 @@ const translations = {
     nav_kofi: "Buy Me a Coffee",
 
     // Hero
-    hero_badge: "New in v0.2.3 • Official Qobuz Hi-Res Streaming & UPnP / DLNA Network Streaming",
+    hero_badge: "Version 0.2.4 • Official Qobuz Hi-Res Streaming & UPnP / DLNA Network Streaming",
     hero_title: "Your local music and Hi-Res streaming in pristine fidelity",
-    hero_subtitle: "A modern audiophile player for Linux. Bit-perfect sound direct to your DAC, official Qobuz studio master streaming catalogue, UPnP / DLNA network streaming to your receivers and network streamers, synchronized lyrics, and Wikipedia & Discogs insights.",
+    hero_subtitle: "A modern audiophile player for Linux and GNOME. Bit-perfect sound direct to your DAC, official Qobuz studio master streaming catalogue, UPnP / DLNA network streaming to your receivers and network streamers, synchronized lyrics, and Wikipedia & Discogs insights.",
+    telemetry_upnp: "Network Streamers",
     btn_download: "Download for Linux",
     btn_github: "View on GitHub",
     zoom_hint: "Click screenshot to expand in high resolution",
+
+    // Signal Path
+    signal_eyebrow: "Audio Architecture",
+    signal_title: "Transparent end-to-end signal path",
+    signal_subtitle: "Every sample travels untouched from your local library or Qobuz servers straight to your DAC converters or UPnP / DLNA network streamer.",
+    sig_node1_title: "Local Library & Qobuz Hi-Res",
+    sig_node1_desc: "Local or network (SMB / NFS) files in FLAC, WAV, AIFF, ALAC and DSD (DSF/DFF), alongside the official Qobuz Studio Master catalogue up to 24-bit / 192 kHz.",
+    sig_node2_title: "Bit-Perfect Engine & ReserveDevice1",
+    sig_node2_desc: "Clean D-Bus negotiation with PipeWire / WirePlumber. Zero software mixer, no resampling or dither, and automatic sample-rate switching.",
+    sig_node3_title: "Exclusive ALSA DAC or UPnP / DLNA",
+    sig_node3_desc: "Direct hardware output to your DAC with integrated hardware volume control, or lossless network streaming to any UPnP / DLNA streamer, receiver, or amplifier.",
 
     // Suite Cross-Reference
     suite_badge: "The MyFlac & MyTag Suite",
@@ -160,10 +191,12 @@ const translations = {
     suite_btn: "Discover MyTag — Tag Editor ↗",
 
     // Why MyFlac
+    about_eyebrow: "Engineering & Design",
     about_title: "Why MyFlac",
     about_subtitle: "Created for those who love mindful listening, savoring every instrument, and enjoying a visual experience that honors their audio gear.",
 
-    card_tag_new: "New in v0.2.3",
+    card_tag_new: "Featured · Qobuz Studio Hi-Res",
+    card_tag_upnp: "Network Audio",
     feat_qobuz_title: "Official Qobuz Hi-Res Streaming",
     feat_qobuz_desc: "Browse and stream millions of studio master FLAC albums up to 24-bit / 192 kHz directly inside MyFlac. Genre filters, editorial releases, and personal favorites with seamless one-click web login.",
 
@@ -199,6 +232,7 @@ const translations = {
     cap_mini: "Floating Mini-Player (500×500 px): clean album cover or interactive oscilloscope with auto-hiding controls on mouse hover.",
 
     // Formats
+    formats_eyebrow: "Studio Standards",
     formats_title: "Multi-Format Support",
     formats_subtitle: "Seamlessly plays everyday audio formats as well as demanding Hi-Res studio master standards.",
 
@@ -221,15 +255,16 @@ const translations = {
     dl_rpm_desc: "Integració completa amb el sistema per a Fedora 40/41/42+ i distribucions RPM.",
     dl_deb_desc: "Paquet deb estàndard amb resolució de dependències mitjançant apt.",
     dl_arch_desc: "Paquet binari optimitzat amb compressió zstandard per a pacman.",
-    dl_rpm_btn: "Descarregar .rpm (714 KB)",
-    dl_deb_btn: "Descarregar .deb (281 KB)",
-    dl_arch_btn: "Descarregar .pkg.tar.zst (335 KB)",
-    footer_tagline: "— Creat amb passió per Miguel Ángel Esteban",
+    dl_rpm_btn: "Descarregar .rpm (726 KB)",
+    dl_deb_btn: "Descarregar .deb (284 KB)",
+    dl_arch_btn: "Descarregar .pkg.tar.zst (339 KB)",
+    footer_tagline: "— Idea, disseny i direcció de Miguel Ángel Esteban",
+    footer_ai_note: "Codi generat íntegrament amb IA mitjançant Antigravity (Google DeepMind).",
     footer_kofi: "☕ Dona'm argo! (Ko-fi)",
     meta_description: "MyFlac és un reproductor de música audiòfil i gratuït per a Linux i GNOME: so bit-perfect, streaming oficial de Qobuz Hi-Res, emissió en xarxa UPnP / DLNA, DSD natiu, lletres sincronitzades i fitxes de Wikipedia i Discogs.",
-    btn_install: "Instal·lar MyFlac",
+    btn_install: "Instal·lar MyFlac v0.2.4",
     btn_install_sub: "Flatpak · actualitzacions automàtiques",
-    btn_other_packages: "Altres paquets",
+    btn_other_packages: "RPM · DEB · Arch Linux",
     install_hint: "S'obre a GNOME Programari o Discover. També des del terminal:",
     copy_btn: "Copiar",
     dl_flatpak_desc: "Instal·lació aïllada i segura, amb actualitzacions automàtiques des de GNOME Programari o Discover.",
@@ -239,6 +274,7 @@ const translations = {
     meta_desc: "MyFlac és un reproductor audiòfil natiu per a GNOME i Linux amb so bit-perfect, catàleg oficial de Qobuz Hi-Res, emissió en xarxa UPnP / DLNA, lletres sincronitzades i disseny GTK4 / Libadwaita.",
 
     // Header
+    nav_signal: "Ruta de Senyal",
     nav_about: "Per què MyFlac",
     nav_features: "Característiques",
     nav_screenshots: "Captures",
@@ -247,24 +283,38 @@ const translations = {
     nav_kofi: "Dona'm argo!",
 
     // Hero
-    hero_badge: "Nou a la v0.2.3 • Streaming Oficial Qobuz Hi-Res i Emissió en Xarxa UPnP / DLNA",
+    hero_badge: "Versió 0.2.4 • Streaming Oficial Qobuz Hi-Res i Emissió en Xarxa UPnP / DLNA",
     hero_title: "La teva música local i streaming Hi-Res amb la màxima fidelitat",
-    hero_subtitle: "Un reproductor audiòfil modern per a Linux. So bit-perfect directe al teu DAC, catàleg oficial de Qobuz en alta resolució, emissió en xarxa UPnP / DLNA als teus receptors i streamers de xarxa, lletres sincronitzades en temps real i fitxes de Wikipedia i Discogs.",
+    hero_subtitle: "Un reproductor audiòfil modern per a Linux i GNOME. So bit-perfect directe al teu DAC, catàleg oficial de Qobuz en alta resolució, emissió en xarxa UPnP / DLNA als teus receptors i streamers de xarxa, lletres sincronitzades en temps real i fitxes de Wikipedia i Discogs.",
+    telemetry_upnp: "Streamers de Xarxa",
     btn_download: "Descarregar per a Linux",
     btn_github: "Codi a GitHub",
     zoom_hint: "Fes clic a la captura per ampliar en alta resolució",
 
+    // Signal Path
+    signal_eyebrow: "Arquitectura d'Àudio",
+    signal_title: "Ruta de senyal transparent, de principi a fi",
+    signal_subtitle: "Cada mostra viatja intacta des de la teva biblioteca o des dels servidors de Qobuz fins als convertidors del teu DAC o el teu streamer de xarxa UPnP / DLNA.",
+    sig_node1_title: "Col·lecció Local i Qobuz Hi-Res",
+    sig_node1_desc: "Fitxers locals o en xarxa (SMB / NFS) en FLAC, WAV, AIFF, ALAC i DSD (DSF/DFF), juntament amb el catàleg oficial de Qobuz Studio Master fins a 24-bit / 192 kHz.",
+    sig_node2_title: "Motor Bit-Perfect i ReserveDevice1",
+    sig_node2_desc: "Negociació neta amb PipeWire / WirePlumber per D-Bus. Sense mesclador de programari, sense remostreig ni dither, i amb commutació automàtica de freqüència.",
+    sig_node3_title: "DAC per ALSA Exclusiu o UPnP / DLNA",
+    sig_node3_desc: "Sortida directa per maquinari al DAC amb control de volum integrat, o enviament sense pèrdues per xarxa a qualsevol streamer, receptor o amplificador UPnP / DLNA.",
+
     // Suite Cross-Reference
     suite_badge: "La Suite MyFlac & MyTag",
     suite_title: "Dues aplicacions creades a mida per conviure",
-    suite_desc: "Cap reproductor de Linux s'adaptava al que realment volia per a la meva col·lecció musical, una cosa molt semblant al que em va motivar a crear MyTag. Per això van néixer totes dues eines: amb MyTag organitzes, neteges i descarregues caràtules per als teus arxius, y con MyFlac els gaudeixes amb màxima qualitat amb so bit-perfect i una interfície feta amb cura.",
+    suite_desc: "Cap reproductor de Linux s'adaptava al que realment volia per a la meva col·lecció musical, una cosa molt semblant al que em va motivar a crear MyTag. Per això van néixer totes dues eines: amb MyTag organitzes, neteges i descarregues caràtules per als teus arxius, i amb MyFlac els gaudeixes amb màxima qualitat amb so bit-perfect i una interfície feta amb cura.",
     suite_btn: "Conèixer MyTag — Editor d'Etiquetes ↗",
 
     // Why MyFlac
+    about_eyebrow: "Enginyeria i Disseny",
     about_title: "Per què MyFlac",
     about_subtitle: "Dissenyat pensant en qui estima escoltar música amb calma, apreciar cada instrument i gaudir d'una experiència visual a l'alçada del seu equip.",
 
-    card_tag_new: "Novetat a la v0.2.3",
+    card_tag_new: "Destacat · Qobuz Studio Hi-Res",
+    card_tag_upnp: "Àudio en Xarxa",
     feat_qobuz_title: "Streaming Oficial Qobuz Hi-Res",
     feat_qobuz_desc: "Accedeix al catàleg oficial de Qobuz en qualitat FLAC fins a 24-bit / 192 kHz directament des de MyFlac. Explora per gèneres, novetats i llançaments destacats, gestiona els teus àlbums preferits i reprodueix amb sortida Bit-Perfect en un sol clic.",
 
@@ -300,6 +350,7 @@ const translations = {
     cap_mini: "Mini-Reproductor flotant (500×500 px): caràtula neta o amb oscil·loscopi interactiu i controls HUD auto-ocultables que apareixen en passar el ratolí.",
 
     // Formats
+    formats_eyebrow: "Estàndards d'Estudi",
     formats_title: "Suport Multiformat",
     formats_subtitle: "Reprodueix amb total facilitat els formats d'àudio més populars i els estàndards Hi-Res més exigents.",
 
@@ -317,13 +368,10 @@ const translations = {
 let currentLang = "es";
 
 function detectLanguage() {
-  // Cada idioma es una página estática (/, /en/, /ca/) para que los buscadores indexen las tres
   const pageLang = document.documentElement.getAttribute("lang");
   return translations[pageLang] ? pageLang : "es";
 }
 
-// Quien eligió otro idioma en una visita anterior vuelve a su página. Solo con una elección
-// explícita guardada: sin redirecciones por el idioma del navegador (los buscadores no las quieren).
 function redirectToPreferredLanguage() {
   let saved = null;
   try { saved = localStorage.getItem("myflac_lang_choice"); } catch (e) { return false; }
@@ -388,7 +436,6 @@ function applyTheme(theme) {
   applyThemedScreenshots(theme === "light" ? "light" : "dark");
 }
 
-// Capturas de la app en el mismo tema que la web: cada imagen declara su versión oscura y clara
 function applyThemedScreenshots(theme) {
   document.querySelectorAll("img[data-src-dark][data-src-light]").forEach((img) => {
     const src = img.getAttribute(theme === "light" ? "data-src-light" : "data-src-dark");
@@ -396,7 +443,6 @@ function applyThemedScreenshots(theme) {
       img.setAttribute("src", src);
     }
   });
-  // Si hay una captura ampliada abierta, se cambia también
   const modalImg = document.getElementById("lightboxImage");
   const modal = document.getElementById("lightboxModal");
   if (modalImg && modal && modal.classList.contains("active")) {
@@ -412,7 +458,7 @@ function toggleTheme() {
 }
 
 // ==========================================
-// 4. Hero Interactive Carousel Engine
+// 4. Hero Interactive Carousel & Tabs Engine
 // ==========================================
 let currentSlideIndex = 0;
 let carouselAutoplayTimer = null;
@@ -426,6 +472,7 @@ function initCarousel() {
   const prevBtn = document.getElementById("carouselPrev");
   const nextBtn = document.getElementById("carouselNext");
   const dots = document.querySelectorAll("#carouselIndicators .indicator-dot");
+  const tabs = document.querySelectorAll("#showcaseTabs .showcase-tab");
   const captionEl = document.getElementById("carouselCaption");
   const slides = document.querySelectorAll(".carousel-slide");
   const totalSlides = slides.length;
@@ -441,20 +488,22 @@ function initCarousel() {
       currentSlideIndex = index;
     }
 
-    // Move track smoothly
     track.style.transform = `translateX(-${currentSlideIndex * 100}%)`;
 
-    // Active state on slides
     slides.forEach((slide, idx) => {
       slide.classList.toggle("active", idx === currentSlideIndex);
     });
 
-    // Active state on indicator dots
     dots.forEach((dot, idx) => {
       dot.classList.toggle("active", idx === currentSlideIndex);
     });
 
-    // Update dynamic caption with smooth fade
+    tabs.forEach((tab, idx) => {
+      const isAct = idx === currentSlideIndex;
+      tab.classList.toggle("active", isAct);
+      tab.setAttribute("aria-selected", isAct ? "true" : "false");
+    });
+
     if (captionEl) {
       const capKey = slideCaptions[currentSlideIndex] || "cap_main";
       captionEl.setAttribute("data-i18n", capKey);
@@ -465,7 +514,6 @@ function initCarousel() {
       }, 150);
     }
 
-    // If user manually switched slides, restart the timer
     if (userInitiated) {
       resetAutoplay();
     }
@@ -476,7 +524,7 @@ function initCarousel() {
     if (!isLightboxActive) {
       carouselAutoplayTimer = setInterval(() => {
         updateSlide(currentSlideIndex + 1, false);
-      }, 3000);
+      }, 4500);
     }
   }
 
@@ -492,7 +540,6 @@ function initCarousel() {
     startAutoplay();
   }
 
-  // Next & Prev button clicks
   if (prevBtn) {
     prevBtn.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -507,7 +554,6 @@ function initCarousel() {
     });
   }
 
-  // Dots clicks
   dots.forEach((dot) => {
     dot.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -518,7 +564,16 @@ function initCarousel() {
     });
   });
 
-  // Pause on hover
+  tabs.forEach((tab) => {
+    tab.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const targetIndex = parseInt(tab.getAttribute("data-slide"), 10);
+      if (!isNaN(targetIndex)) {
+        updateSlide(targetIndex, true);
+      }
+    });
+  });
+
   container.addEventListener("mouseenter", () => {
     stopAutoplay();
   });
@@ -529,7 +584,6 @@ function initCarousel() {
     }
   });
 
-  // Touch Swipe for Mobile / Tablets
   let touchStartX = 0;
   let touchStartY = 0;
 
@@ -562,7 +616,6 @@ function initCarousel() {
     { passive: true }
   );
 
-  // Keyboard navigation when not typing in inputs
   window.addEventListener("keydown", (e) => {
     if (isLightboxActive) return;
     if (document.activeElement && (document.activeElement.tagName === "INPUT" || document.activeElement.tagName === "TEXTAREA")) return;
@@ -573,11 +626,9 @@ function initCarousel() {
     }
   });
 
-  // Expose pause/resume to Lightbox
   window.pauseCarouselAutoplay = stopAutoplay;
   window.resumeCarouselAutoplay = startAutoplay;
 
-  // Initial trigger
   updateSlide(0, false);
   startAutoplay();
 }
@@ -626,7 +677,6 @@ function initLightbox() {
         } else {
           caption = el.getAttribute("data-caption") || img.alt || "";
         }
-        // Para cambiarla de tema mientras está ampliada (ver applyThemedScreenshots)
         modalImg.dataset.darkSrc = img.getAttribute("data-src-dark") || "";
         openLightbox(img.src, img.alt, caption);
       }
@@ -702,7 +752,6 @@ document.addEventListener("DOMContentLoaded", () => {
   document.querySelectorAll(".lang-btn").forEach((link) => {
     link.addEventListener("click", (event) => {
       try { localStorage.setItem("myflac_lang_choice", link.getAttribute("data-lang")); } catch (e) {}
-      // Se conserva la sección en la que estaba el visitante
       if (window.location.hash) {
         event.preventDefault();
         window.location.href = link.href + window.location.hash;

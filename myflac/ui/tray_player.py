@@ -148,6 +148,10 @@ class TrayPlayerWindow(Adw.Window):
         self.present()
 
     def shutdown(self):
+        seek_id = getattr(self, "_seek_reset_id", None)
+        if seek_id is not None:
+            GLib.source_remove(seek_id)
+            self._seek_reset_id = None
         self.engine.remove_track_listener(self._on_track)
         self.engine.remove_state_listener(self._on_state)
         self.engine.remove_position_listener(self._on_position)
@@ -205,9 +209,13 @@ class TrayPlayerWindow(Adw.Window):
         self._seeking = True
         self.engine.seek(value)
         self.elapsed.set_text(_fmt(value))
-        GLib.timeout_add(300, self._end_seek)
+        seek_id = getattr(self, "_seek_reset_id", None)
+        if seek_id is not None:
+            GLib.source_remove(seek_id)
+        self._seek_reset_id = GLib.timeout_add(300, self._end_seek)
         return False
 
     def _end_seek(self) -> bool:
+        self._seek_reset_id = None
         self._seeking = False
         return False

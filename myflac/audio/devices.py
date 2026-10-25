@@ -292,22 +292,28 @@ def find_device_by_id(device_id: str) -> AudioDevice | None:
             return _cached_devices[0]
         return make_default_device()
     base_id = base_node_name(device_id)
-    for dev in get_available_devices():
-        if dev.id == device_id or base_node_name(dev.id) == base_id or device_id in dev.id:
+    devices = get_available_devices()
+    for dev in devices:
+        if dev.id == device_id or base_node_name(dev.id) == base_id:
+            return dev
+    for dev in devices:
+        if device_id in dev.id:
             return dev
     return None
 
 
 def resolve_hardware_device(device_id: str) -> AudioDevice | None:
     """Devuelve el dispositivo ALSA real tras un id, o None si no es una salida hardware ALSA concreta."""
-    if not device_id or device_id in ("default", "auto", "pipewire"):
+    if not device_id or device_id in ("default", "auto", "pipewire") or device_id.startswith("upnp:"):
         return None
+    base_id = base_node_name(device_id)
     for force_refresh in (False, True):
         devices = get_available_devices(force_refresh=force_refresh)
-        base_id = base_node_name(device_id)
-        dev = next((d for d in devices if base_node_name(d.id) == base_id or device_id in d.id), None)
-        if dev and dev.hw_path:
-            return dev
+        dev = next((d for d in devices if d.id == device_id or base_node_name(d.id) == base_id), None)
+        if dev is None:
+            dev = next((d for d in devices if device_id in d.id), None)
+        if dev:
+            return dev if dev.hw_path else None
     return None
 
 

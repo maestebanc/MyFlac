@@ -24,7 +24,7 @@
   "applicationCategory": "MultimediaApplication",
   "applicationSubCategory": "Music player",
   "operatingSystem": "Linux",
-  "softwareVersion": "0.2.3",
+  "softwareVersion": "0.2.4",
   "url": "https://maestebanc.github.io/MyFlac/",
   "downloadUrl": "https://maestebanc.github.io/MyFlac/myflac.flatpakref",
   "installUrl": "https://maestebanc.github.io/MyFlac/myflac.flatpakref",
@@ -54,6 +54,9 @@
 
   <link rel="icon" type="image/svg+xml" href="assets/icon.svg">
   <link rel="alternate icon" type="image/png" href="assets/icon-512.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <script>
     (function() {
       var t = localStorage.getItem("myflac_theme");
@@ -64,8 +67,8 @@
       }
     })();
   </script>
-  <link rel="stylesheet" href="style.css?v=0.2.3">
-  
+  <link rel="stylesheet" href="style.css?v=0.2.4">
+
   <!-- Open Graph / WhatsApp / Facebook -->
   <meta property="og:type" content="website">
   <meta property="og:locale" content="es_ES">
@@ -87,17 +90,26 @@
   <meta name="twitter:image" content="https://maestebanc.github.io/MyFlac/assets/og-preview.jpg">
 </head>
 <body>
+  <!-- Ambient Background Layers -->
+  <div class="ambient-mesh" aria-hidden="true">
+    <div class="ambient-orb orb-1"></div>
+    <div class="ambient-orb orb-2"></div>
+    <div class="ambient-grid"></div>
+  </div>
+
   <!-- Navigation Header -->
   <header class="site-header">
     <div class="header-inner container">
       <a href="#" class="brand">
-        <img src="assets/icon.svg" alt="MyFlac Logo" class="brand-icon" width="36" height="36">
+        <span class="brand-logo-wrap">
+          <img src="assets/icon.svg" alt="MyFlac Logo" class="brand-icon" width="34" height="34">
+        </span>
         <span class="brand-name">MyFlac</span>
-        <span class="version-badge">v0.2.3</span>
+        <span class="version-badge">v0.2.4</span>
       </a>
 
       <nav class="nav-menu" id="navMenu">
-        <a href="#about" class="nav-link" data-i18n="nav_about">Por qué MyFlac</a>
+        <a href="#signal-path" class="nav-link" data-i18n="nav_signal">Ruta de Señal</a>
         <a href="#features" class="nav-link" data-i18n="nav_features">Características</a>
         <a href="#screenshots" class="nav-link" data-i18n="nav_screenshots">Capturas</a>
         <a href="#formats" class="nav-link" data-i18n="nav_formats">Formatos</a>
@@ -109,7 +121,7 @@
           <span>☕</span> <span data-i18n="nav_kofi">¡Dame argo!</span>
         </a>
         <a href="https://github.com/maestebanc/MyFlac" target="_blank" rel="noopener noreferrer" class="nav-link github-link" title="Repositorio en GitHub">
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+          <svg viewBox="0 0 24 24" width="17" height="17" fill="currentColor">
             <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/>
           </svg>
           <span>GitHub</span>
@@ -156,7 +168,7 @@
       <div class="container hero-container">
         <div class="hero-badge">
           <span class="badge-dot"></span>
-          <span data-i18n="hero_badge">Nuevo en v0.2.3 • Streaming Oficial Qobuz Hi-Res y Emisión en Red UPnP / DLNA</span>
+          <span data-i18n="hero_badge">Versión 0.2.4 • Streaming Oficial Qobuz Hi-Res y Emisión en Red UPnP / DLNA</span>
         </div>
 
         <h1 class="hero-title" data-i18n="hero_title">
@@ -164,8 +176,35 @@
         </h1>
 
         <p class="hero-subtitle" data-i18n="hero_subtitle">
-          Un reproductor audiófilo moderno para Linux. Sonido bit-perfect directo a tu DAC, catálogo oficial de Qobuz en alta resolución, emisión en red UPnP / DLNA a tus receptores y streamers de audio, letras sincronizadas en tiempo real y fichas de Wikipedia y Discogs.
+          Un reproductor audiófilo moderno para Linux y GNOME. Sonido bit-perfect directo a tu DAC, catálogo oficial de Qobuz en alta resolución, emisión en red UPnP / DLNA a tus receptores y streamers de audio, letras sincronizadas en tiempo real y fichas de Wikipedia y Discogs.
         </p>
+
+        <!-- Telemetry / Audio Specs Bar -->
+        <div class="telemetry-bar" aria-label="Especificaciones de audio">
+          <div class="telemetry-item">
+            <span class="telemetry-dot dot-green"></span>
+            <span class="telemetry-label">ALSA Direct</span>
+            <span class="telemetry-val">0 dB Bit-Perfect</span>
+          </div>
+          <div class="telemetry-sep"></div>
+          <div class="telemetry-item">
+            <span class="telemetry-dot dot-blue"></span>
+            <span class="telemetry-label">Qobuz Studio</span>
+            <span class="telemetry-val">FLAC 24-bit / 192 kHz</span>
+          </div>
+          <div class="telemetry-sep"></div>
+          <div class="telemetry-item">
+            <span class="telemetry-dot dot-amber"></span>
+            <span class="telemetry-label">PCM &amp; DSD</span>
+            <span class="telemetry-val">384 kHz · DSD_U32_BE</span>
+          </div>
+          <div class="telemetry-sep"></div>
+          <div class="telemetry-item">
+            <span class="telemetry-dot dot-purple"></span>
+            <span class="telemetry-label">UPnP / DLNA</span>
+            <span class="telemetry-val" data-i18n="telemetry_upnp">Streamers de Red</span>
+          </div>
+        </div>
 
         <div class="hero-cta">
           <a href="myflac.flatpakref" type="application/vnd.flatpak.ref" class="btn btn-primary btn-install">
@@ -175,15 +214,20 @@
               <line x1="12" y1="15" x2="12" y2="3"></line>
             </svg>
             <span class="btn-install-text">
-              <span data-i18n="btn_install">Instalar MyFlac</span>
+              <span data-i18n="btn_install">Instalar MyFlac v0.2.4</span>
               <small data-i18n="btn_install_sub">Flatpak · actualizaciones automáticas</small>
             </span>
           </a>
           <a href="#download" class="btn btn-secondary">
-            <span data-i18n="btn_other_packages">Otros paquetes</span>
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="2" y="4" width="20" height="16" rx="2"></rect>
+              <path d="m10 10-2 2 2 2"></path>
+              <path d="m14 14 2-2-2-2"></path>
+            </svg>
+            <span data-i18n="btn_other_packages">RPM · DEB · Arch Linux</span>
           </a>
           <a href="https://github.com/maestebanc/MyFlac" target="_blank" rel="noopener noreferrer" class="btn btn-secondary">
-            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+            <svg viewBox="0 0 24 24" width="19" height="19" fill="currentColor">
               <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/>
             </svg>
             <span data-i18n="btn_github">Código en GitHub</span>
@@ -198,21 +242,37 @@
           </div>
         </div>
 
-        <!-- Showcase: Carrusel Interactivo de Capturas con auto-scroll y zoom -->
+        <!-- Showcase: Selector de Vistas + Carrusel Interactivo con Zoom -->
         <div class="hero-showcase" id="screenshots">
           <div class="showcase-glow"></div>
+
+          <!-- Segmented View Tabs -->
+          <div class="showcase-tabs" id="showcaseTabs" role="tablist" aria-label="Vistas de MyFlac">
+            <button class="showcase-tab active" data-slide="0" role="tab" aria-selected="true">
+              <span class="tab-num">01</span>
+              <span data-i18n="tab_main">Ventana Principal</span>
+            </button>
+            <button class="showcase-tab" data-slide="1" role="tab" aria-selected="false">
+              <span class="tab-num">02</span>
+              <span data-i18n="tab_super">Super-Reproductor</span>
+            </button>
+            <button class="showcase-tab" data-slide="2" role="tab" aria-selected="false">
+              <span class="tab-num">03</span>
+              <span data-i18n="tab_mini">Mini-Reproductor</span>
+            </button>
+          </div>
 
           <div class="carousel-container" id="carouselContainer" aria-label="Galería de capturas de MyFlac">
             <!-- Botón Anterior -->
             <button class="carousel-nav-btn carousel-prev" id="carouselPrev" aria-label="Captura anterior" title="Anterior (Flecha izquierda)">
-              <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
                 <polyline points="15 18 9 12 15 6"></polyline>
               </svg>
             </button>
 
             <!-- Botón Siguiente -->
             <button class="carousel-nav-btn carousel-next" id="carouselNext" aria-label="Captura siguiente" title="Siguiente (Flecha derecha)">
-              <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
                 <polyline points="9 18 15 12 9 6"></polyline>
               </svg>
             </button>
@@ -260,7 +320,7 @@
           </p>
 
           <div class="showcase-hint">
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <circle cx="11" cy="11" r="8"></circle>
               <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
               <line x1="11" y1="8" x2="11" y2="14"></line>
@@ -272,10 +332,78 @@
       </div>
     </section>
 
-    <!-- Why MyFlac Section -->
+    <!-- Signal Path Architecture Section -->
+    <section class="signal-section" id="signal-path">
+      <div class="container">
+        <div class="section-header">
+          <span class="section-eyebrow" data-i18n="signal_eyebrow">Arquitectura de Audio</span>
+          <h2 class="section-title" data-i18n="signal_title">Ruta de señal transparente, de principio a fin</h2>
+          <p class="section-subtitle" data-i18n="signal_subtitle">
+            Cada muestra viaja intacta desde tu biblioteca o desde los servidores de Qobuz hasta los conversores de tu DAC o tu streamer de red UPnP / DLNA.
+          </p>
+        </div>
+
+        <div class="signal-chain">
+          <!-- Stage 1: Sources -->
+          <div class="signal-node">
+            <div class="node-step">STAGE 01 · SOURCE</div>
+            <h3 class="node-title" data-i18n="sig_node1_title">Colección Local y Qobuz Hi-Res</h3>
+            <p class="node-desc" data-i18n="sig_node1_desc">
+              Archivos locales o en red (SMB / NFS) en FLAC, WAV, AIFF, ALAC y DSD (DSF/DFF), junto al catálogo oficial de Qobuz Studio Master hasta 24-bit / 192 kHz.
+            </p>
+            <div class="node-tags">
+              <span>FLAC 24/384</span>
+              <span>DSD64 / DSD128</span>
+              <span>Qobuz 24/192</span>
+            </div>
+          </div>
+
+          <div class="signal-connector" aria-hidden="true">
+            <div class="connector-line"></div>
+            <span class="connector-label">0 dB PCM / DSD</span>
+          </div>
+
+          <!-- Stage 2: Engine -->
+          <div class="signal-node node-active">
+            <div class="node-step">STAGE 02 · ENGINE</div>
+            <h3 class="node-title" data-i18n="sig_node2_title">Motor Bit-Perfect &amp; ReserveDevice1</h3>
+            <p class="node-desc" data-i18n="sig_node2_desc">
+              Negociación limpia con PipeWire / WirePlumber por D-Bus. Sin mezclador de software, sin remuestreo ni dither, y con conmutación automática de frecuencia de muestreo.
+            </p>
+            <div class="node-tags">
+              <span>No Resampling</span>
+              <span>ReserveDevice1</span>
+              <span>Osciloscopio 60 fps</span>
+            </div>
+          </div>
+
+          <div class="signal-connector" aria-hidden="true">
+            <div class="connector-line"></div>
+            <span class="connector-label">HW / Network</span>
+          </div>
+
+          <!-- Stage 3: Output -->
+          <div class="signal-node">
+            <div class="node-step">STAGE 03 · OUTPUT</div>
+            <h3 class="node-title" data-i18n="sig_node3_title">DAC por ALSA Exclusivo o UPnP / DLNA</h3>
+            <p class="node-desc" data-i18n="sig_node3_desc">
+              Salida directa por hardware al DAC con control de volumen analógico/hardware integrado, o envío sin pérdidas por red a cualquier streamer, receptor o amplificador UPnP / DLNA.
+            </p>
+            <div class="node-tags">
+              <span>ALSA hw:</span>
+              <span>Volumen DAC HW</span>
+              <span>UPnP / DLNA</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Why MyFlac / Features Bento Grid Section -->
     <section class="about-section" id="about">
       <div class="container">
         <div class="section-header">
+          <span class="section-eyebrow" data-i18n="about_eyebrow">Ingeniería y Diseño</span>
           <h2 class="section-title" data-i18n="about_title">Por qué MyFlac</h2>
           <p class="section-subtitle" data-i18n="about_subtitle">
             Diseñado pensando en quien ama escuchar música con calma, apreciar cada instrumento y disfrutar de una experiencia visual a la altura de su equipo.
@@ -283,31 +411,41 @@
         </div>
 
         <div class="features-grid" id="features">
-          <!-- Card Qobuz (Novedad destacada) -->
-          <div class="feature-card highlight-qobuz">
-            <div class="card-tag-new" data-i18n="card_tag_new">Novedad v0.2.3</div>
-            <div class="feature-icon" style="background: rgba(53, 132, 228, 0.16); color: var(--blue-3);">
-              <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <circle cx="12" cy="12" r="10"></circle>
-                <polygon points="10 8 16 12 10 16 10 8"></polygon>
-              </svg>
+          <!-- Card Qobuz (Featured Bento Wide) -->
+          <div class="feature-card bento-wide highlight-qobuz">
+            <div class="card-top-row">
+              <div class="feature-icon icon-blue">
+                <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <circle cx="12" cy="12" r="3"></circle>
+                  <path d="M12 2a10 10 0 0 1 10 10"></path>
+                </svg>
+              </div>
+              <div class="card-tag-new" data-i18n="card_tag_new">Destacado · Qobuz Studio Hi-Res</div>
             </div>
             <h3 class="feature-title" data-i18n="feat_qobuz_title">Streaming Oficial Qobuz Hi-Res</h3>
             <p class="feature-desc" data-i18n="feat_qobuz_desc">
-              Accede al catálogo oficial de Qobuz en calidad FLAC hasta 24-bit / 192 kHz directamente desde MyFlac. Explora por géneros, novedades y lanzamientos destacados, gestiona tus álbumes favoritos y reproduce con salida Bit-Perfect en un solo clic.
+              Accede al catálogo oficial de Qobuz en calidad FLAC hasta 24-bit / 192 kHz directamente desde MyFlac. Explora por géneros, novedades y lanzamientos destacados, gestiona tus álbumes, pistas y artistas favoritos, e inicia sesión con un clic para reproducir con salida Bit-Perfect.
             </p>
+            <div class="feature-specs">
+              <span>FLAC 24-bit / 192 kHz</span>
+              <span>Novedades y Géneros</span>
+              <span>Favoritos Sincronizados</span>
+            </div>
           </div>
 
-          <!-- Card UPnP / DLNA (Novedad) -->
-          <div class="feature-card">
-            <div class="card-tag-new" data-i18n="card_tag_new">Novedad v0.2.3</div>
-            <div class="feature-icon" style="background: rgba(51, 209, 122, 0.14); color: var(--green-3);">
-              <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M5 12.55a11 11 0 0 1 14.08 0"></path>
-                <path d="M1.42 9a16 16 0 0 1 21.16 0"></path>
-                <path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path>
-                <line x1="12" y1="20" x2="12.01" y2="20"></line>
-              </svg>
+          <!-- Card UPnP / DLNA -->
+          <div class="feature-card highlight-upnp">
+            <div class="card-top-row">
+              <div class="feature-icon icon-green">
+                <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M5 12.55a11 11 0 0 1 14.08 0"></path>
+                  <path d="M1.42 9a16 16 0 0 1 21.16 0"></path>
+                  <path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path>
+                  <line x1="12" y1="20" x2="12.01" y2="20"></line>
+                </svg>
+              </div>
+              <div class="card-tag-new tag-green" data-i18n="card_tag_upnp">Audio en Red</div>
             </div>
             <h3 class="feature-title" data-i18n="feat_upnp_title">Emisión en Red UPnP / DLNA</h3>
             <p class="feature-desc" data-i18n="feat_upnp_desc">
@@ -315,10 +453,10 @@
             </p>
           </div>
 
-          <!-- Card 1 -->
+          <!-- Card Bit-Perfect -->
           <div class="feature-card">
-            <div class="feature-icon" style="background: rgba(53, 132, 228, 0.12); color: var(--blue-3);">
-              <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <div class="feature-icon icon-amber">
+              <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
               </svg>
             </div>
@@ -328,10 +466,10 @@
             </p>
           </div>
 
-          <!-- Card 2 -->
+          <!-- Card Lyrics -->
           <div class="feature-card">
-            <div class="feature-icon" style="background: rgba(255, 120, 0, 0.12); color: var(--orange-3);">
-              <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <div class="feature-icon icon-orange">
+              <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path>
                 <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
                 <line x1="12" y1="19" x2="12" y2="22"></line>
@@ -343,25 +481,10 @@
             </p>
           </div>
 
-          <!-- Card 3 -->
+          <!-- Card Info Wikipedia & Discogs -->
           <div class="feature-card">
-            <div class="feature-icon" style="background: rgba(145, 65, 172, 0.12); color: var(--purple-3);">
-              <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-                <circle cx="8.5" cy="8.5" r="1.5"></circle>
-                <polyline points="21 15 16 10 5 21"></polyline>
-              </svg>
-            </div>
-            <h3 class="feature-title" data-i18n="feat_backdrop_title">Temas Claros y Oscuros a tu Gusto</h3>
-            <p class="feature-desc" data-i18n="feat_backdrop_desc">
-              Diez tonos para leer sin fatiga: Papel cálido y Obsidiana por defecto, más Pizarra, Grafito, Salvia, Medianoche, Espresso u OLED. Y, si quieres, la foto del artista desenfocada detrás de tu biblioteca.
-            </p>
-          </div>
-
-          <!-- Card 4 -->
-          <div class="feature-card">
-            <div class="feature-icon" style="background: rgba(51, 209, 122, 0.12); color: var(--green-3);">
-              <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <div class="feature-icon icon-green">
+              <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z"></path>
                 <path d="M6 6h10"></path>
                 <path d="M6 10h10"></path>
@@ -373,10 +496,25 @@
             </p>
           </div>
 
-          <!-- Card 5 -->
+          <!-- Card Themes -->
           <div class="feature-card">
-            <div class="feature-icon" style="background: rgba(53, 132, 228, 0.12); color: var(--blue-3);">
-              <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <div class="feature-icon icon-purple">
+              <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                <polyline points="21 15 16 10 5 21"></polyline>
+              </svg>
+            </div>
+            <h3 class="feature-title" data-i18n="feat_backdrop_title">Temas Claros y Oscuros a tu Gusto</h3>
+            <p class="feature-desc" data-i18n="feat_backdrop_desc">
+              Diez tonos para leer sin fatiga: Papel cálido y Obsidiana por defecto, más Pizarra, Grafito, Salvia, Medianoche, Espresso u OLED. Y, si quieres, la foto del artista desenfocada detrás de tu biblioteca.
+            </p>
+          </div>
+
+          <!-- Card Three Views -->
+          <div class="feature-card">
+            <div class="feature-icon icon-blue">
+              <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
                 <line x1="8" y1="21" x2="16" y2="21"></line>
                 <line x1="12" y1="17" x2="12" y2="21"></line>
@@ -388,10 +526,10 @@
             </p>
           </div>
 
-          <!-- Card 6 -->
+          <!-- Card Tray -->
           <div class="feature-card">
-            <div class="feature-icon" style="background: rgba(224, 27, 36, 0.12); color: var(--red-3);">
-              <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <div class="feature-icon icon-red">
+              <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <circle cx="12" cy="12" r="10"></circle>
                 <polygon points="10 8 16 12 10 16 10 8"></polygon>
               </svg>
@@ -405,11 +543,11 @@
       </div>
     </section>
 
-
     <!-- Formatos de Audio -->
     <section class="formats-section" id="formats">
       <div class="container">
         <div class="section-header">
+          <span class="section-eyebrow" data-i18n="formats_eyebrow">Estándares de Estudio</span>
           <h2 class="section-title" data-i18n="formats_title">Soporte Multiformato</h2>
           <p class="section-subtitle" data-i18n="formats_subtitle">
             Reproduce con total soltura los formatos de audio más populares y los estándares Hi-Res más exigentes.
@@ -418,7 +556,7 @@
 
         <div class="formats-pills">
           <span class="format-pill qobuz-pill"><strong>Qobuz Hi-Res</strong> <span data-i18n="fmt_qobuz">(FLAC streaming hasta 24/192)</span></span>
-          <span class="format-pill"><strong>UPnP / DLNA</strong> <span data-i18n="fmt_upnp">(receptores y streamers de red)</span></span>
+          <span class="format-pill upnp-pill"><strong>UPnP / DLNA</strong> <span data-i18n="fmt_upnp">(receptores y streamers de red)</span></span>
           <span class="format-pill"><strong>FLAC</strong> <span data-i18n="fmt_flac">(hasta 24-bit / 384 kHz)</span></span>
           <span class="format-pill"><strong>WAV</strong> &amp; <strong>AIFF</strong> <span data-i18n="fmt_wav">(PCM sin compresión)</span></span>
           <span class="format-pill"><strong>DSD</strong> <span data-i18n="fmt_dsd">(DSF / DFF — nativo en DAC compatibles)</span></span>
@@ -435,6 +573,7 @@
     <section class="download-section" id="download">
       <div class="container">
         <div class="section-header">
+          <span class="section-eyebrow">RELEASE v0.2.4</span>
           <h2 class="section-title" data-i18n="dl_title">Descarga e Instalación</h2>
           <p class="section-subtitle" data-i18n="dl_subtitle">
             Elige el paquete adecuado para tu distribución GNU/Linux.
@@ -460,7 +599,7 @@
             <a href="myflac.flatpakref" type="application/vnd.flatpak.ref" class="btn btn-primary btn-block" data-i18n="dl_flatpak_install">
               Instalar con actualizaciones automáticas
             </a>
-            <a href="https://github.com/maestebanc/MyFlac/releases/download/v0.2.3/myflac-0.2.3.flatpak" class="dl-alt-link" data-i18n="dl_flatpak_bundle">
+            <a href="https://github.com/maestebanc/MyFlac/releases/download/v0.2.4/myflac-0.2.4.flatpak" class="dl-alt-link" data-i18n="dl_flatpak_bundle">
               o descarga el paquete .flatpak (6.7 MB)
             </a>
           </div>
@@ -476,11 +615,11 @@
             </div>
             <p class="dl-desc" data-i18n="dl_rpm_desc">Integración completa con el sistema para Fedora 40/41/42+ y distribuciones RPM.</p>
             <div class="code-box">
-              <code>sudo dnf install ./myflac-0.2.3-1.noarch.rpm</code>
-              <button class="code-copy-btn" data-copy="sudo dnf install ./myflac-0.2.3-1.noarch.rpm" title="Copiar comando" data-i18n="copy_btn">Copiar</button>
+              <code>sudo dnf install ./myflac-0.2.4-1.noarch.rpm</code>
+              <button class="code-copy-btn" data-copy="sudo dnf install ./myflac-0.2.4-1.noarch.rpm" title="Copiar comando" data-i18n="copy_btn">Copiar</button>
             </div>
-            <a href="https://github.com/maestebanc/MyFlac/releases/download/v0.2.3/myflac-0.2.3-1.noarch.rpm" class="btn btn-secondary btn-block" data-i18n="dl_rpm_btn">
-              Descargar .rpm (714 KB)
+            <a href="https://github.com/maestebanc/MyFlac/releases/download/v0.2.4/myflac-0.2.4-1.noarch.rpm" class="btn btn-secondary btn-block" data-i18n="dl_rpm_btn">
+              Descargar .rpm (726 KB)
             </a>
           </div>
 
@@ -495,11 +634,11 @@
             </div>
             <p class="dl-desc" data-i18n="dl_deb_desc">Paquete deb estándar con resolución de dependencias mediante apt.</p>
             <div class="code-box">
-              <code>sudo apt install ./myflac_0.2.3-1_all.deb</code>
-              <button class="code-copy-btn" data-copy="sudo apt install ./myflac_0.2.3-1_all.deb" title="Copiar comando" data-i18n="copy_btn">Copiar</button>
+              <code>sudo apt install ./myflac_0.2.4-1_all.deb</code>
+              <button class="code-copy-btn" data-copy="sudo apt install ./myflac_0.2.4-1_all.deb" title="Copiar comando" data-i18n="copy_btn">Copiar</button>
             </div>
-            <a href="https://github.com/maestebanc/MyFlac/releases/download/v0.2.3/myflac_0.2.3-1_all.deb" class="btn btn-secondary btn-block" data-i18n="dl_deb_btn">
-              Descargar .deb (281 KB)
+            <a href="https://github.com/maestebanc/MyFlac/releases/download/v0.2.4/myflac_0.2.4-1_all.deb" class="btn btn-secondary btn-block" data-i18n="dl_deb_btn">
+              Descargar .deb (284 KB)
             </a>
           </div>
 
@@ -514,11 +653,11 @@
             </div>
             <p class="dl-desc" data-i18n="dl_arch_desc">Paquete binario optimizado con compresión zstandard para pacman.</p>
             <div class="code-box">
-              <code>sudo pacman -U myflac-0.2.3-1-any.pkg.tar.zst</code>
-              <button class="code-copy-btn" data-copy="sudo pacman -U myflac-0.2.3-1-any.pkg.tar.zst" title="Copiar comando" data-i18n="copy_btn">Copiar</button>
+              <code>sudo pacman -U myflac-0.2.4-1-any.pkg.tar.zst</code>
+              <button class="code-copy-btn" data-copy="sudo pacman -U myflac-0.2.4-1-any.pkg.tar.zst" title="Copiar comando" data-i18n="copy_btn">Copiar</button>
             </div>
-            <a href="https://github.com/maestebanc/MyFlac/releases/download/v0.2.3/myflac-0.2.3-1-any.pkg.tar.zst" class="btn btn-secondary btn-block" data-i18n="dl_arch_btn">
-              Descargar .pkg.tar.zst (335 KB)
+            <a href="https://github.com/maestebanc/MyFlac/releases/download/v0.2.4/myflac-0.2.4-1-any.pkg.tar.zst" class="btn btn-secondary btn-block" data-i18n="dl_arch_btn">
+              Descargar .pkg.tar.zst (339 KB)
             </a>
           </div>
         </div>
@@ -532,7 +671,7 @@
           <div class="suite-badge" data-i18n="suite_badge">La Suite MyFlac &amp; MyTag</div>
           <h2 class="suite-title" data-i18n="suite_title">Dos aplicaciones creadas a medida para convivir</h2>
           <p class="suite-desc" data-i18n="suite_desc">
-            Ningún reproductor de Linux se adaptaba a lo que realmente quería para mi colección musical, algo muy parecido a lo que me motivó a crear <strong>MyTag</strong>. Por eso nacieron ambas herramientas: con <strong>MyTag</strong> organizas, limpias y descargas carátulas para tus archivos, y con <strong>MyFlac</strong> los disfrutas en máxima calidad con sonido bit-perfect y una interfaz hecha con mimo.
+            Ningún reproductor de Linux se adaptaba a lo que realmente quería para mi colección musical, algo muy parecido a lo que me motivó a crear MyTag. Por eso nacieron ambas herramientas: con MyTag organizas, limpias y descargas carátulas para tus archivos, y con MyFlac los disfrutas en máxima calidad con sonido bit-perfect y una interfaz hecha con mimo.
           </p>
           <a href="https://maestebanc.github.io/MyTag/" target="_blank" rel="noopener noreferrer" class="btn btn-suite" data-i18n="suite_btn">
             Conocer MyTag — Editor de Etiquetas ↗
@@ -555,10 +694,15 @@
   <!-- Footer -->
   <footer class="site-footer">
     <div class="container footer-content">
-      <div class="footer-brand">
-        <img src="assets/icon.svg" alt="MyFlac" width="28" height="28">
-        <span>MyFlac</span>
-        <span class="footer-tagline" data-i18n="footer_tagline">— Creado con pasión por Miguel Ángel Esteban</span>
+      <div class="footer-left">
+        <div class="footer-brand">
+          <img src="assets/icon.svg" alt="MyFlac" width="28" height="28">
+          <span>MyFlac</span>
+          <span class="footer-tagline" data-i18n="footer_tagline">— Idea, diseño y dirección de Miguel Ángel Esteban</span>
+        </div>
+        <p class="footer-ai-note" data-i18n="footer_ai_note">
+          Código generado íntegramente con IA mediante Antigravity (Google DeepMind).
+        </p>
       </div>
       <div class="footer-links">
         <a href="https://ko-fi.com/marianitu" target="_blank" rel="noopener noreferrer" class="kofi-footer-link" data-i18n="footer_kofi">☕ ¡Dame argo! (Ko-fi)</a>

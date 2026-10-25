@@ -230,8 +230,6 @@ class HiResCoverService:
             except Exception as e:
                 ok = False
                 log.debug("Deezer no respondió para %s — %s: %s", artist, query_album, e)
-            if found:
-                break
         # Sin duplicados, y primero iTunes (ofrece más resolución)
         unique = list(dict.fromkeys(found))
         unique.sort(key=lambda c: c[0] != "itunes")

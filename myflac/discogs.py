@@ -36,7 +36,7 @@ def normalize(text: str) -> str:
     text = "".join(c for c in decomposed if not unicodedata.combining(c)).lower()
     text = re.sub(r"\s*\(\d+\)$", "", text.strip())  # Discogs distingue homónimos con "(2)"
     text = re.sub(r"^the\s+", "", text)
-    return re.sub(r"[^a-z0-9]", "", text)
+    return "".join(c for c in text if c.isalnum())
 
 
 def discogs_to_markup(text: str) -> str:
@@ -82,6 +82,8 @@ def _get(path: str, params: dict | None = None) -> dict:
 def find_master(artist: str, album: str) -> dict | None:
     """Disco (master) de Discogs con su edición principal: {'master': ..., 'release': ...}."""
     wanted_artist, wanted_album = normalize(artist), normalize(album)
+    if not wanted_artist or not wanted_album:
+        return None
     for kind in ("master", "release"):
         results = _get("/database/search", {"artist": artist, "release_title": album, "type": kind, "per_page": 10})
         for result in results.get("results", []):
@@ -101,6 +103,8 @@ def find_master(artist: str, album: str) -> dict | None:
 def find_artist(name: str) -> dict | None:
     """Ficha de artista de Discogs cuyo nombre coincide exactamente."""
     wanted = normalize(name)
+    if not wanted:
+        return None
     results = _get("/database/search", {"q": name, "type": "artist", "per_page": 10})
     for result in results.get("results", []):
         if normalize(result.get("title", "")) == wanted:
@@ -108,11 +112,18 @@ def find_artist(name: str) -> dict | None:
     return None
 
 
+def _strip_trailing_parens(title: str) -> str:
+    cleaned = re.sub(r"\s+[\(\[][^\)\]]*[\)\]]\s*$", "", title or "").strip()
+    return cleaned or (title or "").strip()
+
+
 def track_credits(release: dict, title: str) -> tuple[dict | None, list[tuple[str, str]]]:
     """(pista de la edición, [(rol, nombres)]) para el tema: créditos propios y los del disco que lo incluyen."""
-    wanted = normalize(re.sub(r"\s*[\(\[].*$", "", title))
+    wanted = normalize(_strip_trailing_parens(title))
+    if not wanted:
+        return None, []
     track = next((t for t in release.get("tracklist", [])
-                  if t.get("type_", "track") == "track" and normalize(re.sub(r"\s*[\(\[].*$", "", t.get("title", ""))) == wanted),
+                  if t.get("type_", "track") == "track" and normalize(_strip_trailing_parens(t.get("title", ""))) == wanted),
                  None)
     if track is None:
         return None, []
@@ -140,9 +151,13 @@ def _credit_applies(tracks: str, position: str) -> bool:
 
 
 def _position_key(position: str) -> tuple:
-    match = re.match(r"([A-Za-z]*)[\-\.]?(\d*)", position.strip())
+    pos = position.strip()
+    m_disc = re.match(r"^(\d+)[\-\.](\d+)$", pos)
+    if m_disc:
+        return ("", int(m_disc.group(1)), int(m_disc.group(2)))
+    match = re.match(r"^([A-Za-z]*)[\-\.]?(\d*)", pos)
     side, number = (match.group(1), match.group(2)) if match else ("", "")
-    return (side.upper(), int(number) if number else 0)
+    return (side.upper(), 0, int(number) if number else 0)
 
 
 def group_credits(credits: list[dict]) -> list[tuple[str, str]]:

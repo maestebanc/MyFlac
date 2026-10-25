@@ -92,7 +92,9 @@ class MiniPlayerWindow(SuperPlayerMixin, Adw.Window):
         self.connect("notify::fullscreened", self._on_fullscreen_changed)
 
         self._build_ui()
-        i18n.add_language_listener(lambda *_: self._refresh_super_i18n())
+        self._seek_reset_id: int | None = None
+        self._lang_listener = lambda *_: self._refresh_super_i18n()
+        i18n.add_language_listener(self._lang_listener)
         self._connect_engine()
         self._setup_controllers()
         self.set_visualizer_mode(self._oscilloscope_mode, save=False)
@@ -290,7 +292,7 @@ class MiniPlayerWindow(SuperPlayerMixin, Adw.Window):
         self.mini_repeat_btn.add_css_class("flat")
         self.mini_repeat_btn.add_css_class("mini-player-aux-btn")
         self.mini_repeat_btn.set_tooltip_text(i18n.t("player.repeat"))
-        self.mini_repeat_btn.connect("clicked", lambda *_: self.main_window._toggle_repeat())
+        self.mini_repeat_btn.connect("clicked", lambda *_: self.main_window._cycle_repeat_mode())
         transport_box.append(self.mini_repeat_btn)
 
         controls_card.append(transport_box)
@@ -576,7 +578,8 @@ class MiniPlayerWindow(SuperPlayerMixin, Adw.Window):
             self.super_dur_label.set_text(dur_str)
 
     def _on_output_changed(self):
-        """Mantiene sincronizado el estado del dispositivo y la insignia en el super-reproductor."""
+        """Mantiene sincronizado el estado del dispositivo, volumen y la insignia en el super-reproductor."""
+        self._update_super_volume_state()
         if not hasattr(self, "super_badge_label"):
             return
         track = self.engine.current_track
@@ -729,10 +732,13 @@ class MiniPlayerWindow(SuperPlayerMixin, Adw.Window):
         self.super_pos_label.set_text(pos_str)
         self.mini_dur_label.set_text(dur_str)
         self.super_dur_label.set_text(dur_str)
-        GLib.timeout_add(300, self._finish_seeking)
+        if self._seek_reset_id is not None:
+            GLib.source_remove(self._seek_reset_id)
+        self._seek_reset_id = GLib.timeout_add(300, self._finish_seeking)
         return False
 
     def _finish_seeking(self) -> bool:
+        self._seek_reset_id = None
         self._is_seeking = False
         return False
 
@@ -768,6 +774,14 @@ class MiniPlayerWindow(SuperPlayerMixin, Adw.Window):
         if self._hud_timeout_id is not None:
             GLib.source_remove(self._hud_timeout_id)
             self._hud_timeout_id = None
+        if self._seek_reset_id is not None:
+            GLib.source_remove(self._seek_reset_id)
+            self._seek_reset_id = None
+        if hasattr(self, "_lang_listener") and self._lang_listener:
+            i18n.remove_language_listener(self._lang_listener)
+        disp = Gdk.Display.get_default()
+        if disp and hasattr(self, "_ambient_css_provider"):
+            Gtk.StyleContext.remove_provider_for_display(disp, self._ambient_css_provider)
         self.mini_scope.set_active(False)
         self.super_scope.set_active(False)
         try:

@@ -168,27 +168,31 @@ class LyricsService:
 
         # 4. Consulta asíncrona en hilo secundario
         def _worker():
-            lyrics, status, synced_raw = self._fetch_online(track)
+            lyrics, status, synced_raw = None, "error", None
+            try:
+                lyrics, status, synced_raw = self._fetch_online(track)
 
-            # Guardar en caché (un fallo de red no se guarda, para reintentarlo la próxima vez)
-            if status != "error":
-                self._write_cache(
-                    cache_key,
-                    {
-                        "version": CACHE_VERSION,
-                        "artist": track.artist,
-                        "title": track.title,
-                        "lyrics": lyrics,
-                        "synced": synced_raw,
-                        "instrumental": (status == "instrumental"),
-                        "status": status,
-                    },
+                # Guardar en caché (un fallo de red no se guarda, para reintentarlo la próxima vez)
+                if status != "error":
+                    self._write_cache(
+                        cache_key,
+                        {
+                            "version": CACHE_VERSION,
+                            "artist": track.artist,
+                            "title": track.title,
+                            "lyrics": lyrics,
+                            "synced": synced_raw,
+                            "instrumental": (status == "instrumental"),
+                            "status": status,
+                        },
+                    )
+            except Exception as e:
+                log.exception("Error inesperado obteniendo letra para %s: %s", cache_key, e)
+            finally:
+                # Notificar al hilo de interfaz de usuario
+                GLib.idle_add(
+                    self._deliver, cache_key, lyrics, "not_found" if status == "error" else status, parse_lrc(synced_raw)
                 )
-
-            # Notificar al hilo de interfaz de usuario
-            GLib.idle_add(
-                self._deliver, cache_key, lyrics, "not_found" if status == "error" else status, parse_lrc(synced_raw)
-            )
 
         threading.Thread(target=_worker, name=f"lyrics-{cache_key[:8]}", daemon=True).start()
         return False
@@ -219,9 +223,11 @@ class LyricsService:
 
     def _write_cache(self, cache_key: str, data: dict):
         path = os.path.join(self._cache_dir, f"{cache_key}.json")
+        tmp = f"{path}.tmp.{threading.get_ident()}"
         try:
-            with open(path, "w", encoding="utf-8") as f:
+            with open(tmp, "w", encoding="utf-8") as f:
                 json.dump(data, f, ensure_ascii=False, indent=2)
+            os.replace(tmp, path)
         except Exception as e:
             log.warning("Error escribiendo caché de letra %s: %s", cache_key, e)
 
@@ -238,13 +244,22 @@ class LyricsService:
             # ID3 (MP3)
             if hasattr(mf, "tags") and mf.tags:
                 for k in mf.tags.keys():
-                    if k.startswith("USLT") or k.startswith("SYLT"):
+                    if k.startswith("USLT"):
                         frame = mf.tags[k]
                         if hasattr(frame, "text") and frame.text:
-                            return str(frame.text).strip()
+                            text = frame.text[0] if isinstance(frame.text, list) else frame.text
+                            if str(text).strip():
+                                return str(text).strip()
+                    elif k.startswith("SYLT"):
+                        frame = mf.tags[k]
+                        if hasattr(frame, "text") and isinstance(frame.text, list) and frame.text:
+                            lines = [str(item[0]).strip() for item in frame.text if isinstance(item, tuple) and item]
+                            joined = "\n".join(line for line in lines if line)
+                            if joined:
+                                return joined
 
-            # Vorbis / FLAC / OGG / OPUS
-            for key in ("lyrics", "unsyncedlyrics", "unsynced_lyrics", "lyric"):
+            # Vorbis / FLAC / OGG / OPUS / MP4 (©lyr)
+            for key in ("lyrics", "unsyncedlyrics", "unsynced_lyrics", "lyric", "\xa9lyr"):
                 val = mf.get(key)
                 if val and len(val) > 0:
                     return str(val[0]).strip()
@@ -352,9 +367,11 @@ class LyricsService:
         return None
 
     def _strip_lrc_timestamps(self, synced_text: str) -> str:
-        """Elimina las marcas de tiempo [mm:ss.xx] para producir texto plano legible."""
+        """Elimina las marcas de tiempo [mm:ss.xx] y metadatos LRC para producir texto plano legible."""
         lines = []
         for line in synced_text.splitlines():
-            cleaned = re.sub(r"\[\d+:\d+(?:\.\d+)?\]", "", line).strip()
+            if re.match(r"^\s*\[(?:ar|ti|al|by|offset|length|re|ve):", line, flags=re.I):
+                continue
+            cleaned = re.sub(r"\[\d+:\d+(?:[.:]\d+)?\]", "", line).strip()
             lines.append(cleaned)
         return "\n".join(lines).strip()

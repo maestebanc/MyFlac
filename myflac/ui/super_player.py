@@ -260,7 +260,7 @@ class SuperPlayerMixin:
         self.super_repeat_btn.add_css_class("flat")
         self.super_repeat_btn.add_css_class("mini-player-aux-btn")
         self.super_repeat_btn.set_tooltip_text(i18n.t("player.repeat"))
-        self.super_repeat_btn.connect("clicked", lambda *_: self.main_window._toggle_repeat())
+        self.super_repeat_btn.connect("clicked", lambda *_: self.main_window._cycle_repeat_mode())
         super_transport.append(self.super_repeat_btn)
 
         # Separador y control de volumen integrado
@@ -451,6 +451,7 @@ class SuperPlayerMixin:
         self.super_info_tabs.connect("notify::active-name", self._on_super_tab_changed)
 
         super_container.append(right_box)
+        self._update_super_volume_state()
         return super_root_overlay
 
     def _on_super_restore_clicked(self):
@@ -479,8 +480,10 @@ class SuperPlayerMixin:
             restore_val = getattr(self, "_prev_vol", 0.8)
             self.super_vol_scale.set_value(restore_val)
 
-    def _on_output_changed(self):
+    def _update_super_volume_state(self):
         """En exclusivo el volumen solo se ajusta si el DAC tiene control por hardware."""
+        if not hasattr(self, "super_vol_btn") or not hasattr(self, "super_vol_scale"):
+            return
         adjustable = self.engine.volume_adjustable
         self.super_vol_btn.set_sensitive(adjustable)
         self.super_vol_scale.set_sensitive(adjustable)
@@ -637,6 +640,8 @@ class SuperPlayerMixin:
             cfg = load_config()
             cfg["inspector_tab"] = name
             save_config(cfg)
+            if hasattr(self, "main_window") and hasattr(self.main_window, "cfg"):
+                self.main_window.cfg["inspector_tab"] = name
         except Exception:
             pass
         if name in KINDS:

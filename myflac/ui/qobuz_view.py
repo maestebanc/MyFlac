@@ -916,6 +916,7 @@ class QobuzView(Gtk.Box):
         Cabecera del artista y su discografía separada como en Qobuz: Álbumes, EPs y singles,
         Directos y Recopilatorios. Al pulsar un disco se abre, con un botón para volver.
         """
+        self.selected_album = None
         self._detail_token += 1
         token = self._detail_token
         self._clear_detail()
@@ -1188,6 +1189,7 @@ class QobuzView(Gtk.Box):
     def _render_album_detail(self, album: QobuzAlbum | None, back=None):
         """Detalle de un álbum o lista. `back` = (nombre, función) añade un botón para volver."""
         self._detail_token += 1
+        token = self._detail_token
         self._clear_detail()
 
         if album and back:
@@ -1324,10 +1326,10 @@ class QobuzView(Gtk.Box):
                 if full_alb and full_alb.tracks:
                     album.tracks = full_alb.tracks
                     album.booklets = full_alb.booklets
-                    GLib.idle_add(lambda: (self.selected_album is album and self._render_album_detail(album, back), False)[-1])
+                    GLib.idle_add(lambda: (token == self._detail_token and self.selected_album is album and self._render_album_detail(album, back), False)[-1])
                 else:
                     msg = self.client.last_error or self._t("qobuz.no_tracks")
-                    GLib.idle_add(lambda: (loading_lbl.set_label(msg), sp.stop(), sp.set_visible(False), False)[-1])
+                    GLib.idle_add(lambda: (token == self._detail_token and (loading_lbl.set_label(msg), sp.stop(), sp.set_visible(False)), False)[-1])
 
             threading.Thread(target=track_worker, daemon=True).start()
             return

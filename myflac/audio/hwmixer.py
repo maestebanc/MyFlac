@@ -167,13 +167,20 @@ class HardwareMixer:
                 self._elem, int(round(self._min + volume * (self._max - self._min))))
 
     def _get_raw(self) -> int:
+        lib = _alsa()
+        lib.snd_mixer_handle_events(self._handle)
         value = ctypes.c_long()
-        _alsa().snd_mixer_selem_get_playback_volume(self._elem, _SND_MIXER_SCHN_FRONT_LEFT, ctypes.byref(value))
+        lib.snd_mixer_selem_get_playback_volume(self._elem, _SND_MIXER_SCHN_FRONT_LEFT, ctypes.byref(value))
         return value.value
+
+    def capture_initial(self):
+        """Actualiza el volumen de referencia de PipeWire antes de tomar control exclusivo."""
+        if self._handle and not self._modified:
+            self._initial_raw = self._get_raw()
 
     def restore_initial(self):
         """Deja el control como estaba antes de que MyFlac lo tocara."""
-        if self._modified:
+        if self._modified and self._handle:
             _alsa().snd_mixer_selem_set_playback_volume_all(self._elem, self._initial_raw)
             self._modified = False
 

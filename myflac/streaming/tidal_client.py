@@ -204,26 +204,29 @@ class TidalClient:
             log.warning("No se pudo leer la configuración de TIDAL: %s", e)
 
     def _save_config(self) -> None:
-        data = {
-            "client_id": self.client_id,
-            "client_secret": self.client_secret,
-            "redirect_uri": self.redirect_uri,
-            "access_token": self._tokens.access_token,
-            "refresh_token": self._tokens.refresh_token,
-            "expires_at": self._tokens.expires_at,
-            "user_id": self.user_id,
-            "user_email": self.user_email,
-            "user_display_name": self.user_display_name,
-            "country": self.country,
-        }
-        try:
-            self.config_path.parent.mkdir(parents=True, exist_ok=True)
-            fd = os.open(self.config_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-            with os.fdopen(fd, "w", encoding="utf-8") as f:
-                json.dump(data, f, indent=2)
-            os.chmod(self.config_path, 0o600)
-        except OSError as e:
-            log.error("Error al guardar configuración de TIDAL: %s", e)
+        with self._lock:
+            data = {
+                "client_id": self.client_id,
+                "client_secret": self.client_secret,
+                "redirect_uri": self.redirect_uri,
+                "access_token": self._tokens.access_token,
+                "refresh_token": self._tokens.refresh_token,
+                "expires_at": self._tokens.expires_at,
+                "user_id": self.user_id,
+                "user_email": self.user_email,
+                "user_display_name": self.user_display_name,
+                "country": self.country,
+            }
+            try:
+                self.config_path.parent.mkdir(parents=True, exist_ok=True)
+                tmp_path = self.config_path.with_suffix(f".tmp.{threading.get_ident()}")
+                fd = os.open(tmp_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+                with os.fdopen(fd, "w", encoding="utf-8") as f:
+                    json.dump(data, f, indent=2)
+                os.replace(tmp_path, self.config_path)
+                os.chmod(self.config_path, 0o600)
+            except OSError as e:
+                log.error("Error al guardar configuración de TIDAL: %s", e)
 
     def set_app_credentials(self, client_id: str, client_secret: str = "", redirect_uri: str = "") -> None:
         self.client_id, self.client_secret = client_id.strip() or DEFAULT_CLIENT_ID, client_secret.strip()
@@ -361,10 +364,12 @@ class TidalClient:
         log.info("Sesión de TIDAL iniciada: %s (%s)", self.user_display_name, self.country)
 
     def logout(self) -> None:
-        self._tokens = _Tokens()
-        self.user_id = self.user_email = self.user_display_name = ""
-        self._fav_ids = None
-        self._save_config()
+        with self._lock:
+            self._tokens = _Tokens()
+            self.user_id = self.user_email = self.user_display_name = ""
+            self._fav_ids = None
+            self._cache.clear()
+            self._save_config()
         log.info("Sesión de TIDAL cerrada.")
 
     # -- HTTP -----------------------------------------------------------------
@@ -378,13 +383,15 @@ class TidalClient:
         if params:
             clean = {k: v for k, v in params.items() if v not in (None, "", [])}
             url += ("&" if "?" in url else "?") + urllib.parse.urlencode(clean, doseq=True)
-        headers = {"Authorization": f"Bearer {self._access_token()}", "User-Agent": USER_AGENT,
-                   "Accept": "application/vnd.api+json"}
         data = None
         if body is not None:
             data = json.dumps(body).encode()
-            headers["Content-Type"] = "application/vnd.api+json"
+        refreshed_after_401 = False
         for attempt in range(_RATE_LIMIT_RETRIES + 1):
+            headers = {"Authorization": f"Bearer {self._access_token()}", "User-Agent": USER_AGENT,
+                       "Accept": "application/vnd.api+json"}
+            if data is not None:
+                headers["Content-Type"] = "application/vnd.api+json"
             self._throttle()
             req = urllib.request.Request(url, data=data, headers=headers, method=method)
             try:
@@ -392,6 +399,11 @@ class TidalClient:
                     raw = resp.read()
                     return resp.status, json.loads(raw) if raw else {}
             except urllib.error.HTTPError as e:
+                if e.code == 401 and not refreshed_after_401 and self._tokens.refresh_token:
+                    refreshed_after_401 = True
+                    with self._lock:
+                        self._tokens.expires_at = 0.0
+                    continue
                 if e.code == 429 and attempt < _RATE_LIMIT_RETRIES:
                     # Límite de peticiones de TIDAL: se espera lo que indique y se reintenta
                     wait = _retry_after(e.headers.get("Retry-After"), attempt)
@@ -456,22 +468,25 @@ class TidalClient:
 
     def _hydrate(self, kind: str, ids: list[str], include: list[str]) -> Document:
         """Detalles de muchos recursos a la vez (por lotes, con caché) en un solo Document."""
+        inc_key = tuple(sorted(include))
         merged = Document({})
         missing = []
-        for i in dict.fromkeys(ids):
-            cached = self._cache.get((kind, i))
-            if cached:
-                merged.data.append(cached[0])
-                merged.included.update(cached[1].included)
-            else:
-                missing.append(i)
+        with self._lock:
+            for i in dict.fromkeys(ids):
+                cached = self._cache.get((kind, i, inc_key))
+                if cached:
+                    merged.data.append(cached[0])
+                    merged.included.update(cached[1].included)
+                else:
+                    missing.append(i)
         for i in range(0, len(missing), _BATCH):
             doc = self._get(kind, {"filter[id]": missing[i:i + _BATCH], "include": include,
                                    "countryCode": self.country})
             merged.data += doc.data
             merged.included.update(doc.included)
-            for res in doc.data:
-                self._cache[(kind, str(res.get("id")))] = (res, doc)
+            with self._lock:
+                for res in doc.data:
+                    self._cache[(kind, str(res.get("id")), inc_key)] = (res, doc)
         return merged
 
     # -- conversión a modelos ---------------------------------------------------
