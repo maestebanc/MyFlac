@@ -18,6 +18,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from gi.repository import GLib
+
 from .. import i18n
 from ..audio.track import AudioTrack
 from ..logger import get_logger
@@ -25,7 +27,7 @@ from ..logger import get_logger
 log = get_logger("streaming.qobuz")
 
 API_BASE_URL = "https://www.qobuz.com/api.json/0.2"
-CONFIG_PATH = Path.home() / ".config" / "myflac" / "qobuz.json"
+CONFIG_PATH = Path(GLib.get_user_config_dir()) / "myflac" / "qobuz.json"
 USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64; rv:130.0) Gecko/20100101 Firefox/130.0"
 
 # Formatos de Qobuz: 5 = MP3 320, 6 = FLAC 16/44.1, 7 = FLAC 24 bit hasta 96 kHz,

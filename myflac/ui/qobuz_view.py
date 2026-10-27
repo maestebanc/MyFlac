@@ -19,8 +19,8 @@ from .. import i18n
 
 log = get_logger("ui.qobuz_view")
 
-COVER_CACHE_DIR = Path.home() / ".cache" / "myflac" / "qobuz_covers"
-BOOKLET_CACHE_DIR = Path.home() / ".cache" / "myflac" / "booklets"
+COVER_CACHE_DIR = Path(GLib.get_user_cache_dir()) / "myflac" / "qobuz_covers"
+BOOKLET_CACHE_DIR = Path(GLib.get_user_cache_dir()) / "myflac" / "booklets"
 FALLBACK_ART_PATH = Path(__file__).resolve().parent.parent / "resources" / "placeholder-aesthetic.png"
 
 
@@ -147,9 +147,11 @@ class QobuzView(Gtk.Box):
         self._detail_token = 0  # Descarta cargas de detalle que llegan tarde
         self._artist_cache: dict[int, dict[str, list[QobuzAlbum]]] = {}  # Discografía ya cargada
         self.current_albums: list[QobuzAlbum] = []
-        self.selected_album: QobuzAlbum | None = None
-
-        COVER_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        try:
+            COVER_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+            BOOKLET_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        except OSError as e:
+            log.warning("No se pudo crear la caché de carátulas/folletos en %s: %s", COVER_CACHE_DIR, e)
 
         self._build_ui()
         self._update_genre_visibility()
@@ -1721,11 +1723,12 @@ class QobuzView(Gtk.Box):
                 req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
                 with urllib.request.urlopen(req, timeout=6) as resp:
                     data = resp.read()
+                COVER_CACHE_DIR.mkdir(parents=True, exist_ok=True)
                 with open(cache_path, "wb") as f:
                     f.write(data)
                 GLib.idle_add(lambda: self._set_texture(picture, cache_path))
             except Exception as e:
-                log.debug("No se pudo descargar portada de Qobuz %s: %s", url, e)
+                log.debug("No se pudo descargar o guardar portada de Qobuz %s: %s", url, e)
 
         threading.Thread(target=worker, daemon=True).start()
 

@@ -27,6 +27,8 @@ from pathlib import Path
 from typing import Any, Callable
 
 from .. import i18n
+from gi.repository import GLib
+
 from ..audio.track import AudioTrack
 from ..logger import get_logger
 from .qobuz_client import QobuzAlbum, QobuzArtist, QobuzError, QobuzGenre, QobuzTrack, StreamInfo
@@ -36,7 +38,7 @@ log = get_logger("streaming.tidal")
 API_BASE_URL = "https://openapi.tidal.com/v2"
 AUTHORIZE_URL = "https://login.tidal.com/authorize"
 TOKEN_URL = "https://auth.tidal.com/v1/oauth2/token"
-CONFIG_PATH = Path.home() / ".config" / "myflac" / "tidal.json"
+CONFIG_PATH = Path(GLib.get_user_config_dir()) / "myflac" / "tidal.json"
 DEFAULT_REDIRECT_URI = "http://localhost:8723/callback"
 # App «MyFlac» en developer.tidal.com (cliente público con PKCE: el Client ID no es secreto)
 DEFAULT_CLIENT_ID = "Y9SIZKBRGVjMFGJ4"
