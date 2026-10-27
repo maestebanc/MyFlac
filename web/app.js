@@ -1,5 +1,5 @@
 /**
- * MyFlac — Official Landing Page Script (v0.2.5)
+ * MyFlac — Official Landing Page Script (v0.2.6)
  * Multi-language engine (ES, EN, CA), theme handling, interactive gallery, tabs, lightbox, and clipboard copy.
  */
 
@@ -26,7 +26,7 @@ const translations = {
     footer_ai_note: "Código generado íntegramente con IA mediante Antigravity (Google DeepMind).",
     footer_kofi: "☕ ¡Dame argo! (Ko-fi)",
     meta_description: "MyFlac es un reproductor de música audiófilo y gratuito para Linux y GNOME: sonido bit-perfect, streaming oficial de Qobuz Hi-Res, emisión en red UPnP / DLNA, DSD nativo, letras sincronizadas y fichas de Wikipedia y Discogs.",
-    btn_install: "Instalar MyFlac v0.2.5",
+    btn_install: "Instalar MyFlac v0.2.6",
     btn_install_sub: "Flatpak · actualizaciones automáticas",
     btn_other_packages: "RPM · DEB · Arch Linux",
     install_hint: "Se abre en GNOME Software o Discover. También desde la terminal:",
@@ -47,7 +47,7 @@ const translations = {
     nav_kofi: "¡Dame argo!",
 
     // Hero
-    hero_badge: "Versión 0.2.5 • Streaming Oficial Qobuz Hi-Res y Emisión en Red UPnP / DLNA",
+    hero_badge: "Versión 0.2.6 • Streaming Oficial Qobuz Hi-Res y Emisión en Red UPnP / DLNA",
     hero_title: "Tu música local y streaming Hi-Res con máxima fidelidad",
     hero_subtitle: "Un reproductor audiófilo moderno para Linux y GNOME. Sonido bit-perfect directo a tu DAC, catálogo oficial de Qobuz en alta resolución, emisión en red UPnP / DLNA a tus receptores y streamers de audio, letras sincronizadas en tiempo real y fichas de Wikipedia y Discogs.",
     telemetry_upnp: "Streamers de Red",
@@ -144,7 +144,7 @@ const translations = {
     footer_ai_note: "Code generated entirely with AI using Antigravity (Google DeepMind).",
     footer_kofi: "☕ Buy Me a Coffee (Ko-fi)",
     meta_description: "MyFlac is a free audiophile music player for Linux and GNOME: bit-perfect playback, official Qobuz Hi-Res streaming, UPnP / DLNA network streaming, native DSD, synchronized lyrics and Wikipedia & Discogs insights.",
-    btn_install: "Install MyFlac v0.2.5",
+    btn_install: "Install MyFlac v0.2.6",
     btn_install_sub: "Flatpak · automatic updates",
     btn_other_packages: "RPM · DEB · Arch Linux",
     install_hint: "Opens in GNOME Software or Discover. Or from the terminal:",
@@ -165,7 +165,7 @@ const translations = {
     nav_kofi: "Buy Me a Coffee",
 
     // Hero
-    hero_badge: "Version 0.2.5 • Official Qobuz Hi-Res Streaming & UPnP / DLNA Network Streaming",
+    hero_badge: "Version 0.2.6 • Official Qobuz Hi-Res Streaming & UPnP / DLNA Network Streaming",
     hero_title: "Your local music and Hi-Res streaming in pristine fidelity",
     hero_subtitle: "A modern audiophile player for Linux and GNOME. Bit-perfect sound direct to your DAC, official Qobuz studio master streaming catalogue, UPnP / DLNA network streaming to your receivers and network streamers, synchronized lyrics, and Wikipedia & Discogs insights.",
     telemetry_upnp: "Network Streamers",
@@ -262,7 +262,7 @@ const translations = {
     footer_ai_note: "Codi generat íntegrament amb IA mitjançant Antigravity (Google DeepMind).",
     footer_kofi: "☕ Dona'm argo! (Ko-fi)",
     meta_description: "MyFlac és un reproductor de música audiòfil i gratuït per a Linux i GNOME: so bit-perfect, streaming oficial de Qobuz Hi-Res, emissió en xarxa UPnP / DLNA, DSD natiu, lletres sincronitzades i fitxes de Wikipedia i Discogs.",
-    btn_install: "Instal·lar MyFlac v0.2.5",
+    btn_install: "Instal·lar MyFlac v0.2.6",
     btn_install_sub: "Flatpak · actualitzacions automàtiques",
     btn_other_packages: "RPM · DEB · Arch Linux",
     install_hint: "S'obre a GNOME Programari o Discover. També des del terminal:",
@@ -283,7 +283,7 @@ const translations = {
     nav_kofi: "Dona'm argo!",
 
     // Hero
-    hero_badge: "Versió 0.2.5 • Streaming Oficial Qobuz Hi-Res i Emissió en Xarxa UPnP / DLNA",
+    hero_badge: "Versió 0.2.6 • Streaming Oficial Qobuz Hi-Res i Emissió en Xarxa UPnP / DLNA",
     hero_title: "La teva música local i streaming Hi-Res amb la màxima fidelitat",
     hero_subtitle: "Un reproductor audiòfil modern per a Linux i GNOME. So bit-perfect directe al teu DAC, catàleg oficial de Qobuz en alta resolució, emissió en xarxa UPnP / DLNA als teus receptors i streamers de xarxa, lletres sincronitzades en temps real i fitxes de Wikipedia i Discogs.",
     telemetry_upnp: "Streamers de Xarxa",

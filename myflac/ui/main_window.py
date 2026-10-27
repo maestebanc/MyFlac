@@ -190,7 +190,10 @@ class MainWindow(Adw.ApplicationWindow):
 
         # Botón para activar Mini-Reproductor
         self.btn_mini_player = Gtk.Button()
-        self.btn_mini_player.set_icon_name("window-pop-out-symbolic")
+        _display = Gdk.Display.get_default()
+        _theme = Gtk.IconTheme.get_for_display(_display) if _display else None
+        _mini_icon = "window-pop-out-symbolic" if (_theme and _theme.has_icon("window-pop-out-symbolic")) else "window-restore-symbolic"
+        self.btn_mini_player.set_icon_name(_mini_icon)
         self.btn_mini_player.set_tooltip_text(i18n.t("header.mini_player"))
         self.btn_mini_player.connect("clicked", lambda *_: self._open_mini_player())
 

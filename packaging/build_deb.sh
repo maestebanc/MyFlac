@@ -26,7 +26,7 @@ mkdir -p "$WORK/usr/share/icons/hicolor/scalable/apps"
 cp "$REPO_ROOT/data/icons/hicolor/scalable/apps/com.maestebanc.MyFlac.svg" \
    "$WORK/usr/share/icons/hicolor/scalable/apps/"
 mkdir -p "$WORK/usr/share/icons/hicolor/symbolic/apps"
-cp "$REPO_ROOT/data/icons/hicolor/symbolic/apps/com.maestebanc.MyFlac-symbolic.svg" \
+cp "$REPO_ROOT/data/icons/hicolor/symbolic/apps/"*.svg \
    "$WORK/usr/share/icons/hicolor/symbolic/apps/"
 mkdir -p "$WORK/usr/share/icons/hicolor/symbolic/actions"
 cp "$REPO_ROOT/data/icons/hicolor/symbolic/actions/"*.svg \

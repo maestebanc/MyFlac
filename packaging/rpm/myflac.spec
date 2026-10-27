@@ -2,7 +2,7 @@
 %define pysitelib %(python3 -c "import sys; print(f'/usr/lib/python{sys.version_info.major}.{sys.version_info.minor}/site-packages')")
 
 Name:           myflac
-Version:        0.2.5
+Version:        0.2.6
 Release:        1%{?dist}
 Summary:        Bit-perfect Hi-Res audio player for GNOME
 License:        GPL-3.0-or-later
@@ -56,7 +56,7 @@ done
 mkdir -p %{buildroot}/usr/share/icons/hicolor/scalable/apps
 cp %{srcdir}/data/icons/hicolor/scalable/apps/com.maestebanc.MyFlac.svg %{buildroot}/usr/share/icons/hicolor/scalable/apps/
 mkdir -p %{buildroot}/usr/share/icons/hicolor/symbolic/apps
-cp %{srcdir}/data/icons/hicolor/symbolic/apps/com.maestebanc.MyFlac-symbolic.svg %{buildroot}/usr/share/icons/hicolor/symbolic/apps/
+cp %{srcdir}/data/icons/hicolor/symbolic/apps/*.svg %{buildroot}/usr/share/icons/hicolor/symbolic/apps/
 mkdir -p %{buildroot}/usr/share/icons/hicolor/symbolic/actions
 cp %{srcdir}/data/icons/hicolor/symbolic/actions/*.svg %{buildroot}/usr/share/icons/hicolor/symbolic/actions/
 
@@ -67,7 +67,7 @@ cp %{srcdir}/data/icons/hicolor/symbolic/actions/*.svg %{buildroot}/usr/share/ic
 /usr/share/metainfo/com.maestebanc.MyFlac.metainfo.xml
 /usr/share/icons/hicolor/*/apps/com.maestebanc.MyFlac.png
 /usr/share/icons/hicolor/scalable/apps/com.maestebanc.MyFlac.svg
-/usr/share/icons/hicolor/symbolic/apps/com.maestebanc.MyFlac-symbolic.svg
+/usr/share/icons/hicolor/symbolic/apps/*.svg
 /usr/share/icons/hicolor/symbolic/actions/*.svg
 
 %post
@@ -75,6 +75,9 @@ update-desktop-database -q /usr/share/applications &>/dev/null || :
 gtk-update-icon-cache -q /usr/share/icons/hicolor &>/dev/null || :
 
 %changelog
+* Tue Oct 27 2026 Miguel Angel Esteban <maestebanc@gmail.com> - 0.2.6-1
+- Corrección de errores.
+
 * Tue Oct 27 2026 Miguel Angel Esteban <maestebanc@gmail.com> - 0.2.5-1
 - Corrección de errores.
 

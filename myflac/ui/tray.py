@@ -340,7 +340,7 @@ class TrayIcon:
             ID_NEXT: {"label": GLib.Variant("s", i18n.t("tray.next")), "icon-name": GLib.Variant("s", "media-skip-forward-symbolic")},
             ID_SHOW: {"label": GLib.Variant("s", i18n.t("tray.show"))},
             ID_SUPER: {"label": GLib.Variant("s", i18n.t("tray.super_player")), "icon-name": GLib.Variant("s", "view-fullscreen-symbolic")},
-            ID_MINI: {"label": GLib.Variant("s", i18n.t("tray.mini_player")), "icon-name": GLib.Variant("s", "window-pop-out-symbolic")},
+            ID_MINI: {"label": GLib.Variant("s", i18n.t("tray.mini_player")), "icon-name": GLib.Variant("s", "window-pop-out-symbolic" if (Gdk.Display.get_default() and Gtk.IconTheme.get_for_display(Gdk.Display.get_default()).has_icon("window-pop-out-symbolic")) else "window-restore-symbolic")},
             ID_QUIT: {"label": GLib.Variant("s", i18n.t("tray.quit")), "icon-name": GLib.Variant("s", "application-exit-symbolic")},
         }
         cover = self._cover_png(track)

@@ -258,6 +258,8 @@ def apply_theme(theme: str) -> None:
 
 def ensure_desktop_integration() -> None:
     """Instala o sincroniza el archivo .desktop y los iconos en ~/.local/share para integración con GNOME Shell / Wayland."""
+    if os.environ.get("FLATPAK_ID"):
+        return
     try:
         import shutil
         base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -302,6 +304,7 @@ def register_icon_theme() -> None:
     data_icons = os.path.join(base_dir, "data", "icons")
     internal_icons = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "resources", "icons")
     user_icons = os.path.expanduser("~/.local/share/icons")
-    for d in (data_icons, internal_icons, user_icons):
+    app_icons = "/app/share/icons"
+    for d in (data_icons, internal_icons, app_icons, user_icons):
         if os.path.isdir(d):
             icon_theme.add_search_path(d)
