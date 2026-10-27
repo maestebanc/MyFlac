@@ -30,6 +30,10 @@ API_BASE_URL = "https://www.qobuz.com/api.json/0.2"
 CONFIG_PATH = Path(GLib.get_user_config_dir()) / "myflac" / "qobuz.json"
 USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64; rv:130.0) Gecko/20100101 Firefox/130.0"
 
+# Credenciales de aplicación por defecto (pueden ser personalizadas en qobuz.json)
+DEFAULT_APP_ID = "798273057"
+DEFAULT_APP_SECRET = "abb21364945c0583309667d13ca3d93a"
+
 # Formatos de Qobuz: 5 = MP3 320, 6 = FLAC 16/44.1, 7 = FLAC 24 bit hasta 96 kHz,
 # 27 = FLAC 24 bit hasta 192 kHz. Qobuz entrega la mejor calidad disponible hasta la pedida.
 FORMAT_MP3, FORMAT_CD, FORMAT_HIRES_96, FORMAT_HIRES_192 = 5, 6, 7, 27
@@ -189,8 +193,8 @@ class QobuzClient:
 
     def __init__(self, config_path: Path = CONFIG_PATH):
         self.config_path = config_path
-        self.app_id = ""
-        self.app_secret = ""
+        self.app_id = DEFAULT_APP_ID
+        self.app_secret = DEFAULT_APP_SECRET
         self.user_auth_token = ""
         self.user_email = ""
         self.user_display_name = ""
@@ -212,8 +216,8 @@ class QobuzClient:
         try:
             if self.config_path.is_file():
                 data = json.loads(self.config_path.read_text(encoding="utf-8"))
-                self.app_id = str(data.get("app_id", ""))
-                self.app_secret = data.get("app_secret", "")
+                self.app_id = str(data.get("app_id") or DEFAULT_APP_ID)
+                self.app_secret = data.get("app_secret") or DEFAULT_APP_SECRET
                 self.user_auth_token = data.get("user_auth_token", "")
                 self.user_email = data.get("user_email", "")
                 self.user_display_name = data.get("user_display_name", "")
